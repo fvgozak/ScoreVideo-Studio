@@ -58,7 +58,7 @@
     const auroraPreset=auroraPresets[x.auroraPreset] ? x.auroraPreset : (x.auroraPreset==='theme'||x.auroraPreset==='custom'?x.auroraPreset:'polar');
     const auroraDefault=auroraPresets[auroraPreset]||auroraPresets.polar;
     const font=FONT_STACKS[x.font]?x.font:'sans';
-    return {template,cameraMode,fxMode,lightColorMode,velocityScale:x.velocityScale==='relative'?'relative':'absolute',animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,2),
+    return {template,cameraMode,fxMode,lightColorMode,velocityScale:x.velocityScale==='relative'?'relative':'absolute',animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,4),
       title:String(x.title||'').slice(0,120),artist:String(x.artist||'').slice(0,120),
       credit:String(x.credit||'').slice(0,200),showText:x.showText!==false,
       font,titleGap:clamp(Number(x.titleGap??65),0,320),
@@ -239,7 +239,7 @@
         }
         if(x<-70||x>w+70||y<-70||y>h+70)continue;
         const velocity=(follower.effects.velocityReactive===false?78:e.velocity)/127;
-        const power=clamp((.24+.76*velocity**1.25)*strength,0,2);
+        const power=clamp((.24+.76*velocity**1.25)*strength,0,4);
         const decay=Math.exp(-age*(s.fxMode==='trail'?1.9:3.4));
         const solidColor=s.fxMode==='trail'?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
@@ -274,14 +274,14 @@
       ctx.restore();
     }
     drawTrailTip(ctx,x,y,intensity,color){
-      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.34,0,.42);
+      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.34,0,.8);
       ctx.shadowColor=color;ctx.shadowBlur=5;ctx.fillStyle=color;
       ctx.beginPath();ctx.ellipse(x,y,7,2.2,-.12,0,Math.PI*2);ctx.fill();ctx.restore();
     }
     drawBloom(ctx,x,y,intensity,color,size){
       // Keep note light attached to the engraving: a restrained, shallow
       // ellipse without the white-hot center that made notes look like orbs.
-      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.4,0,.46);
+      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.4,0,.9);
       const radius=Math.max(5,size*.68),g=ctx.createRadialGradient(x,y,0,x,y,radius);
       g.addColorStop(0,color+'75');g.addColorStop(.32,color+'48');g.addColorStop(1,color+'00');
       ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,size*.82,Math.max(3,size*.26),-.12,0,Math.PI*2);ctx.fill();ctx.restore();

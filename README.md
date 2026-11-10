@@ -1,4 +1,8 @@
-# ScoreVideo Studio v0.19.11 — Notehead Light
+# ScoreVideo Studio v0.19.12 — Expanded Light Strength
+
+## v0.19.12 빛 효과 강도 400%까지 확장
+
+디자인 탭의 빛 강도 슬라이더를 200%에서 400%까지 확장하고, 렌더러가 확장된 값을 그대로 적용하도록 상한을 함께 조정했습니다.
 
 ## v0.19.11 음표 머리 빛 강조
 
