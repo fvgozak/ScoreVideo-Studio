@@ -1,6 +1,6 @@
-# ScoreVideo Studio v0.18.0 — Draw-on Score & Korean/English UI
+# ScoreVideo Studio v0.18.1 — Draw-on Score & Korean/English UI
 
-## v0.18.0 악보 그리기 애니메이션 · 한국어/English
+## v0.18.1 악보 그리기 애니메이션 · 한국어/English
 
 - 디자인 탭의 `악보 그리기 애니메이션`을 켜면 오선이 시스템별로 펼쳐지고, 음표·기둥·빔·쉼표·rit./a tempo 같은 악보 객체는 재생 커서가 도달할 때 드러납니다. 미리보기와 MP4는 같은 재생 시각 기반 로직을 사용합니다.
 - 오른손·왼손 빛 궤적은 짧은 간격으로 함께 울리는 화음에서 각 손의 가장 높은 음을 따라가며, 안쪽 성부나 낮은 음으로 갑자기 꺾이지 않습니다.
