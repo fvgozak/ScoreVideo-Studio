@@ -279,10 +279,12 @@
       ctx.beginPath();ctx.ellipse(x,y,7,2.2,-.12,0,Math.PI*2);ctx.fill();ctx.restore();
     }
     drawBloom(ctx,x,y,intensity,color,size){
-      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.82,0,.95);
-      const g=ctx.createRadialGradient(x,y,0,x,y,size);
-      g.addColorStop(0,'#ffffff');g.addColorStop(.08,color);g.addColorStop(.35,color+'65');g.addColorStop(1,color+'00');
-      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,size,0,Math.PI*2);ctx.fill();ctx.restore();
+      // Keep note light attached to the engraving: a restrained, shallow
+      // ellipse without the white-hot center that made notes look like orbs.
+      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.4,0,.46);
+      const radius=Math.max(5,size*.68),g=ctx.createRadialGradient(x,y,0,x,y,radius);
+      g.addColorStop(0,color+'75');g.addColorStop(.32,color+'48');g.addColorStop(1,color+'00');
+      ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,size*.82,Math.max(3,size*.26),-.12,0,Math.PI*2);ctx.fill();ctx.restore();
     }
     drawRing(ctx,x,y,age,power,color){
       ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.globalAlpha=clamp(Math.exp(-age*2.5)*power*.65,0,1);

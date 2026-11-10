@@ -1,8 +1,8 @@
-# ScoreVideo Studio v0.19.9 — Light Trail Refinement
+# ScoreVideo Studio v0.19.10 — Natural Note Light
 
-## v0.19.9 Light Trail 원형 번짐 축소
+## v0.19.10 음표 발광 원형 번짐 수정
 
-큰 원형 Bloom을 제거하고, 궤적과 현재 손별 최고음 끝의 가는 빛 하이라이트를 남깁니다.
+공통 Bloom도 음표에 붙는 얕은 타원으로 바꾸고 흰색 중심과 강한 번짐을 줄였습니다. 궤적은 은은한 넓은 빛과 가는 중심선으로 표현하며 현재 손별 최고음 끝에만 작은 하이라이트를 둡니다.
 
 ## v0.19.8 카메라 포인트 클릭 영역 표시 수정
 
