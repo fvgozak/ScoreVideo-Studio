@@ -718,19 +718,25 @@
       return {scale:1+intensity*.31,x:Math.sin(ageOfPeak*Math.PI*10.4)*intensity*11*shakeEnv,y:Math.sin(ageOfPeak*Math.PI*12.8+.8)*intensity*7*shakeEnv};
     }
     cameraPointAt(t){
-      let best=null,amount=0,ageOfPeak=0,focusWeight=0;
+      let total=0,zoomTotal=0,focusX=0,focusY=0,shakeX=0,shakeY=0;
       for(const point of this.cameraPoints){
         const age=t-point.time;if(age<0)continue;
-        const duration=clamp(Number(point.duration)||1.6,.4,5),attack=smooth(age/.28);
-        const env=age<.35?attack:1-smooth((age-.35)/duration);
-        const strength=clamp((Number(point.zoom)||1.3)-1,.05,.6)*env;
-        if(strength>amount){amount=strength;best=point;ageOfPeak=age;focusWeight=env;}
+        // Every note is a camera waypoint, not an independent punch-in.
+        // Long ease/decay windows overlap so dense runs form one calm move.
+        const duration=clamp(Number(point.duration)||1.6,.4,5),attackWindow=.85,attack=smooth(age/attackWindow),hold=attackWindow,release=Math.max(2.2,duration*1.8);
+        const env=age<hold?attack:1-smooth((age-hold)/release);
+        if(env<=.001)continue;
+        total+=env;zoomTotal+=(clamp((Number(point.zoom)||1.25)-1,.04,.55))*env;
+        focusX+=(Number(point.x)||0)*env;focusY+=(Number(point.y)||0)*env;
+        const shake=clamp(Number(point.shake)||0,0,1),shakeEnv=1-smooth(age/1.35),phase=age*Math.PI*2.2;
+        shakeX+=Math.sin(phase)*shake*2.5*shakeEnv*env;shakeY+=Math.sin(phase*1.13+.5)*shake*1.8*shakeEnv*env;
       }
       const follow=ScoreFollower.cameraCursorAt(t,this.positions);
-      if(!best||amount<.001)return {scale:1,x:0,y:0,cursor:follow};
-      const shake=clamp(Number(best.shake)||0,0,1),shakeEnv=ageOfPeak<.08?smooth(ageOfPeak/.035):1-smooth((ageOfPeak-.08)/.42);
-      const phase=ageOfPeak*Math.PI*10.4;
-      return {scale:1+amount,x:Math.sin(phase)*shake*11*shakeEnv,y:Math.sin(phase*1.23+.8)*shake*7*shakeEnv,cursor:follow?{x:lerp(follow.x,best.x,focusWeight),y:lerp(follow.y,best.y,focusWeight)}:{x:best.x,y:best.y},point:best};
+      if(total<=.001)return {scale:1,x:0,y:0,cursor:follow};
+      const focusWeight=clamp(total,0,1),blendX=focusX/total,blendY=focusY/total;
+      const cursor=follow?{x:lerp(follow.x,blendX,focusWeight),y:lerp(follow.y,blendY,focusWeight)}:{x:blendX,y:blendY};
+      const zoom=1+(zoomTotal/total)*focusWeight;
+      return {scale:zoom,x:shakeX/Math.max(1,total),y:shakeY/Math.max(1,total),cursor};
     }
     updateDynamicCamera(t){
       const active=this.cameraMode==='points'||this.cameraMode==='dynamic';
