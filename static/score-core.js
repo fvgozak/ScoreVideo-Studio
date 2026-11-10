@@ -245,21 +245,11 @@
       }
       const systems=[...rows.values()].map(row=>({key:row.key,
         y:row.ys.reduce((a,b)=>a+b,0)/Math.max(1,row.ys.length),
-        first:Math.min(...row.times),last:Math.max(...row.times),lines:[]}));
+        first:Math.min(...row.times),last:Math.max(...row.times),lines:[],items:[]}));
       const svg=this.container.querySelector('svg');
       const viewportWidth=this.viewport.clientWidth||1000;
       const scale=this.viewport.getBoundingClientRect().width/viewportWidth||1;
       const containerBox=this.container.getBoundingClientRect();
-      const offsetLeft=this.container.offsetLeft||0,offsetTop=this.container.offsetTop||0;
-      const cursorBySystem=new Map(systems.map(s=>[s.key,[]]));
-      for(const pos of this.positions){
-        const x=pos.x-offsetLeft,y=pos.y-offsetTop;
-        let nearest=null,distance=Infinity;
-        for(const system of systems){const next=Math.abs(system.y-y);if(next<distance){distance=next;nearest=system;}}
-        if(nearest&&distance<240)cursorBySystem.get(nearest.key)?.push({x,audio:pos.audio});
-      }
-      for(const points of cursorBySystem.values())points.sort((a,b)=>a.audio-b.audio);
-      const cursorBySystemX=new Map([...cursorBySystem].map(([key,points])=>[key,points.slice().sort((a,b)=>a.x-b.x)]));
       if(svg&&systems.length){
         const graphicSelector='path,line,polyline,polygon,rect,circle,ellipse,text,use';
         for(const el of svg.querySelectorAll(graphicSelector)){
@@ -275,28 +265,23 @@
           const isStaffLine=(el.matches('path,line,polyline')&&width>=Math.max(90,viewportWidth*.18)
             &&height<=4&&css.fill==='none'&&css.stroke!=='none');
           if(isStaffLine){
-            nearest.lines.push({el,originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
+            const left=(rect.left-containerBox.left)/scale,right=(rect.right-containerBox.left)/scale;
+            nearest.lines.push({el,left,right,progress:-1,
+              originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
             continue;
           }
-          const points=cursorBySystemX.get(nearest.key)||[];
-          if(!points.length)continue;
-          // Reveal each engraved object when the playback cursor reaches its
-          // right edge. This covers stems, beams, rests, dynamics and text too.
+          // The cursor itself controls visibility. This keeps every symbol in
+          // lockstep and avoids estimating separate timings for beams, rests,
+          // dynamics, tempo text, and other engraved objects.
           const right=(rect.right-containerBox.left)/scale;
-          const byX=points;
-          let lo=0,hi=byX.length;
-          while(lo<hi){const mid=(lo+hi)>>>1;if(byX[mid].x<right-1)lo=mid+1;else hi=mid;}
-          let audio;
-          if(lo===0)audio=byX[0].audio;
-          else if(lo===byX.length)audio=byX.at(-1).audio;
-          else{
-            const a=byX[lo-1],b=byX[lo],span=b.x-a.x;
-            audio=span>1?(a.audio+(b.audio-a.audio)*clamp((right-a.x)/span,0,1)):b.audio;
-          }
-          this.drawItems.push({el,audio,originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
+          nearest.items.push({el,right,revealed:false,
+            originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
         }
       }
-      this.drawItems.sort((a,b)=>a.audio-b.audio);
+      for(const system of systems){
+        system.items.sort((a,b)=>a.right-b.right);
+        this.drawItems.push(...system.items);
+      }
       this.drawSystems=systems;
     }
     setDrawClip(item,progress){
@@ -305,29 +290,40 @@
       item.el.style.webkitClipPath=`inset(0 ${right} 0 0)`;
     }
     activateDrawing(){
-      for(const item of this.drawItems)this.setDrawClip(item,0);
-      for(const system of this.drawSystems)for(const line of system.lines)this.setDrawClip(line,0);
+      for(const item of this.drawItems){this.setDrawClip(item,0);item.revealed=false;}
+      for(const system of this.drawSystems)for(const line of system.lines){this.setDrawClip(line,0);line.progress=-1;}
       this.drawCompleteCount=0;this.drawingActive=true;
       this.updateDrawing(this.lastSeekTime);
     }
     deactivateDrawing(){
-      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalWebkitClipPath;}
-      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;}
+      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalWebkitClipPath;item.revealed=false;}
+      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;line.progress=-1;}
       this.drawCompleteCount=0;this.drawingActive=false;
     }
     updateDrawing(time){
       if(!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
       if(!this.drawingActive)this.activateDrawing();
-      let low=0,high=this.drawItems.length;
-      while(low<high){const mid=(low+high)>>>1;if(this.drawItems[mid].audio<=time)low=mid+1;else high=mid;}
-      const complete=low;
-      if(complete>this.drawCompleteCount){for(let i=this.drawCompleteCount;i<complete;i++)this.setDrawClip(this.drawItems[i],1);}
-      else if(complete<this.drawCompleteCount){for(let i=complete;i<this.drawCompleteCount;i++)this.setDrawClip(this.drawItems[i],0);}
-      this.drawCompleteCount=complete;
+      const cursor=ScoreFollower.cursorAt(time,this.positions,this.effects.cursorMotion);
+      const offsetLeft=this.container.offsetLeft||0;
+      let current=null;
+      for(const system of this.drawSystems){if(time>=system.first-.03&&time<=system.last+.03){current=system;break;}}
+      if(!current){
+        for(const system of this.drawSystems)if(system.first<=time)current=system;
+        if(!current)current=this.drawSystems[0]||null;
+      }
       for(const system of this.drawSystems){
-        const start=system.first-.38,end=Math.max(start+.25,system.last+.20);
-        const progress=time<=start?0:time>=end?1:(time-start)/(end-start);
-        for(const line of system.lines)this.setDrawClip(line,progress);
+        const state=time>=system.last-.001?1:time<system.first-.001?0:(system===current?2:0);
+        let cursorX=NaN;
+        if(system===current&&cursor)cursorX=cursor.x-offsetLeft;
+        for(const item of system.items){
+          const reveal=state===1||(state===2&&Number.isFinite(cursorX)&&item.right<=cursorX+1);
+          if(item.revealed!==reveal){this.setDrawClip(item,reveal?1:0);item.revealed=reveal;}
+        }
+        for(const line of system.lines){
+          let progress=state===1?1:state===0?0:NaN;
+          if(state===2&&Number.isFinite(cursorX))progress=clamp((cursorX-line.left)/Math.max(1,line.right-line.left),0,1);
+          if(Number.isFinite(progress)&&Math.abs(progress-line.progress)>.005){this.setDrawClip(line,progress);line.progress=progress;}
+        }
       }
     }
     colors(){
