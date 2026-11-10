@@ -265,8 +265,7 @@
           const isStaffLine=(el.matches('path,line,polyline')&&width>=Math.max(90,viewportWidth*.18)
             &&height<=4&&css.fill==='none'&&css.stroke!=='none');
           if(isStaffLine){
-            const left=(rect.left-containerBox.left)/scale,right=(rect.right-containerBox.left)/scale;
-            nearest.lines.push({el,left,right,progress:-1,
+            nearest.lines.push({el,
               originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
             continue;
           }
@@ -291,13 +290,13 @@
     }
     activateDrawing(){
       for(const item of this.drawItems){this.setDrawClip(item,0);item.revealed=false;}
-      for(const system of this.drawSystems)for(const line of system.lines){this.setDrawClip(line,0);line.progress=-1;}
+      for(const system of this.drawSystems)for(const line of system.lines)this.setDrawClip(line,1);
       this.drawCompleteCount=0;this.drawingActive=true;
       this.updateDrawing(this.lastSeekTime);
     }
     deactivateDrawing(){
       for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalWebkitClipPath;item.revealed=false;}
-      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;line.progress=-1;}
+      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;}
       this.drawCompleteCount=0;this.drawingActive=false;
     }
     updateDrawing(time){
@@ -318,11 +317,6 @@
         for(const item of system.items){
           const reveal=state===1||(state===2&&Number.isFinite(cursorX)&&item.right<=cursorX+1);
           if(item.revealed!==reveal){this.setDrawClip(item,reveal?1:0);item.revealed=reveal;}
-        }
-        for(const line of system.lines){
-          let progress=state===1?1:state===0?0:NaN;
-          if(state===2&&Number.isFinite(cursorX))progress=clamp((cursorX-line.left)/Math.max(1,line.right-line.left),0,1);
-          if(Number.isFinite(progress)&&Math.abs(progress-line.progress)>.005){this.setDrawClip(line,progress);line.progress=progress;}
         }
       }
     }
