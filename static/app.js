@@ -11,6 +11,26 @@
  const fmt=(s)=>{const t=Math.max(0,Math.floor(Number(s)||0));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
  function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
  const offset=()=>Number($('offset').value), zoom=()=>Number($('zoom').value);
+ function cameraPointStoreKey(){return project?`scorevideo_camera_points_${project.id}`:'';}
+ function readCameraPoints(){try{const raw=JSON.parse(localStorage.getItem(cameraPointStoreKey())||'[]');return Array.isArray(raw)?raw.slice(0,500):[];}catch(_){return[];}}
+ let selectedCameraPoint='',cameraPointPicking=false;
+ function writeCameraPoints(points){if(!project)return;localStorage.setItem(cameraPointStoreKey(),JSON.stringify(points.slice(0,500)));stage?.setCameraPoints(points);renderCameraPointList();saveSettings();}
+ function noteName(pitch){const names=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];return `${names[((pitch%12)+12)%12]}${Math.floor(pitch/12)-1}`;}
+ function renderCameraPointList(){
+   const list=$('cameraPointList');if(!list)return;const points=readCameraPoints();list.replaceChildren();
+   for(const point of points){const button=document.createElement('button');button.type='button';button.className='camera-point-item'+(point.key===selectedCameraPoint?' selected':'');button.textContent=`마디 ${point.measure||'—'} · ${noteName(Number(point.pitch)||60)}`;button.addEventListener('click',()=>{selectedCameraPoint=point.key;syncCameraPointControls();renderCameraPointList();const resolved=stage?.follower?.cameraPoints?.find(p=>p.key===point.key);if(resolved)seekTo(resolved.time);});list.append(button);}
+   $('cameraPointControls').hidden=!points.some(p=>p.key===selectedCameraPoint);
+   $('cameraPointStatus').textContent=cameraPointPicking?'미리보기에서 음표를 클릭하세요. 다시 누르면 선택을 마칩니다.':points.length?`${points.length}개 포인트 · 목록에서 선택해 줌과 지속 시간을 조절하세요.`:'포인트 없음 · Points 모드를 고르고 미리보기 음표를 눌러 추가하세요.';
+   $('cameraPointModeToggle').textContent=cameraPointPicking?'✓ 음표 선택 끝내기':'＋ 프리뷰에서 음표 포인트 찍기';
+   stage?.follower?.setCameraPointPicking(cameraPointPicking);
+ }
+ function syncCameraPointControls(){const p=readCameraPoints().find(x=>x.key===selectedCameraPoint);if(!p)return;for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake']])$(id).value=String(p[key]??({zoom:1.3,duration:1.6,shake:0}[key]));$('cameraPointZoomVal').textContent=`${Math.round(Number(p.zoom||1.3)*100)}%`;$('cameraPointDurationVal').textContent=`${Number(p.duration||1.6).toFixed(1)}초`;$('cameraPointShakeVal').textContent=`${Math.round(Number(p.shake||0)*100)}%`;}
+ window.ScoreCameraPointEditor={active:()=>cameraPointPicking,add(data){const points=readCameraPoints();let point=points.find(p=>p.key===data.key);if(!point){point={key:data.key,measure:data.measure,pitch:data.pitch,beat:data.beat,zoom:1.3,duration:1.6,shake:0};points.push(point);}selectedCameraPoint=point.key;writeCameraPoints(points);if($('cameraMode').value!=='points'){$('cameraMode').value='points';if(stage?.follower)stage.follower.cameraMode='points';queueApply();}syncCameraPointControls();if(Number.isFinite(data.time))seekTo(data.time);}};
+ $('cameraPointModeToggle').addEventListener('click',()=>{cameraPointPicking=!cameraPointPicking;if(cameraPointPicking&&$('cameraMode').value!=='points'){$('cameraMode').value='points';queueApply();}renderCameraPointList();});
+ for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake']])$(id).addEventListener('input',()=>{const points=readCameraPoints(),p=points.find(x=>x.key===selectedCameraPoint);if(!p)return;p[key]=Number($(id).value);writeCameraPoints(points);syncCameraPointControls();});
+ $('cameraPointRemove').addEventListener('click',()=>{const removed=selectedCameraPoint;selectedCameraPoint='';writeCameraPoints(readCameraPoints().filter(p=>p.key!==removed));});
+ $('cameraPointClear').addEventListener('click',()=>{selectedCameraPoint='';writeCameraPoints([]);});
+ $('cameraMode').addEventListener('change',()=>{if($('cameraMode').value!=='points'){cameraPointPicking=false;renderCameraPointList();}});
  function sceneOptions(){return {
    template:$('sceneTemplate').value,cameraMode:$('cameraMode').value,fxMode:$('fxMode').value,fxStrength:Number($('fxStrength').value),lightColorMode:$('lightColorMode').value,velocityScale:$('velocityScale').value,
    trailUpper:$('trailUpperColor').value,trailLower:$('trailLowerColor').value,
@@ -23,7 +43,7 @@
  };}
  function config(){
    const [width,height]=$('resolution').value.split('x').map(Number);
-   return {width,height,fps:Number($('fps').value),render_mode:$('renderMode').value,offset_sec:offset(),zoom:zoom(),
+   return {width,height,fps:Number($('fps').value),render_mode:$('renderMode').value,offset_sec:offset(),zoom:zoom(),camera_points:readCameraPoints(),
       paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
       glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
       texture:$('texture').value,background_opacity:Number($('backgroundOpacity').value),background_fit:$('backgroundFit').value,background_position_x:Number($('backgroundPosX').value),background_position_y:Number($('backgroundPosY').value),
@@ -54,7 +74,7 @@
  function currentVideoPresetSettings(){
    const settings={};
    for(const id of persistent){const node=$(id);settings[id]=node.type==='checkbox'?node.checked:node.value;}
-   settings.offset=$('offset').value;
+   settings.offset=$('offset').value;settings.cameraPoints=readCameraPoints();
    return settings;
  }
  $('videoPresetSelect').addEventListener('change',()=>{
@@ -88,6 +108,7 @@
        if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
      }
      if(preset.settings.offset!==undefined)$('offset').value=String(preset.settings.offset);
+     if(Array.isArray(preset.settings.cameraPoints))writeCameraPoints(preset.settings.cameraPoints);
      if(preset.settings.titleText!==undefined)localStorage.setItem('scorevideo_title_override_'+preset.projectId,preset.settings.titleText);
      updateLabels();queueApply();refreshVideoPresets(preset.id);message('저장한 영상 설정을 불러왔습니다.');
    }catch(e){message('설정을 불러오지 못했습니다: '+e.message,true);}
@@ -117,6 +138,7 @@
    $('transitionTimeVal').textContent=`${$('transitionTime').value}초`;
    $('backgroundTrack').style.background=`linear-gradient(90deg,${$('sceneStartColor').value},${$('sceneEndColor').value})`;
    $('trailOptions').hidden=$('fxMode').value!=='trail';
+   $('cameraPointTools').hidden=$('cameraMode').value!=='points';
  }
  function resizePreview(){
    const [w,h]=$('resolution').value.split('x').map(Number);
@@ -408,7 +430,7 @@
  }
  async function loadProject(meta){
    stage=null;revision++;await applySerial.catch(()=>{});
-   project=meta;refreshVideoPresets($('videoPresetSelect').value);audio.pause();$('projectTitle').textContent=meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   project=meta;selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();$('projectTitle').textContent=meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
    const titleOverride=localStorage.getItem('scorevideo_title_override_'+meta.id);
    $('titleText').value=titleOverride!==null?titleOverride:meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
    const a=meta.score_alignment;
@@ -432,7 +454,7 @@
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:config()});
-   await stage.load();stage.seek(0);window.ScoreVisualEditor?.sync();syncInfo();
+   await stage.load();stage.seek(0);renderCameraPointList();window.ScoreVisualEditor?.sync();syncInfo();
    $('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
    if(meta.score_alignment?.status==='needs-review'){
      message(`악보/MIDI 음표 매칭 ${Math.round(meta.score_alignment.coverage*100)}% — 일치하지 않는 음표가 있어 영상 싱크를 확인해 주세요.`,true);

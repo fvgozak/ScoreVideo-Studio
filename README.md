@@ -1,8 +1,8 @@
-# ScoreVideo Studio v0.19.2 — Follow + Impact Camera
+# ScoreVideo Studio v0.19.3 — Note-anchored Camera Points
 
-## v0.19.2 Follow + Impact 카메라
+## v0.19.3 음표 포인트 카메라
 
-- 기존 Follow와 Cinematic 카메라는 그대로 두고 별도 Follow + Impact 모드를 추가했습니다. 평소에는 매끄럽게 악보를 따라가며, 강한 MIDI 타격이나 큰 화음에서만 악보 표시 영역 안에서 확대·흔들립니다. 미리보기와 MP4는 동일한 재생 시간 기반 카메라를 사용합니다.
+- 기존 Follow, Cinematic, Follow + Impact 카메라를 유지하고, 미리보기에서 음표를 선택해 수동 줌 포인트를 두는 Points 모드를 추가했습니다. 포인트별 줌 배율·지속 시간·흔들림을 조절할 수 있으며, 프로젝트와 영상 프리셋에 저장되고 MP4에도 동일하게 적용됩니다.
 
 ## v0.18.5 마지막 음표 그리기 표시 보정
 

@@ -77,6 +77,7 @@ class RenderRequest(BaseModel):
     score_margin_bottom: float = Field(default=9.0, ge=0, le=45)
     score_panel_color: str = Field(default="#0c1120", pattern=r"^#[0-9a-fA-F]{6}$")
     score_panel_opacity: float = Field(default=0.0, ge=0, le=1)
+    camera_points: list[dict] = Field(default_factory=list, max_length=500)
     # Shared scene graph; validated in both client/renderer by ScoreStudio.normalize.
     scene: dict = Field(default_factory=dict)
 

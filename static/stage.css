@@ -55,3 +55,19 @@
 .video-stage .score-camera-space{position:relative;min-width:100%;min-height:100%;}
 .video-stage .score-camera-spacer{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;}
 .video-stage .score-camera-space>#osmdContainer{position:relative;z-index:1;transform-origin:0 0;}
+
+/* Manual camera point editor: noteheads become clear click targets only while picking. */
+.camera-point-tools{display:grid;gap:8px;margin:8px 0 14px;padding:10px;background:#101a27;border:1px solid #2a3b4e;border-radius:8px}
+.camera-point-tools>small{font-size:11px;color:#9eafc2;line-height:1.45}
+.camera-point-list{display:flex;flex-wrap:wrap;gap:6px}
+.camera-point-list:empty{display:none}
+.camera-point-item{border:1px solid #384c60;border-radius:6px;background:#192635;color:#d6e4f0;padding:5px 8px;font-size:11px;cursor:pointer}
+.camera-point-item.selected{border-color:#64d9e8;background:#173946;color:#e4fcff}
+.camera-point-controls{display:grid;gap:9px;padding-top:7px;border-top:1px solid #2a3b4e}
+.camera-point-controls[hidden]{display:none}
+.camera-point-controls label{display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:11px;color:#b8c8d8}
+.camera-point-controls input{grid-column:1/-1;width:100%}
+.camera-point-selectable{cursor:crosshair!important;filter:drop-shadow(0 0 2px rgba(86,224,255,.72))}
+.camera-point-selectable:hover{filter:drop-shadow(0 0 5px rgba(86,224,255,1));opacity:.9}
+
+.camera-point-tools[hidden]{display:none!important}

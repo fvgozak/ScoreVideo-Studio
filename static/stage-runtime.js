@@ -32,6 +32,10 @@
        marginTopPercent:clamp(number(s.score_margin_top,12),0,45),
        marginBottomPercent:clamp(number(s.score_margin_bottom,9),0,45),
        panelColor:hex(s.score_panel_color,'#0c1120'),panelOpacity:clamp(number(s.score_panel_opacity,0),0,1)},
+     cameraPoints:(Array.isArray(s.camera_points)?s.camera_points:[]).slice(0,500).map(p=>({
+       key:String(p?.key||'').slice(0,80),zoom:clamp(number(p?.zoom,1.3),1.05,1.6),
+       duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1)
+     })).filter(p=>p.key),
      effects:effect,scene:root.ScoreStudio.normalize(s.scene||{}),
    };
  }
@@ -111,7 +115,7 @@
      this.viewport.style.setProperty('--stage-credit-size',Math.round(s.width*.013)+'px');
      this.follower=new root.ScoreFollower({container:this.container,viewport:this.scoreScroll,
        tempoMap:this.meta.tempo_map,noteEvents:this.meta.note_events,scoreAlignment:this.meta.score_alignment,tieContinuations:this.meta.tie_continuations,
-       sync:this.meta.sync,offsetSec:s.offsetSec,zoom:s.zoom,
+       sync:this.meta.sync,offsetSec:s.offsetSec,zoom:s.zoom,cameraPoints:s.cameraPoints,
        stageRoot:this.viewport,
        effects:{...s.effects,lightColorMode:s.scene.lightColorMode,
          auroraLow:s.scene.auroraLow,auroraHigh:s.scene.auroraHigh,velocityScale:s.scene.velocityScale,
@@ -146,6 +150,7 @@
      this.follower.setEffects({...next.effects,lightColorMode:next.scene.lightColorMode,
        auroraLow:next.scene.auroraLow,auroraHigh:next.scene.auroraHigh,velocityScale:next.scene.velocityScale});
      this.follower.setOffset(next.offsetSec);
+     if(JSON.stringify(prev.cameraPoints)!==JSON.stringify(next.cameraPoints))this.follower.setCameraPoints(next.cameraPoints);
      this.follower.cameraMode=next.scene.cameraMode;
      this.layer?.setScene(next.scene);this.seek(this.time);
      return Promise.resolve();
@@ -158,6 +163,7 @@
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}
    setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.seek(this.time);}}
+   setCameraPoints(points){this.settings.cameraPoints=Array.isArray(points)?points:[];this.follower?.setCameraPoints(this.settings.cameraPoints);this.seek(this.time);}
  }
  root.ScoreStage={normalized,Stage};
 })(typeof window==='undefined'?globalThis:window);

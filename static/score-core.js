@@ -7,13 +7,13 @@
   function smooth(t) { t=clamp(t,0,1); return t*t*(3-2*t); }
 
   class ScoreFollower {
-    constructor({container,viewport,stageRoot=null,tempoMap,noteEvents=[],scoreAlignment=null,tieContinuations=[],sync=null,offsetSec=0,zoom=.9,effects={},scrollMode='vertical'}) {
+    constructor({container,viewport,stageRoot=null,tempoMap,noteEvents=[],scoreAlignment=null,tieContinuations=[],cameraPoints=[],sync=null,offsetSec=0,zoom=.9,effects={},scrollMode='vertical'}) {
       this.container=container;
       this.viewport=viewport;
       this.stageRoot=stageRoot||viewport;
       this.cameraSpace=container.parentElement;
       this.cameraSpacer=this.cameraSpace?.querySelector('.score-camera-spacer');
-      this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;
+      this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;this.cameraPointsRaw=Array.isArray(cameraPoints)?cameraPoints:[];this.cameraPoints=[];
       this.tempoMap=tempoMap;
       this.scoreAlignment=scoreAlignment;
       this.scoreAnchors=Array.isArray(scoreAlignment?.anchors)?scoreAlignment.anchors:[];
@@ -237,6 +237,8 @@
       this.measureStarts.forEach(m=>m.audio=this.midiToAudio(m.midi));
       ScoreFollower.assignHands(this.noteTriggers);
       this.prepareCameraAccents();
+      this.resolveCameraPoints();
+      this.bindCameraPointTargets();
     }
     prepareDrawing(){
       this.drawItems=[];
@@ -473,6 +475,7 @@
       }
       const usedMidiEvents=new Set();
       const seenGraphical=new Set();
+      const scoreKeyCounts=new Map();
       const systemIds=new Map(); // stable IDs for OSMD graphical MusicSystem objects
 
       this._initialContainerBox=null;
@@ -509,6 +512,9 @@
             const ht=Number(gn?.sourceNote?.halfTone);
             // MusicXML halfTone is semitones above C-1 in OSMD (+12 maps to MIDI).
             const pitch=Number.isFinite(ht)?Math.round(ht+12):null;
+            const scoreBase=`${(val*4).toFixed(6)}:${pitch}`;
+            const scoreOccurrence=scoreKeyCounts.get(scoreBase)||0;scoreKeyCounts.set(scoreBase,scoreOccurrence+1);
+            const scoreKey=`${scoreBase}:${scoreOccurrence}`;
             // Use the exact score-to-MIDI pitch mapping. Nearest-in-time
             // lookup is wrong after a fermata or a substantially delayed note.
             const key=`${(val*4).toFixed(6)}:${pitch}`;
@@ -563,7 +569,7 @@
                 const midiEnd=Number(attack.end_second);
                 this.noteTriggers.push({el:node,midi:midiOn,
                     midiEnd:Number.isFinite(midiEnd)&&midiEnd>=midiOn?midiEnd:null,
-                    velocity:attack.velocity,pitch,beat:val*4,audio:0,localY,noteX,noteY,
+                    velocity:attack.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,localY,noteX,noteY,
                     staffId:Number.isFinite(staffId)?staffId:null,instrumentRef,handHint,
                     systemKey:systemIds.get(systemToken)});
               }else if(origin){
@@ -572,7 +578,7 @@
                 // A written tied note is a held continuation, never a fresh note-on.
                 this.tieContinuations.push({el:node,midi:begin,
                     midiEnd:Number.isFinite(end)?Math.max(begin+.05,end):begin+.65,
-                    velocity:origin.velocity,pitch,beat:val*4,audio:0,endAudio:0,noteX,noteY});
+                    velocity:origin.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,endAudio:0,noteX,noteY});
               }
             }
           }
@@ -647,32 +653,50 @@
       const p=smooth((t-a.audio)/(b.audio-a.audio));
       return {x:lerp(a.x,b.x,p),y:lerp(a.y,b.y,p)};
     }
+    resolveCameraPoints(){
+      const byKey=new Map();
+      for(const note of [...this.noteTriggers,...this.tieContinuations])if(note.scoreKey)byKey.set(note.scoreKey,note);
+      this.cameraPoints=this.cameraPointsRaw.map(point=>{
+        const note=byKey.get(point.key);if(!note)return null;
+        return Number.isFinite(note.noteX)&&Number.isFinite(note.noteY)?{...point,time:note.audio,x:note.noteX,y:note.noteY,beat:note.beat,pitch:note.pitch,measure:note.measure}:null;
+      }).filter(Boolean).sort((a,b)=>a.time-b.time);
+    }
+    bindCameraPointTargets(){
+      const editor=()=>window.ScoreCameraPointEditor;
+      for(const note of [...this.noteTriggers,...this.tieContinuations]){
+        if(!note.el||!note.scoreKey||note._cameraPointBound)continue;
+        note._cameraPointBound=true;
+        note.el.addEventListener('click',event=>{
+          const tool=editor();if(!tool?.active?.())return;
+          event.preventDefault();event.stopPropagation();
+          tool.add({key:note.scoreKey,time:note.audio,beat:note.beat,pitch:note.pitch,measure:note.measure});
+        });
+        note.el.classList.toggle('camera-point-selectable',Boolean(editor()?.active?.()));
+      }
+    }
+    setCameraPointPicking(active){
+      for(const note of [...this.noteTriggers,...this.tieContinuations])note.el?.classList.toggle('camera-point-selectable',Boolean(active));
+    }
+    setCameraPoints(points){
+      this.cameraPointsRaw=Array.isArray(points)?points:[];this.resolveCameraPoints();
+    }
     prepareCameraAccents(){
       const groups=[];
       for(const note of this.noteTriggers){
         if(!Number.isFinite(note.audio))continue;
         const last=groups.at(-1);
-        if(last&&note.audio-last.time<=.075&&note.systemKey===last.systemKey){
-          last.velocity=Math.max(last.velocity,Number(note.velocity)||0);last.count++;
-        }else groups.push({time:note.audio,systemKey:note.systemKey,velocity:Number(note.velocity)||0,count:1});
+        if(last&&note.audio-last.time<=.075&&note.systemKey===last.systemKey){last.velocity=Math.max(last.velocity,Number(note.velocity)||0);last.count++;}
+        else groups.push({time:note.audio,systemKey:note.systemKey,velocity:Number(note.velocity)||0,count:1});
       }
       if(!groups.length){this.cameraAccents=[];return;}
-      const velocities=groups.map(g=>g.velocity).sort((a,b)=>a-b);
-      const percentile=velocities[Math.min(velocities.length-1,Math.floor(velocities.length*.86))]||80;
-      const median=velocities[Math.floor(velocities.length*.5)]||80;
+      const velocities=groups.map(g=>g.velocity).sort((a,b)=>a-b),percentile=velocities[Math.min(velocities.length-1,Math.floor(velocities.length*.86))]||80,median=velocities[Math.floor(velocities.length*.5)]||80;
       const threshold=Math.max(78,percentile),hasVelocityContrast=percentile-median>=6,accents=[];
       for(let i=0;i<groups.length;i++){
-        const group=groups[i],prior=groups.slice(Math.max(0,i-8),i).map(g=>g.velocity).sort((a,b)=>a-b);
-        const baseline=prior.length?prior[Math.floor(prior.length/2)]:threshold,jump=group.velocity-baseline;
-        const loudPeak=hasVelocityContrast&&group.velocity>=threshold;
-        const suddenJump=group.velocity>=74&&jump>=24;
+        const group=groups[i],prior=groups.slice(Math.max(0,i-8),i).map(g=>g.velocity).sort((a,b)=>a-b),baseline=prior.length?prior[Math.floor(prior.length/2)]:threshold,jump=group.velocity-baseline;
+        const loudPeak=hasVelocityContrast&&group.velocity>=threshold,suddenJump=group.velocity>=74&&jump>=24;
         if(!loudPeak&&!suddenJump&&group.count<5)continue;
-        const previous=accents.at(-1);
-        const intensity=clamp(Math.max(loudPeak?(group.velocity-threshold+16)/42:0,(jump-10)/36,group.count>=5?.72:.4),.4,1);
-        if(previous&&group.time-previous.time<1.15){
-          if(intensity>previous.intensity+.12){previous.time=group.time;previous.velocity=group.velocity;previous.intensity=intensity;}
-          continue;
-        }
+        const previous=accents.at(-1),intensity=clamp(Math.max(loudPeak?(group.velocity-threshold+16)/42:0,(jump-10)/36,group.count>=5?.72:.4),.4,1);
+        if(previous&&group.time-previous.time<1.15){if(intensity>previous.intensity+.12){previous.time=group.time;previous.velocity=group.velocity;previous.intensity=intensity;}continue;}
         accents.push({time:group.time,velocity:group.velocity,intensity});
       }
       this.cameraAccents=accents;
@@ -681,20 +705,30 @@
       const events=this.cameraAccents||[];let lo=0,hi=events.length;
       while(lo<hi){const mid=(lo+hi)>>>1;if(events[mid].time<=t)lo=mid+1;else hi=mid;}
       let intensity=0,ageOfPeak=0;
-      for(let i=lo-1;i>=0&&t-events[i].time<1.45;i--){
-        const age=t-events[i].time,attack=smooth(age/.18),env=age<.3?attack:1-smooth((age-.3)/1.25),amount=env*events[i].intensity;
-        if(amount>intensity){intensity=amount;ageOfPeak=age;}
-      }
+      for(let i=lo-1;i>=0&&t-events[i].time<1.45;i--){const age=t-events[i].time,attack=smooth(age/.18),env=age<.3?attack:1-smooth((age-.3)/1.25),amount=env*events[i].intensity;if(amount>intensity){intensity=amount;ageOfPeak=age;}}
       if(intensity<=.001)return {scale:1,x:0,y:0};
       const attack=smooth(ageOfPeak/.035),shakeEnv=ageOfPeak<.08?attack:1-smooth((ageOfPeak-.08)/.42);
+      return {scale:1+intensity*.31,x:Math.sin(ageOfPeak*Math.PI*10.4)*intensity*11*shakeEnv,y:Math.sin(ageOfPeak*Math.PI*12.8+.8)*intensity*7*shakeEnv};
+    }
+    cameraPointAt(t){
+      let best=null,amount=0,ageOfPeak=0,focusWeight=0;
+      for(const point of this.cameraPoints){
+        const age=t-point.time;if(age<0)continue;
+        const duration=clamp(Number(point.duration)||1.6,.4,5),attack=smooth(age/.28);
+        const env=age<.35?attack:1-smooth((age-.35)/duration);
+        const strength=clamp((Number(point.zoom)||1.3)-1,.05,.6)*env;
+        if(strength>amount){amount=strength;best=point;ageOfPeak=age;focusWeight=env;}
+      }
+      const follow=ScoreFollower.cameraCursorAt(t,this.positions);
+      if(!best||amount<.001)return {scale:1,x:0,y:0,cursor:follow};
+      const shake=clamp(Number(best.shake)||0,0,1),shakeEnv=ageOfPeak<.08?smooth(ageOfPeak/.035):1-smooth((ageOfPeak-.08)/.42);
       const phase=ageOfPeak*Math.PI*10.4;
-      return {scale:1+intensity*.31,
-        x:Math.sin(phase)*intensity*11*shakeEnv,y:Math.sin(phase*1.23+.8)*intensity*7*shakeEnv};
+      return {scale:1+amount,x:Math.sin(phase)*shake*11*shakeEnv,y:Math.sin(phase*1.23+.8)*shake*7*shakeEnv,cursor:follow?{x:lerp(follow.x,best.x,focusWeight),y:lerp(follow.y,best.y,focusWeight)}:{x:best.x,y:best.y},point:best};
     }
     updateDynamicCamera(t){
-      const active=this.cameraMode==='dynamic';
-      const pulse=active?this.cameraPulseAt(t):{scale:1,x:0,y:0};
-      const cursor=ScoreFollower.cameraCursorAt(t,this.positions)||{x:this.container.offsetLeft||0,y:this.container.offsetTop||0};
+      const active=this.cameraMode==='points'||this.cameraMode==='dynamic';
+      const pulse=this.cameraMode==='points'?this.cameraPointAt(t):this.cameraMode==='dynamic'?this.cameraPulseAt(t):{scale:1,x:0,y:0};
+      const cursor=pulse.cursor||ScoreFollower.cameraCursorAt(t,this.positions)||{x:this.container.offsetLeft||0,y:this.container.offsetTop||0};
       const scale=pulse.scale;this.cameraScale=scale;this.cameraPivotX=cursor.x;this.cameraPivotY=cursor.y;
       if(this.container){
         const ox=this.container.offsetLeft||0,oy=this.container.offsetTop||0;
@@ -715,7 +749,7 @@
     scrollAt(t){
       const {pulse,cursor,scale}=this.updateDynamicCamera(t);
       if(this.cameraMode==='fixed')return;
-      const dynamic=this.cameraMode==='dynamic';
+      const dynamic=this.cameraMode==='points'||this.cameraMode==='dynamic';
       const maxX=Math.max(0,(this.cameraBaseWidth||this.viewport.scrollWidth)*scale-this.viewport.clientWidth+(dynamic&&(scale>1.001||Math.abs(pulse.x)>.1)?28:0));
       const maxY=Math.max(0,(this.cameraBaseHeight||this.viewport.scrollHeight)*scale-this.viewport.clientHeight+(dynamic&&(scale>1.001||Math.abs(pulse.y)>.1)?20:0));
       const pivotX=this.cameraPivotX??(this.container.offsetLeft||0),pivotY=this.cameraPivotY??(this.container.offsetTop||0);
