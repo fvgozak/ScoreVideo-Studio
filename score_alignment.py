@@ -156,11 +156,18 @@ def extract_score_attacks(path: Path) -> list[dict]:
 
 
 def _midi_groups(events: list[dict]) -> list[dict]:
-    # Group only truly simultaneous attacks; rolled chords must preserve
-    # their individual note-on seconds for the animation stage.
+    # Anchor matching needs to recognize lightly rolled chords as one score
+    # onset. Keep the original event list untouched below so note animation
+    # still uses every individual note-on timestamp and velocity.
+    roll_window_sec = 0.05
     groups = []
     for e in sorted(events, key=lambda n: (n['second'], n['pitch'])):
-        if not groups or e['second'] - groups[-1]['second'] > 0.0015:
+        group = groups[-1] if groups else None
+        same_pitch_retrigger = group and any(
+            old['pitch'] == e['pitch'] and e['second'] - old['second'] > 0.0015
+            for old in group['events'])
+        if (not group or e['second'] - group['second'] > roll_window_sec
+                or same_pitch_retrigger):
             groups.append({'second': float(e['second']), 'pitches': [], 'events': []})
         groups[-1]['pitches'].append(int(e['pitch']))
         groups[-1]['events'].append(e)
