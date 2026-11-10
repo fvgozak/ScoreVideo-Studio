@@ -529,13 +529,25 @@
               const instrumentRef=staff?.ParentInstrument||null;
               const systemRef=gm?.ParentMusicSystem||gm?.ParentStaffLine?.parentSystem||null;
               const nr=node.getBoundingClientRect?.();
+              let noteHeadNodes=[];
+              try{noteHeadNodes=gn?.getNoteheadSVGs?.()||[];}catch(_){ /* use SVG markup fallback below */ }
+              if(!noteHeadNodes.length){
+                try{noteHeadNodes=[...node.querySelectorAll('.vf-notehead,[class*="notehead"]')];}catch(_){ /* old OSMD SVG */ }
+              }
+              let noteHeadRect=null;
+              for(const head of noteHeadNodes){
+                try{const r=head.getBoundingClientRect();if(r.width||r.height){noteHeadRect=r;break;}}catch(_){ /* skip detached SVG nodes */ }
+              }
+              const anchorRect=noteHeadRect||nr;
               const scale=viewportRect.width/this.viewport.clientWidth||1;
-              const localY=nr&&Number.isFinite(nr.top)?this.viewport.scrollTop+(nr.top-viewportRect.top)/scale+nr.height*.5/scale:null;
-              // Store notehead geometry only once per OSMD layout. Every export
+              const localY=anchorRect&&Number.isFinite(anchorRect.top)?this.viewport.scrollTop+(anchorRect.top-viewportRect.top)/scale+anchorRect.height*.5/scale:null;
+              // Anchor lights to OSMD's actual notehead glyph, not the full
+              // note group whose bounds also include stems, flags, and beams.
+              // Store this geometry once per layout; every export
               // frame can then reuse it without N layout reads per active note.
               const containerBox=this._initialContainerBox||(this._initialContainerBox=this.container.getBoundingClientRect());
-              const noteX=nr&&(nr.width||nr.height)?(nr.left+nr.width*.5-containerBox.left)/scale:null;
-              const noteY=nr&&(nr.width||nr.height)?(nr.top+nr.height*.5-containerBox.top)/scale:null;
+              const noteX=anchorRect&&(anchorRect.width||anchorRect.height)?(anchorRect.left+anchorRect.width*.5-containerBox.left)/scale:null;
+              const noteY=anchorRect&&(anchorRect.width||anchorRect.height)?(anchorRect.top+anchorRect.height*.5-containerBox.top)/scale:null;
               const systemFallback=Number.isFinite(localY)?`y:${Math.round(localY/220)}`:'unknown';
               const systemToken=systemRef||systemFallback;
               if(!systemIds.has(systemToken))systemIds.set(systemToken,systemIds.size);
