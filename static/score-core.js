@@ -222,7 +222,10 @@
       this.audioTimestamps=this.timestamps.map(t=>this.midiToAudio(t));
       this.lines.forEach(l=>l.audio=this.midiToAudio(l.midi));
       this.positions.forEach(p=>p.audio=this.midiToAudio(p.midi));
-      this.noteTriggers.forEach(n=>n.audio=this.midiToAudio(n.midi));
+      this.noteTriggers.forEach(n=>{
+        n.audio=this.midiToAudio(n.midi);
+        n.endAudio=this.midiToAudio(Number.isFinite(n.midiEnd)?n.midiEnd:n.midi+.12);
+      });
       this.tieContinuations.forEach(n=>{n.audio=this.midiToAudio(n.midi);n.endAudio=this.midiToAudio(n.midiEnd);});
       this.tieContinuations.sort((a,b)=>a.audio-b.audio);
       this.longestTie=Math.max(0,...this.tieContinuations.slice(0,10000).map(n=>n.endAudio-n.audio));
@@ -537,7 +540,10 @@
               const systemToken=systemRef||systemFallback;
               if(!systemIds.has(systemToken))systemIds.set(systemToken,systemIds.size);
               if(attack){
-                this.noteTriggers.push({el:node,midi:Number.isFinite(attack.second)?attack.second:this.beatToSeconds(attack.beat),
+                const midiOn=Number.isFinite(attack.second)?attack.second:this.beatToSeconds(attack.beat);
+                const midiEnd=Number(attack.end_second);
+                this.noteTriggers.push({el:node,midi:midiOn,
+                    midiEnd:Number.isFinite(midiEnd)&&midiEnd>=midiOn?midiEnd:null,
                     velocity:attack.velocity,pitch,beat:val*4,audio:0,localY,noteX,noteY,
                     staffId:Number.isFinite(staffId)?staffId:null,instrumentRef,handHint,
                     systemKey:systemIds.get(systemToken)});

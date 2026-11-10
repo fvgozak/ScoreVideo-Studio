@@ -94,20 +94,34 @@
       const notes=events.filter(e=>e.hand===hand&&Number.isFinite(e.audio)&&e.audio<=now+.015&&e.audio>=now-recentWindow)
         .sort((a,b)=>a.audio-b.audio||a.index-b.index);
       if(!notes.length)continue;
-      // A chord can arrive as several note-ons a few milliseconds apart.
-      // Keep its highest pitch as the hand's melodic trail anchor so dense
-      // voicings do not make the light jump down through inner/bass notes.
+      // Score alignment gives simultaneous chord tones the same written beat,
+      // even when the MIDI rolls their attacks. Keep only the top voice for
+      // each chord anchor, then pin the trail to the highest note still held.
       const anchors=[];
       for(let i=0;i<notes.length;){
         const first=notes[i],group=[first];let j=i+1;
-        while(j<notes.length&&notes[j].systemKey===first.systemKey&&notes[j].audio-first.audio<=.06){group.push(notes[j]);j++;}
+        while(j<notes.length&&notes[j].systemKey===first.systemKey&&(
+          Number.isFinite(first.beat)&&Number.isFinite(notes[j].beat)
+            ?Math.abs(notes[j].beat-first.beat)<1e-5&&notes[j].audio-first.audio<=.6
+            :notes[j].audio-first.audio<=.06)){group.push(notes[j]);j++;}
         const pitched=group.filter(e=>Number.isFinite(e.pitch));
         anchors.push(pitched.length?pitched.reduce((top,e)=>e.pitch>top.pitch?e:top):group[group.length-1]);
         i=j;
       }
       // Only the newest system for this hand is allowed to emit a trail.
       const system=anchors[anchors.length-1].systemKey;
-      const same=anchors.filter(e=>e.systemKey===system);
+      let same=anchors.filter(e=>e.systemKey===system);
+      const sounding=notes.filter(e=>e.systemKey===system&&Number.isFinite(e.pitch)
+        &&Number.isFinite(e.endAudio)&&e.audio<=now+.015&&e.endAudio>now);
+      if(sounding.length){
+        const top=sounding.reduce((best,e)=>e.pitch>best.pitch?e:best);
+        // While a high chord tone sustains, lower inner voices must not pull
+        // the current light anchor downward as their attacks arrive.
+        same=same.filter(e=>e.audio<=top.audio+.015&&e.pitch>=top.pitch);
+        const endpoint={...top,audio:now};
+        if(same.length&&same[same.length-1].index===top.index)same[same.length-1]=endpoint;
+        else same.push(endpoint);
+      }
       let path=[same[0]];
       for(let i=1;i<same.length;i++){
         const a=same[i-1],b=same[i];
@@ -225,10 +239,10 @@
         const decay=Math.exp(-age*(s.fxMode==='trail'?1.9:3.4));
         const solidColor=s.fxMode==='trail'?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
-        visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,pitch:e.pitch,color:lightColor});
+        visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
         if(s.fxMode!=='trail')this.drawBloom(ctx,x,y,decay*power,lightColor,14+power*23);
         if(s.fxMode==='resonance')this.drawRing(ctx,x,y,age,power,lightColor);
-        if(s.fxMode==='glitter'||s.fxMode==='trail')this.drawGlitter(ctx,x,y,age,power,lightColor,i);
+        if(s.fxMode==='glitter')this.drawGlitter(ctx,x,y,age,power,lightColor,i);
       }
       // A tie continuation is not a new attack: inherit its preceding note's
       // velocity color with gentle sustained illumination only (no particles).
@@ -245,7 +259,11 @@
         const colorGradient=s.lightColorMode==='aurora';
         drawTrailChain(ctx,trails.upper,s.trailUpper,colorGradient);
         drawTrailChain(ctx,trails.lower,s.trailLower,colorGradient);
-        for(const e of visible)this.drawBloom(ctx,e.x,e.y,e.decay*e.power*.7,e.color,14+e.power*17);
+        const anchors=[...trails.upper,...trails.lower];
+        for(const e of anchors){
+          this.drawGlitter(ctx,e.x,e.y,e.age,e.power,e.color,e.index);
+          this.drawBloom(ctx,e.x,e.y,e.decay*e.power*.7,e.color,14+e.power*17);
+        }
       }
       ctx.restore();
     }
