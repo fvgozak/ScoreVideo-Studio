@@ -1,8 +1,8 @@
-# ScoreVideo Studio v0.19.6 — Note-anchored Camera Points
+# ScoreVideo Studio v0.19.7 — Note-anchored Camera Points
 
-## v0.19.6 줌 타이밍 조절
+## v0.19.7 포인트 구간 카메라 경로
 
-- 여러 음표 포인트를 독립적인 줌 펀치로 재생하지 않고 부드러운 카메라 경로로 합칩니다. 긴 이징과 겹치는 감쇠로 급격한 팬·줌 전환을 줄였습니다. 포인트별로 음표 타건보다 최대 2초 먼저 또는 1.5초 뒤에 줌을 시작하도록 설정할 수 있습니다. 기존 Follow, Cinematic, Follow + Impact는 유지합니다.
+- 가까운 음표 포인트를 하나의 카메라 샷으로 묶고, 음표 포커스와 줌을 단조 Hermite 경로로 연결합니다. 샷마다 시작 시점·도착·유지·Follow 복귀 구간을 두어 포인트별 급격한 재줌을 줄입니다. 포인트별 시작 시점 조절과 기존 Follow, Cinematic, Follow + Impact 모드는 유지합니다.
 
 ## v0.18.5 마지막 음표 그리기 표시 보정
 

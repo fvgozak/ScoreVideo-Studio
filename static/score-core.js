@@ -5,6 +5,35 @@
   const hex = (s, fallback) => /^#[0-9a-f]{6}$/i.test(s || '') ? s : fallback;
   function lerp(a,b,t) { return a + (b-a)*t; }
   function smooth(t) { t=clamp(t,0,1); return t*t*(3-2*t); }
+  function cameraPathSlopes(path,key){
+    const n=path.length,slopes=Array(n).fill(0);if(n<2)return slopes;
+    const h=[],d=[];
+    for(let i=0;i<n-1;i++){h[i]=Math.max(.001,path[i+1].time-path[i].time);d[i]=(path[i+1][key]-path[i][key])/h[i];}
+    slopes[0]=d[0];slopes[n-1]=d[n-2];
+    for(let i=1;i<n-1;i++){
+      if(d[i-1]*d[i]<=0){slopes[i]=0;continue;}
+      const w1=2*h[i]+h[i-1],w2=h[i]+2*h[i-1];
+      slopes[i]=(w1+w2)/(w1/d[i-1]+w2/d[i]);
+    }
+    return slopes;
+  }
+  function prepareCameraPath(path){
+    for(const [key,slope] of [['x','vx'],['y','vy'],['zoom','vz']]){
+      const values=cameraPathSlopes(path,key);path.forEach((point,i)=>point[slope]=values[i]);
+    }
+    return path;
+  }
+  function sampleCameraPath(path,time){
+    if(!path?.length)return null;if(time<=path[0].time)return path[0];if(time>=path.at(-1).time)return path.at(-1);
+    let lo=0,hi=path.length-1;
+    while(lo+1<hi){const mid=(lo+hi)>>>1;if(path[mid].time<=time)lo=mid;else hi=mid;}
+    const a=path[lo],b=path[hi],dt=Math.max(.001,b.time-a.time),u=clamp((time-a.time)/dt,0,1),u2=u*u,u3=u2*u;
+    const value=(key,leftSlope,rightSlope)=>{
+      const m0=a[leftSlope]*dt,m1=b[rightSlope]*dt;
+      return (2*u3-3*u2+1)*a[key]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[key]+(u3-u2)*m1;
+    };
+    return {time,x:value('x','vx','vx'),y:value('y','vy','vy'),zoom:value('zoom','vz','vz')};
+  }
 
   class ScoreFollower {
     constructor({container,viewport,stageRoot=null,tempoMap,noteEvents=[],scoreAlignment=null,tieContinuations=[],cameraPoints=[],sync=null,offsetSec=0,zoom=.9,effects={},scrollMode='vertical'}) {
@@ -13,7 +42,7 @@
       this.stageRoot=stageRoot||viewport;
       this.cameraSpace=container.parentElement;
       this.cameraSpacer=this.cameraSpace?.querySelector('.score-camera-spacer');
-      this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;this.cameraPointsRaw=Array.isArray(cameraPoints)?cameraPoints:[];this.cameraPoints=[];
+      this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;this.cameraPointsRaw=Array.isArray(cameraPoints)?cameraPoints:[];this.cameraPoints=[];this.cameraShots=[];
       this.tempoMap=tempoMap;
       this.scoreAlignment=scoreAlignment;
       this.scoreAnchors=Array.isArray(scoreAlignment?.anchors)?scoreAlignment.anchors:[];
@@ -658,8 +687,61 @@
       for(const note of [...this.noteTriggers,...this.tieContinuations])if(note.scoreKey)byKey.set(note.scoreKey,note);
       this.cameraPoints=this.cameraPointsRaw.map(point=>{
         const note=byKey.get(point.key);if(!note)return null;
-        return Number.isFinite(note.noteX)&&Number.isFinite(note.noteY)?{...point,time:note.audio,x:note.noteX,y:note.noteY,beat:note.beat,pitch:note.pitch,measure:note.measure}:null;
+        return Number.isFinite(note.noteX)&&Number.isFinite(note.noteY)?{...point,time:note.audio,x:note.noteX,y:note.noteY,beat:note.beat,pitch:note.pitch,measure:note.measure,systemKey:note.systemKey}:null;
       }).filter(Boolean).sort((a,b)=>a.time-b.time);
+      this.buildCameraShots();
+    }
+    buildCameraShots(){
+      const move=.85,returnEase=1.0;
+      const rawEvents=this.cameraPoints.map(point=>{
+        const timing=Number.isFinite(Number(point.timing))?Number(point.timing):-.6;
+        return {...point,startTime:point.time+timing,poseTime:point.time+timing+move};
+      }).sort((a,b)=>a.poseTime-b.poseTime);
+      const events=[];
+      for(const point of rawEvents){
+        const chord=events.at(-1);
+        if(chord&&Math.abs(point.poseTime-chord.poseTime)<.08){
+          chord.zoom=Math.max(Number(chord.zoom)||1.3,Number(point.zoom)||1.3);
+          chord.duration=Math.max(Number(chord.duration)||1.6,Number(point.duration)||1.6);
+          chord.shake=Math.max(Number(chord.shake)||0,Number(point.shake)||0);
+          if(Number(point.pitch)>Number(chord.pitch)){chord.x=point.x;chord.y=point.y;chord.pitch=point.pitch;chord.measure=point.measure;chord.systemKey=point.systemKey;}
+        }else events.push({...point});
+      }
+      const groups=[];
+      for(const point of events){
+        const group=groups.at(-1),last=group?.at(-1);
+        const nextStart=point.poseTime-move;
+        const lastReturn=last?last.poseTime+.45+clamp(Number(last.duration)||1.6,.4,5)+returnEase+.18:-Infinity;
+        if(last&&nextStart<=lastReturn)group.push(point);
+        else groups.push([point]);
+      }
+      this.cameraShots=groups.map(group=>{
+        const first=group[0],last=group.at(-1),path=[];
+        const start=first.startTime,base=ScoreFollower.cameraCursorAt(start,this.positions)||{x:first.x,y:first.y};
+        const push=(time,x,y,zoom)=>{
+          const prev=path.at(-1);
+          if(prev&&time<=prev.time+.001){prev.x=x;prev.y=y;prev.zoom=zoom;return;}
+          path.push({time,x,y,zoom});
+        };
+        const pointPoses=[];
+        push(start,base.x,base.y,1);
+        push(start+Math.min(.18,Math.max(.06,(first.poseTime-start)*.25)),base.x,base.y,1);
+        for(const point of group){
+          const time=Math.max(point.poseTime,(path.at(-1)?.time||-Infinity)+.06);
+          push(time,point.x,point.y,clamp(Number(point.zoom)||1.3,1.05,1.6));
+          pointPoses.push({point,time});
+        }
+        const final=path.at(-1),holdEnd=final.time+.45;
+        push(holdEnd,final.x,final.y,final.zoom);
+        const returnEnd=holdEnd+clamp(Number(last.duration)||1.6,.4,5);
+        const following=ScoreFollower.cameraCursorAt(returnEnd,this.positions)||{x:last.x,y:last.y};
+        push(returnEnd,following.x,following.y,1);
+        const end=returnEnd+returnEase,followEnd=ScoreFollower.cameraCursorAt(end,this.positions)||following;
+        push(end,followEnd.x,followEnd.y,1);
+        push(end+.18,followEnd.x,followEnd.y,1);
+        const shakes=pointPoses.filter(item=>Number(item.point.shake)>0).map(item=>({time:item.time,amount:clamp(Number(item.point.shake)||0,0,1)}));
+        return {start,path:prepareCameraPath(path),end:end+.18,shakes};
+      });
     }
     bindCameraPointTargets(){
       const editor=()=>window.ScoreCameraPointEditor;
@@ -718,25 +800,19 @@
       return {scale:1+intensity*.31,x:Math.sin(ageOfPeak*Math.PI*10.4)*intensity*11*shakeEnv,y:Math.sin(ageOfPeak*Math.PI*12.8+.8)*intensity*7*shakeEnv};
     }
     cameraPointAt(t){
-      let total=0,zoomTotal=0,focusX=0,focusY=0,shakeX=0,shakeY=0;
-      for(const point of this.cameraPoints){
-        const timing=Number.isFinite(Number(point.timing))?Number(point.timing):-.6,age=t-(point.time+timing);if(age<0)continue;
-        // Every note is a camera waypoint, not an independent punch-in.
-        // Long ease/decay windows overlap so dense runs form one calm move.
-        const duration=clamp(Number(point.duration)||1.6,.4,5),attackWindow=.85,attack=smooth(age/attackWindow),hold=attackWindow,release=Math.max(2.2,duration*1.8);
-        const env=age<hold?attack:1-smooth((age-hold)/release);
-        if(env<=.001)continue;
-        total+=env;zoomTotal+=(clamp((Number(point.zoom)||1.25)-1,.04,.55))*env;
-        focusX+=(Number(point.x)||0)*env;focusY+=(Number(point.y)||0)*env;
-        const shake=clamp(Number(point.shake)||0,0,1),shakeEnv=1-smooth(age/1.35),phase=age*Math.PI*2.2;
-        shakeX+=Math.sin(phase)*shake*2.5*shakeEnv*env;shakeY+=Math.sin(phase*1.13+.5)*shake*1.8*shakeEnv*env;
-      }
       const follow=ScoreFollower.cameraCursorAt(t,this.positions);
-      if(total<=.001)return {scale:1,x:0,y:0,cursor:follow};
-      const focusWeight=clamp(total,0,1),blendX=focusX/total,blendY=focusY/total;
-      const cursor=follow?{x:lerp(follow.x,blendX,focusWeight),y:lerp(follow.y,blendY,focusWeight)}:{x:blendX,y:blendY};
-      const zoom=1+(zoomTotal/total)*focusWeight;
-      return {scale:zoom,x:shakeX/Math.max(1,total),y:shakeY/Math.max(1,total),cursor};
+      let lo=0,hi=this.cameraShots.length;
+      while(lo<hi){const mid=(lo+hi)>>>1;if(this.cameraShots[mid].start<=t)lo=mid+1;else hi=mid;}
+      const shot=this.cameraShots[lo-1];if(!shot||t>shot.end)return {scale:1,x:0,y:0,cursor:follow};
+      const pose=sampleCameraPath(shot.path,t);if(!pose)return {scale:1,x:0,y:0,cursor:follow};
+      let shakeX=0,shakeY=0,shakeWeight=0;
+      for(let i=shot.shakes.length-1;i>=0;i--){
+        const event=shot.shakes[i],age=t-event.time;if(age<0)continue;if(age>1.35)break;
+        const envelope=smooth(age/.24)*(1-smooth((age-.12)/1.23)),phase=age*Math.PI*2*1.25,weight=event.amount*envelope;
+        shakeX+=Math.sin(phase)*1.8*weight;shakeY+=Math.sin(phase*1.08+.45)*1.25*weight;shakeWeight+=envelope;
+      }
+      const divisor=Math.max(1,shakeWeight);
+      return {scale:pose.zoom,x:shakeX/divisor,y:shakeY/divisor,cursor:{x:pose.x,y:pose.y}};
     }
     updateDynamicCamera(t){
       const active=this.cameraMode==='points'||this.cameraMode==='dynamic';
