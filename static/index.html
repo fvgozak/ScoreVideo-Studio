@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>ScoreVideo Studio v0.17 · 작업공간</title>
-<link href="/static/style.css?v=0.17.1" rel="stylesheet"/><link href="/static/effects.css?v=0.17.1" rel="stylesheet"/><link href="/static/stage.css?v=0.17.1" rel="stylesheet"/></head>
+<title>ScoreVideo Studio v0.17.2 · 작업공간</title>
+<link href="/static/style.css?v=0.17.2" rel="stylesheet"/><link href="/static/effects.css?v=0.17.2" rel="stylesheet"/><link href="/static/stage.css?v=0.17.2" rel="stylesheet"/></head>
 <body><div class="app">
-<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.17</small></div></div>
-<div class="top-right"><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.17</span></div></header>
+<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.17.2</small></div></div>
+<div class="top-right"><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.17.2</span></div></header>
 <main>
 <section class="intro compact-intro"><div class="eyebrow">SCORE + MIDI + AUDIO → VIDEO</div>
 <h1>연주를 따라 움직이는<br/><em>악보 영상</em>을 만들어보세요.</h1>
@@ -20,14 +20,6 @@
 <button class="primary" id="uploadButton" type="submit">악보 불러오기 <span>→</span></button>
 </form>
 <p class="hint">MusicXML 악보 음표와 MIDI의 실제 타건을 음고·순서로 정렬합니다. 페르마타 뒤 정박 어긋남도 보정합니다.</p>
-</section><section class="panel"><div class="panel-title"><h2>자동 동기화</h2></div>
-<button class="secondary-button" disabled="" id="autoSyncButton">✦ 첫 소리 자동 싱크 맞추기</button>
-<div class="sync-result" id="scoreAlignmentInfo">악보↔MIDI 음표 매칭: 파일 업로드 후 자동 분석합니다.</div>
-<div class="sync-result" id="syncInfo">MIDI↔음원 첫 소리 정렬: 별도로 실행합니다.</div>
-<button class="subtle-button" hidden="" id="clearSyncButton">자동 싱크 초기화</button>
-<div class="field"><label for="offset">수동 미세 조정 <span id="offsetVal">0.00초</span></label>
-<input id="offset" max="5" min="-5" step="0.05" type="range" value="0"/><div class="field-foot"><span>-5초</span><span>+5초</span></div>
-<small>자동 싱크 후에도 ±5초를 더하거나 뺄 수 있습니다.</small></div>
 </section></div><div class="editor-tab-panel" data-editor-panel="score" hidden=""><section class="panel"><div class="panel-title"><h2>악보 레이아웃 · 시각 효과</h2></div><div class="direct-edit-card"><div class="direct-edit-title">악보 영역은 화면에서 직접 편집</div><p>미리보기의 <b>영역 편집</b>을 누르고 끌어 위치를 바꾸세요. 가장자리 핸들로 너비·높이를 조절할 수 있어요.</p><button class="secondary-button" id="editScoreFromSidebar" type="button">▢ 미리보기에서 영역 편집</button></div>
 <div class="field"><label for="layoutMode">레이아웃</label>
 <select id="layoutMode"><option selected="" value="page">페이지 레이아웃 · Page Layout</option><option value="singleline">싱글라인 · Single Line Follow</option></select>
@@ -48,12 +40,12 @@
 <button class="secondary-button" id="scoreReadablePreset" type="button">✦ 사진용 가독성 프리셋 · 검정 55%</button>
 <small>패널은 악보 표시 영역 안에만 적용됩니다. 배경 사진은 영상 전체에 그대로 남습니다.</small>
 </details>
-<details class="compact-details"><summary>색상 · 배경 · 커서 · 음표 반응</summary><div class="field"><label for="themeColor">테마 기준색 <span>Auto 팔레트</span></label>
+<details class="compact-details"><summary>악보 색상 · 커서 · 음표 반응</summary><div class="field"><label for="themeColor">테마 기준색 <span>Auto 팔레트</span></label>
 <div class="theme-control"><input id="themeColor" type="color" value="#496c84"/><button class="secondary-button" id="autoPalette" type="button">✦ 색상 자동 설정</button></div>
 <small>기준색과 어울리는 배경·오선·음표·커서·발광 색상을 자동으로 제안합니다. 이후 각 색을 개별 수정할 수 있습니다.</small></div>
 <div class="toggle-line"><span>색상 반전 <small>배경 ↔ 음표 기본색</small></span><input id="inverted" type="checkbox"/></div>
 <div class="color-grid color-grid-3">
-<label>배경색<input id="paperColor" type="color" value="#fffdf6"/></label>
+<label>악보 바탕색<input id="paperColor" type="color" value="#fffdf6"/></label>
 <label>오선색<input id="staffColor" type="color" value="#323a43"/></label>
 <label>음표색<input id="inkColor" type="color" value="#181b22"/></label>
 <label>커서색<input id="cursorColor" type="color" value="#2ec9d3"/></label>
@@ -69,18 +61,8 @@
 </select>
 <small>음표 타건 시점은 그대로 두고, 커서의 시각적 이동만 보간합니다. 행이 바뀔 때는 연결하지 않습니다.</small>
 </div>
-<div class="field"><label for="texture">배경 패턴</label>
+<div class="field"><label for="texture">악보 바탕 패턴</label>
 <select id="texture"><option value="none">없음 · 단색</option><option value="paper">종이 질감</option><option value="parchment">양피지</option><option value="grain">잔잔한 입자</option><option value="linen">린넨</option><option value="dots">도트</option></select></div>
-<div class="field"><label for="backgroundFile">배경 이미지</label>
-<input accept=".jpg,.jpeg,.png,.webp,image/png,image/jpeg,image/webp" id="backgroundFile" type="file"/>
-<small id="backgroundName">최대 20MB · PNG / JPG / WebP · 음악 파일을 먼저 불러오세요.</small>
-<button class="subtle-button" hidden="" id="removeBackground" type="button">배경 이미지 제거</button></div>
-<div class="field"><label for="backgroundOpacity">사진 투명도 <span id="backgroundOpacityVal">50%</span></label>
-<input id="backgroundOpacity" max="1" min="0" step="0.05" type="range" value="0.5"/></div>
-<div class="field"><label for="backgroundFit">배경 이미지 맞춤</label>
-<select id="backgroundFit"><option value="cover">화면 채우기 (잘릴 수 있음)</option><option value="contain">전체 표시 (여백 가능)</option></select></div>
-<div class="field"><label for="backgroundPosX">배경 가로 위치 <span id="backgroundPosXVal">50%</span></label><input id="backgroundPosX" max="100" min="0" step="1" type="range" value="50"/></div>
-<div class="field"><label for="backgroundPosY">배경 세로 위치 <span id="backgroundPosYVal">50%</span></label><input id="backgroundPosY" max="100" min="0" step="1" type="range" value="50"/></div>
 <div class="toggle-line"><span>글리터 <small>악보 위 미세한 빛 입자</small></span><input id="glitter" type="checkbox"/></div>
 <div class="toggle-line"><span>연주 음표 반짝임 <small>현재 연주 중인 음표만 강조</small></span><input checked="" id="sparkle" type="checkbox"/></div>
 <div class="toggle-line"><span>MIDI 벨로시티 반응 <small>강약에 따라 빛과 움직임이 달라져요</small></span><input checked="" id="velocityReactive" type="checkbox"/></div>
@@ -88,7 +70,7 @@
 <div class="field"><label for="motionStrength">음표 반응 세기 <span id="motionStrengthVal">100%</span></label>
 <input id="motionStrength" max="2" min="0" step="0.1" type="range" value="1"/><div class="field-foot"><span>0%</span><span>200%</span></div>
 <small>0%에서는 벨로시티 효과가 적용되지 않습니다. 오선과 음표 사이의 간격은 변하지 않습니다.</small></div>
-<small>악보 확대는 오른쪽 미리보기 위에서 바로 조정할 수 있습니다.</small></details></section></div><div class="editor-tab-panel" data-editor-panel="design" hidden="">
+</details></section></div><div class="editor-tab-panel" data-editor-panel="design" hidden="">
 <section class="panel image-palette-studio">
   <div class="panel-title"><h2>✦ 이미지에서 색상 조합 찾기</h2></div>
   <p class="palette-help">앨범 커버·사진·일러스트를 넣으면 색상을 추출하고 악보가 잘 읽히는 디자인을 추천합니다.</p>
@@ -104,9 +86,22 @@
     <div class="palette-chips" id="paletteChips"></div>
     <div class="palette-subtitle">추천 악보 디자인 <span>선택하면 즉시 적용</span></div>
     <div class="palette-schemes" id="paletteSchemes"></div>
-    <label class="palette-use-background"><input type="checkbox" id="paletteUseBackground"/> 이 이미지도 영상 배경으로 사용</label>
-    <p class="palette-footnote">선택한 조합은 오선·음표·배경·커서·빛과 Aurora 색상까지 설정합니다. 각 색상은 아래에서 다시 조절할 수 있어요.</p>
+    <label class="palette-use-background"><input type="checkbox" id="paletteUseBackground"/> 체크하면 이 이미지가 영상 배경으로 바로 적용됩니다</label>
+    <p class="palette-footnote">추천 조합은 오선·음표·배경색·커서·빛과 Aurora 색상을 설정합니다. 각 색상은 아래에서 다시 조절할 수 있어요.</p>
   </div>
+</section>
+<section class="panel video-background-panel"><div class="panel-title"><h2>영상 배경</h2></div>
+<p class="palette-help">그림을 고르면 미리보기와 MP4의 전체 배경에 적용됩니다. 그림 맞춤과 위치도 여기서 조절하세요.</p>
+<div class="field"><label for="backgroundFile">배경 이미지 선택</label>
+<input accept=".jpg,.jpeg,.png,.webp,image/png,image/jpeg,image/webp" id="backgroundFile" type="file"/>
+<small id="backgroundName">최대 20MB · PNG / JPG / WebP · 먼저 악보·MIDI·음원을 불러오세요.</small>
+<button class="subtle-button" hidden="" id="removeBackground" type="button">배경 이미지 제거</button></div>
+<div class="field"><label for="backgroundOpacity">사진 투명도 <span id="backgroundOpacityVal">50%</span></label>
+<input id="backgroundOpacity" max="1" min="0" step="0.05" type="range" value="0.5"/></div>
+<div class="field"><label for="backgroundFit">배경 이미지 맞춤</label>
+<select id="backgroundFit"><option value="cover">화면 채우기 (잘릴 수 있음)</option><option value="contain">전체 표시 (여백 가능)</option></select></div>
+<div class="field"><label for="backgroundPosX">배경 가로 위치 <span id="backgroundPosXVal">50%</span></label><input id="backgroundPosX" max="100" min="0" step="1" type="range" value="50"/></div>
+<div class="field"><label for="backgroundPosY">배경 세로 위치 <span id="backgroundPosYVal">50%</span></label><input id="backgroundPosY" max="100" min="0" step="1" type="range" value="50"/></div>
 </section>
 <section class="panel"><div class="panel-title"><h2>장면 · 카메라 · 빛</h2></div>
 <div class="field"><label for="sceneTemplate">영상 스타일</label><select id="sceneTemplate">
@@ -184,6 +179,20 @@
   <output id="zoomVal" for="zoom">90%</output>
   <button type="button" id="zoomResetButton" class="zoom-reset" title="악보 확대를 100%로 초기화">100% 복원</button>
 </div>
+<section class="preview-sync-panel" aria-label="악보 자동 동기화">
+  <div class="preview-sync-head"><div><strong>자동 동기화</strong><div class="preview-sync-results">
+    <div class="sync-result" id="scoreAlignmentInfo">악보↔MIDI 음표 매칭: 파일 업로드 후 자동 분석합니다.</div>
+    <div class="sync-result" id="syncInfo">MIDI↔음원 첫 소리 정렬: 별도로 실행합니다.</div>
+  </div></div><div class="preview-sync-actions">
+    <button class="secondary-button" disabled="" id="autoSyncButton">✦ 첫 소리 자동 싱크 맞추기</button>
+    <button class="subtle-button" hidden="" id="clearSyncButton">자동 싱크 초기화</button>
+  </div></div>
+  <div class="preview-offset"><label for="offset">수동 미세 조정 <span id="offsetVal">0.00초</span></label>
+    <input id="offset" max="5" min="-5" step="0.05" type="range" value="0"/>
+    <div class="field-foot"><span>-5초</span><span>+5초</span></div>
+    <small>자동 싱크 후에도 ±5초를 더하거나 뺄 수 있습니다.</small>
+  </div>
+</section>
 <div class="preview-surround" id="previewSurround"><div class="stage-frame" id="stageFrame"><div class="video-stage" id="scoreViewport"><div id="placeholder"><span class="bigclef">𝄞</span><h3>악보가 여기에 표시됩니다</h3><p>MusicXML · MIDI · 음원 파일을 업로드해 시작하세요.</p></div><div class="score-window" id="scoreWindow"><div class="score-panel" id="scorePanel"></div><div class="score-scroll" id="scoreScroll"><div id="osmdContainer"></div></div></div></div><div aria-label="악보 표시 영역 드래그 및 크기 조절" class="score-edit-overlay" hidden="" id="scoreEditOverlay"><div class="score-edit-box" id="scoreEditBox"><span class="score-edit-label">악보 영역 · 끌어서 이동</span><span class="score-edit-size" id="scoreEditSize">94% × 70%</span><i aria-hidden="true" class="edit-handle edit-handle-right" data-resize="right"></i><i aria-hidden="true" class="edit-handle edit-handle-bottom" data-resize="bottom"></i><i aria-hidden="true" class="edit-handle edit-handle-corner" data-resize="corner"></i></div></div></div></div>
 <div aria-label="미리보기 재생 조작" class="playbar" role="group">
 <button aria-label="이전 마디" class="measure-button" disabled="" id="previousMeasureButton" title="이전 마디 (, 키)" type="button">⏮</button>
@@ -207,13 +216,13 @@
 </main>
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
-<script src="/static/vendor-loader.js?v=0.17.1"></script>
-<script src="/static/theme.js?v=0.17.1"></script>
-<script src="/static/image-palette.js?v=0.17.1"></script>
-<script src="/static/score-core.js?v=0.17.1"></script>
-<script src="/static/studio-scene.js?v=0.17.1"></script>
-<script src="/static/stage-runtime.js?v=0.17.1"></script>
-<script src="/static/transport.js?v=0.17.1"></script>
-<script src="/static/hex-colors.js?v=0.17.1"></script>
-<script src="/static/visual-editor.js?v=0.17.1"></script><script src="/static/app.js?v=0.17.1"></script>
+<script src="/static/vendor-loader.js?v=0.17.2"></script>
+<script src="/static/theme.js?v=0.17.2"></script>
+<script src="/static/image-palette.js?v=0.17.2"></script>
+<script src="/static/score-core.js?v=0.17.2"></script>
+<script src="/static/studio-scene.js?v=0.17.2"></script>
+<script src="/static/stage-runtime.js?v=0.17.2"></script>
+<script src="/static/transport.js?v=0.17.2"></script>
+<script src="/static/hex-colors.js?v=0.17.2"></script>
+<script src="/static/visual-editor.js?v=0.17.2"></script><script src="/static/app.js?v=0.17.2"></script>
 </body></html>

@@ -170,7 +170,7 @@
  // Artwork palette extraction uses the original Hemio Image Studio image-color
  // grouping algorithm via a local FastAPI endpoint. The source image is not
  // stored unless "이 이미지를 영상 배경으로 사용" is explicitly checked.
- let paletteSourceFile=null,paletteIsCurrentBackground=false,paletteArtworkURL=null,paletteSerial=0;
+ let paletteSourceFile=null,paletteIsCurrentBackground=false,paletteArtworkURL=null,paletteSerial=0,paletteBackgroundTask=null;
  function paletteMessage(value,isError=false){
    $('paletteStatus').textContent=value;$('paletteStatus').classList.toggle('error',isError);
  }
@@ -181,14 +181,27 @@
    const response=await fetch(`/api/projects/${project.id}/background`,{method:'POST',body:form});
    const data=await response.json();
    if(!response.ok)throw Error(data.detail||'영상 배경 적용 실패');
-   project.background_filename=data.background_filename;refreshBackground();
+   project.background_filename=data.background_filename;project.background_version=data.background_version;refreshBackground();
    return data;
+ }
+ async function ensurePaletteBackground(){
+   while(true){
+     const file=paletteSourceFile;
+     if(!file)throw Error('먼저 영상 배경으로 사용할 이미지를 선택해 주세요.');
+     if(paletteIsCurrentBackground)return;
+     if(paletteBackgroundTask){await paletteBackgroundTask;continue;}
+     const task=uploadBackgroundForPalette(file);paletteBackgroundTask=task;
+     try{
+       await task;
+       if(paletteSourceFile===file){paletteIsCurrentBackground=true;return;}
+     }finally{if(paletteBackgroundTask===task)paletteBackgroundTask=null;}
+   }
  }
  async function analyzePaletteImage(file,{existing=false}={}){
    if(!file)return;
    if(file.size>20*1024*1024){paletteMessage('이미지는 20MB 이하로 선택해 주세요.',true);return;}
    const serial=++paletteSerial;
-   paletteSourceFile=file;paletteIsCurrentBackground=existing;
+   paletteSourceFile=file;paletteIsCurrentBackground=existing;$('paletteUseBackground').checked=existing;
    $('paletteResults').hidden=true;
    paletteMessage('이미지의 색상을 분석하고 있습니다…');
    if(paletteArtworkURL)URL.revokeObjectURL(paletteArtworkURL);
@@ -226,16 +239,32 @@
    const hasPhoto=Boolean(project?.background_filename||useArt);
    $('scorePanelOpacity').value=hasPhoto?String(Math.round(Number(scheme.panel_opacity||.65)*100/5)*5):'0';
    queueApply();
-   if(useArt&&!paletteIsCurrentBackground){
+   if(useArt){
      try{
-       await uploadBackgroundForPalette(paletteSourceFile);
-       paletteIsCurrentBackground=true;
+       await ensurePaletteBackground();
        paletteMessage(`${scheme.name} 디자인과 사진 배경을 적용했습니다. HEX 색상은 아래에서 수정할 수 있어요.`);
      }catch(e){paletteMessage(`색상은 적용했습니다. 이미지 배경: ${e.message}`,true);}
    }else{
      paletteMessage(`${scheme.name} 디자인을 적용했습니다. 색상은 개별 수정할 수 있어요.`);
    }
  }
+ $('paletteUseBackground').addEventListener('change',async()=>{
+   const control=$('paletteUseBackground'),useArt=control.checked;
+   control.disabled=true;
+   try{
+     if(useArt){
+       await ensurePaletteBackground();
+       paletteMessage('선택한 그림을 미리보기와 영상 배경에 적용했습니다. 디자인 탭에서 투명도와 위치를 조절할 수 있어요.');
+     }else if(paletteIsCurrentBackground&&project){
+       const response=await fetch(`/api/projects/${project.id}/background`,{method:'DELETE'});
+       if(!response.ok)throw Error('배경 이미지 제거 실패');
+       project.background_filename=null;project.background_version=null;paletteIsCurrentBackground=false;
+       $('backgroundFile').value='';refreshBackground();paletteMessage('영상 배경에서 그림을 제거했습니다.');
+     }
+   }catch(error){
+     control.checked=!useArt;paletteMessage(`영상 배경 적용 실패: ${error.message}`,true);
+   }finally{control.disabled=false;}
+ });
  $('paletteImageFile').addEventListener('change',()=>{
    const file=$('paletteImageFile').files?.[0];
    $('paletteImageFile').value='';
@@ -271,13 +300,13 @@
    if(!project){message('먼저 악보·MIDI·음원을 업로드해 주세요.',true);return;}
    const form=new FormData();form.append('background',file);
    try{const r=await fetch(`/api/projects/${project.id}/background`,{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'배경 업로드 실패');
-     project.background_filename=data.background_filename;refreshBackground();if(paletteSourceFile===file)paletteIsCurrentBackground=true;message('배경 이미지를 미리보기와 출력 설정에 적용했습니다. 디자인 탭에서 추천 팔레트를 확인하세요.');
+     project.background_filename=data.background_filename;project.background_version=data.background_version;refreshBackground();if(paletteSourceFile===file){paletteIsCurrentBackground=true;$('paletteUseBackground').checked=true;}message('배경 이미지를 미리보기와 출력 설정에 적용했습니다. 디자인 탭에서 추천 팔레트를 확인하세요.');
    }catch(e){message(e.message,true);}
  });
  $('removeBackground').addEventListener('click',async()=>{
    if(!project)return;
    try{const r=await fetch(`/api/projects/${project.id}/background`,{method:'DELETE'});if(!r.ok)throw Error('배경 삭제 실패');
-     project.background_filename=null;$('backgroundFile').value='';refreshBackground();message('배경 이미지를 제거했습니다.');
+     project.background_filename=null;project.background_version=null;$('backgroundFile').value='';paletteIsCurrentBackground=false;$('paletteUseBackground').checked=false;refreshBackground();message('배경 이미지를 제거했습니다.');
    }catch(e){message(e.message,true);}
  });
 
@@ -294,7 +323,7 @@
    $('removeBackground').hidden=!project?.background_filename;
    $('paletteFromBackground').hidden=!project?.background_filename;
    $('backgroundName').textContent=project?.background_filename||'최대 20MB · PNG / JPG / WebP';
-   if(stage){stage.meta.background_filename=project.background_filename;queueApply();}
+   if(stage){stage.meta.background_filename=project.background_filename;stage.meta.background_version=project.background_version;queueApply();}
  }
  async function loadProject(meta){
    stage=null;revision++;await applySerial.catch(()=>{});

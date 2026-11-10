@@ -399,11 +399,13 @@ async def upload_background(project_id: str, background: UploadFile = File(...))
         metadata = folder / "meta.json"
         meta = json.loads(metadata.read_text(encoding="utf-8"))
         meta["background_filename"] = image_file.name
+        meta["background_version"] = image_file.stat().st_mtime_ns
         tmp = folder / "meta.pending.json"
         tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(metadata)
         return {"background_filename": image_file.name,
-                "url": f"/api/projects/{project_id}/background?version={image_file.stat().st_mtime_ns}"}
+                "background_version": meta["background_version"],
+                "url": f"/api/projects/{project_id}/background?version={meta['background_version']}"}
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     finally:
@@ -433,6 +435,7 @@ def delete_background(project_id: str):
     if name in {"background.png", "background.jpg", "background.webp"}:
         (folder / name).unlink(missing_ok=True)
     meta["background_filename"] = None
+    meta["background_version"] = None
     temp = folder / "meta.pending.json"
     temp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(meta_path)

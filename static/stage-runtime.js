@@ -11,7 +11,7 @@
      staff:hex(s.staff_color,'#323a43'),glow:hex(s.glow_color,'#68ddfa'),
      cursor:hex(s.cursor_color,'#2ec9d3'),cursorVisible:s.cursor_visible!==false,cursorMotion:s.cursor_motion==='step'?'step':'smooth',accent:hex(s.accent_color,'#2ec9d3'),
      texture:s.texture||'none',inverted:Boolean(s.inverted),
-     backgroundUrl:meta.background_filename?`/api/projects/${meta.id}/background`: '',
+     backgroundUrl:meta.background_filename?`/api/projects/${meta.id}/background?v=${encodeURIComponent(meta.background_version||meta.background_filename)}`: '',
      backgroundOpacity:clamp(number(s.background_opacity,.5),0,1),backgroundFit:s.background_fit||'cover',
      backgroundPositionX:clamp(number(s.background_position_x,50),0,100),backgroundPositionY:clamp(number(s.background_position_y,50),0,100),
      glitter:Boolean(s.glitter),sparkle:s.sparkle!==false,
