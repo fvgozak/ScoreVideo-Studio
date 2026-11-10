@@ -1,4 +1,8 @@
-# ScoreVideo Studio v0.19.7 — Note-anchored Camera Points
+# ScoreVideo Studio v0.19.8 — Transparent Camera Targets
+
+## v0.19.8 카메라 포인트 클릭 영역 표시 수정
+
+음표 포인트 선택용 클릭 영역이 선택 모드가 아닐 때 검은 원으로 나타나던 문제를 수정했습니다. 클릭 영역은 기본적으로 투명하고 비활성화하며, 포인트 선택을 켰을 때만 클릭을 받습니다.
 
 ## v0.19.7 포인트 구간 카메라 경로
 

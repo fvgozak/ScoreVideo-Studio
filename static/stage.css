@@ -73,5 +73,6 @@
 .camera-point-tools[hidden]{display:none!important}
 
 .camera-point-actions{display:flex;flex-wrap:wrap;gap:6px}
-.camera-point-selectable .camera-point-hit{fill:transparent;stroke:transparent;pointer-events:all}
+.camera-point-hit{fill:transparent;stroke:transparent;pointer-events:none}
+.camera-point-selectable .camera-point-hit{pointer-events:all}
 .camera-point-selectable .camera-point-hit:hover{fill:rgba(97,225,255,.1);stroke:rgba(97,225,255,.5);stroke-width:1.2px;vector-effect:non-scaling-stroke}
