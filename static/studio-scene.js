@@ -45,7 +45,7 @@
   function normalize(value={}){
     const x=(value&&typeof value==='object')?value:{};
     const template=presets[x.template]?x.template:'minimal',base=presets[template];
-    const cameraMode=['follow','cinematic','fixed'].includes(x.cameraMode)?x.cameraMode:base.cameraMode;
+    const cameraMode=['follow','cinematic','dynamic','fixed'].includes(x.cameraMode)?x.cameraMode:base.cameraMode;
     // Backward compatibility: older drafts saved Aurora as a stand-alone FX.
     // Migrate them to Bloom + independent velocity-color reaction.
     const legacyAurora=x.fxMode==='aurora';

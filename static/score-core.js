@@ -236,6 +236,7 @@
       this.noteTriggers.sort((a,b)=>a.audio-b.audio);
       this.measureStarts.forEach(m=>m.audio=this.midiToAudio(m.midi));
       ScoreFollower.assignHands(this.noteTriggers);
+      this.prepareCameraAccents();
     }
     prepareDrawing(){
       this.drawItems=[];
@@ -412,8 +413,7 @@
       rules.NewPartAndSystemAfterFinalBarline=false;
     }
     async load(url){
-      this.container.style.removeProperty('transform');
-      this.cameraScale=1;
+      this.container.style.removeProperty('transform');this.cameraScale=1;
       if(this.cameraSpacer){this.cameraSpacer.style.width='0px';this.cameraSpacer.style.height='0px';}
       await window.loadOSMD();
       if(!window.opensheetmusicdisplay?.OpenSheetMusicDisplay)throw Error('OSMD 라이브러리를 불러오지 못했습니다.');
@@ -636,85 +636,122 @@
       this._highlightIndex=target;
       this.updateAmbient(audioSeconds);
     }
-    cameraScaleAt(t){
-      if(this.cameraMode!=='cinematic')return 1;
-      const bars=this.measureStarts||[];
-      if(bars.length<2)return 1.045;
-      let lo=0,hi=bars.length;
-      while(lo<hi){const mid=(lo+hi)>>>1;if(bars[mid].audio<=t)lo=mid+1;else hi=mid;}
-      const index=clamp(lo-1,0,bars.length-1),phraseStart=Math.floor(index/4)*4;
-      const a=bars[phraseStart]?.audio??bars[0].audio;
-      const nextIndex=Math.min(phraseStart+4,bars.length-1);
-      let b=bars[nextIndex]?.audio;
-      if(!(b>a))b=Number(this.audioDuration)||a+8;
-      const phase=clamp((t-a)/Math.max(.001,b-a),0,1);
-      return 1.035+.045*Math.sin(Math.PI*phase);
+    static cameraCursorAt(t,positions){
+      if(!positions?.length)return null;
+      let lo=0,hi=positions.length;
+      while(lo<hi){const mid=(lo+hi)>>>1;if(positions[mid].audio<=t+1e-7)lo=mid+1;else hi=mid;}
+      const i=clamp(lo-1,0,positions.length-1),a=positions[i],b=positions[Math.min(i+1,positions.length-1)];
+      if(a===b||!Number.isFinite(a.audio)||!Number.isFinite(b.audio)||b.audio<=a.audio)return {x:a.x,y:a.y};
+      const sameSystem=Math.abs(b.y-a.y)<Math.max(24,Math.min(a.height||120,b.height||120)*.4)&&b.x>=a.x-6;
+      if(!sameSystem)return {x:a.x,y:a.y};
+      const p=smooth((t-a.audio)/(b.audio-a.audio));
+      return {x:lerp(a.x,b.x,p),y:lerp(a.y,b.y,p)};
     }
-    updateCameraScale(t){
-      const scale=this.cameraScaleAt(t);
-      if(Math.abs(scale-this.cameraScale)<.0005)return scale;
-      this.cameraScale=scale;
+    prepareCameraAccents(){
+      const groups=[];
+      for(const note of this.noteTriggers){
+        if(!Number.isFinite(note.audio))continue;
+        const last=groups.at(-1);
+        if(last&&note.audio-last.time<=.075&&note.systemKey===last.systemKey){
+          last.velocity=Math.max(last.velocity,Number(note.velocity)||0);last.count++;
+        }else groups.push({time:note.audio,systemKey:note.systemKey,velocity:Number(note.velocity)||0,count:1});
+      }
+      if(!groups.length){this.cameraAccents=[];return;}
+      const velocities=groups.map(g=>g.velocity).sort((a,b)=>a-b);
+      const percentile=velocities[Math.min(velocities.length-1,Math.floor(velocities.length*.86))]||80;
+      const median=velocities[Math.floor(velocities.length*.5)]||80;
+      const threshold=Math.max(78,percentile),hasVelocityContrast=percentile-median>=6,accents=[];
+      for(let i=0;i<groups.length;i++){
+        const group=groups[i],prior=groups.slice(Math.max(0,i-8),i).map(g=>g.velocity).sort((a,b)=>a-b);
+        const baseline=prior.length?prior[Math.floor(prior.length/2)]:threshold,jump=group.velocity-baseline;
+        const loudPeak=hasVelocityContrast&&group.velocity>=threshold;
+        const suddenJump=group.velocity>=74&&jump>=24;
+        if(!loudPeak&&!suddenJump&&group.count<5)continue;
+        const previous=accents.at(-1);
+        const intensity=clamp(Math.max(loudPeak?(group.velocity-threshold+16)/42:0,(jump-10)/36,group.count>=5?.72:.4),.4,1);
+        if(previous&&group.time-previous.time<1.15){
+          if(intensity>previous.intensity+.12){previous.time=group.time;previous.velocity=group.velocity;previous.intensity=intensity;}
+          continue;
+        }
+        accents.push({time:group.time,velocity:group.velocity,intensity});
+      }
+      this.cameraAccents=accents;
+    }
+    cameraPulseAt(t){
+      const events=this.cameraAccents||[];let lo=0,hi=events.length;
+      while(lo<hi){const mid=(lo+hi)>>>1;if(events[mid].time<=t)lo=mid+1;else hi=mid;}
+      let intensity=0,ageOfPeak=0;
+      for(let i=lo-1;i>=0&&t-events[i].time<1.45;i--){
+        const age=t-events[i].time,attack=smooth(age/.18),env=age<.3?attack:1-smooth((age-.3)/1.25),amount=env*events[i].intensity;
+        if(amount>intensity){intensity=amount;ageOfPeak=age;}
+      }
+      if(intensity<=.001)return {scale:1,x:0,y:0};
+      const attack=smooth(ageOfPeak/.035),shakeEnv=ageOfPeak<.08?attack:1-smooth((ageOfPeak-.08)/.42);
+      const phase=ageOfPeak*Math.PI*10.4;
+      return {scale:1+intensity*.31,
+        x:Math.sin(phase)*intensity*11*shakeEnv,y:Math.sin(phase*1.23+.8)*intensity*7*shakeEnv};
+    }
+    updateDynamicCamera(t){
+      const active=this.cameraMode==='dynamic';
+      const pulse=active?this.cameraPulseAt(t):{scale:1,x:0,y:0};
+      const cursor=ScoreFollower.cameraCursorAt(t,this.positions)||{x:this.container.offsetLeft||0,y:this.container.offsetTop||0};
+      const scale=pulse.scale;this.cameraScale=scale;this.cameraPivotX=cursor.x;this.cameraPivotY=cursor.y;
       if(this.container){
-        this.container.style.transformOrigin='0 0';
-        this.container.style.transform=scale===1?'':'scale('+scale.toFixed(4)+')';
+        const ox=this.container.offsetLeft||0,oy=this.container.offsetTop||0;
+        this.container.style.transformOrigin=`${(cursor.x-ox).toFixed(2)}px ${(cursor.y-oy).toFixed(2)}px`;
+        this.container.style.transform=active&& (scale!==1||pulse.x||pulse.y)
+          ?`translate(${pulse.x.toFixed(2)}px,${pulse.y.toFixed(2)}px) scale(${scale.toFixed(4)})`:'';
       }
       if(this.cameraSpacer&&this.cameraBaseWidth&&this.cameraBaseHeight){
-        this.cameraSpacer.style.width=Math.ceil(this.cameraBaseWidth*scale)+'px';
-        this.cameraSpacer.style.height=Math.ceil(this.cameraBaseHeight*scale)+'px';
+        const padX=active&&(scale>1.001||Math.abs(pulse.x)>.1)?28:0;
+        const padY=active&&(scale>1.001||Math.abs(pulse.y)>.1)?20:0;
+        this.cameraSpacer.style.width=Math.ceil(this.cameraBaseWidth*scale+padX)+'px';
+        this.cameraSpacer.style.height=Math.ceil(this.cameraBaseHeight*scale+padY)+'px';
       }
-      return scale;
+      return {pulse,cursor,scale};
     }
-    // Camera motion is a pure function of score time, shared by preview/MP4.
+    // Music score stays one vertically scrollable document. Scroll movement is
+    // interpolated around system transitions (not page flips).
     scrollAt(t){
-      const scale=this.updateCameraScale(t);
+      const {pulse,cursor,scale}=this.updateDynamicCamera(t);
       if(this.cameraMode==='fixed')return;
-      const maxX=Math.max(0,(this.cameraBaseWidth||this.viewport.scrollWidth)*scale-this.viewport.clientWidth);
-      const maxY=Math.max(0,(this.cameraBaseHeight||this.viewport.scrollHeight)*scale-this.viewport.clientHeight);
-      const originX=this.container.offsetLeft||0,originY=this.container.offsetTop||0;
-      const screenX=x=>originX+(x-originX)*scale;
-      const screenY=y=>originY+(y-originY)*scale;
+      const dynamic=this.cameraMode==='dynamic';
+      const maxX=Math.max(0,(this.cameraBaseWidth||this.viewport.scrollWidth)*scale-this.viewport.clientWidth+(dynamic&&(scale>1.001||Math.abs(pulse.x)>.1)?28:0));
+      const maxY=Math.max(0,(this.cameraBaseHeight||this.viewport.scrollHeight)*scale-this.viewport.clientHeight+(dynamic&&(scale>1.001||Math.abs(pulse.y)>.1)?20:0));
+      const pivotX=this.cameraPivotX??(this.container.offsetLeft||0),pivotY=this.cameraPivotY??(this.container.offsetTop||0);
+      const screenX=x=>pivotX+(x-pivotX)*scale;
+      const screenY=y=>pivotY+(y-pivotY)*scale;
       if(this.scrollMode==='horizontal'){
-        // Cinema-style tracking shot: the entire score is one wide strip.
-        // The left edge follows the interpolated MIDI-synchronized X axis,
-        // so the score glides continuously under a stable camera viewport.
         if(!this._scoreContentWidth){
           const widths=this.container.querySelectorAll?Array.from(this.container.querySelectorAll('svg')).map(el=>el.getBoundingClientRect().width):[];
           this._scoreContentWidth=Math.max(this.container.scrollWidth,...widths);
         }
-        const contentWidth=Math.max(this._scoreContentWidth,this.cameraBaseWidth||0);
+        const contentWidth=Math.max(this._scoreContentWidth,this.cameraBaseWidth||0)*scale;
         const anchorBase=clamp(Number(this.effects.scorePositionX??38)/100,.05,.95);
-        const anchor=this.cameraMode==='cinematic'?clamp(anchorBase,.30,.50):anchorBase;
-        const cursor=ScoreFollower.cursorAt(t,this.positions,this.effects.cursorMotion);
-        this.viewport.scrollLeft=this.cameraMode==='cinematic'&&cursor
-          ?clamp(screenX(cursor.x)-this.viewport.clientWidth*anchor,0,maxX)
+        const anchor=this.cameraMode==='cinematic'?clamp(anchorBase+.016*Math.sin(t*.13),.05,.95):anchorBase;
+        this.viewport.scrollLeft=dynamic&&cursor
+          ?clamp(screenX(cursor.x)-this.viewport.clientWidth*clamp(anchorBase,.32,.48),0,Math.max(maxX,contentWidth-this.viewport.clientWidth))
           :ScoreFollower.cameraX(t,this.positions,this.viewport.clientWidth,contentWidth,anchor);
         this.viewport.scrollTop=0;
         return;
       }
       if(!this.lines.length)return;
-      if(this.scrollMode==='page'&&this.cameraMode!=='cinematic'){
-        const c=this.osmd.cursor.cursorElement;
-        const pos=c?.getBoundingClientRect();
+      if(this.scrollMode==='page'&&!dynamic){
+        const c=this.osmd.cursor.cursorElement,pos=c?.getBoundingClientRect();
         if(pos){const vr=this.viewport.getBoundingClientRect();
-          const desired=Math.max(0,this.viewport.scrollTop+pos.top-vr.top-this.viewport.clientHeight*.38);
-          this.viewport.scrollTop=desired;}
+          this.viewport.scrollTop=Math.max(0,this.viewport.scrollTop+pos.top-vr.top-this.viewport.clientHeight*.38);}
         return;
       }
-      const maxScroll=maxY;
+      const maxScroll=dynamic?maxY:Math.max(0,this.container.scrollHeight-this.viewport.clientHeight);
       const scorePosY=clamp((Number(this.effects.scorePositionY)||12)/100,0,1);
-      const focusY=this.cameraMode==='cinematic'?.56:(.16+scorePosY*.54);
-      const target=(l)=>clamp(screenY(l.y)-this.viewport.clientHeight*focusY,0,maxScroll);
-      if(this.cameraMode==='cinematic'){
-        const cursor=ScoreFollower.cursorAt(t,this.positions,this.effects.cursorMotion);
-        if(cursor){
-          const anchor=clamp(Number(this.effects.scorePositionX??38)/100,.32,.48);
-          this.viewport.scrollLeft=clamp(screenX(cursor.x)-this.viewport.clientWidth*anchor,0,maxX);
-        }
+      const focusY=dynamic?.48:(.16+scorePosY*.54);
+      const target=l=>clamp((dynamic?screenY(l.y):l.y)-this.viewport.clientHeight*focusY,0,maxScroll);
+      if(dynamic&&cursor){
+        this.viewport.scrollLeft=clamp(screenX(cursor.x)-this.viewport.clientWidth*clamp(Number(this.effects.scorePositionX??38)/100,.32,.48),0,maxX);
       }else this.viewport.scrollLeft=0;
       let scroll=target(this.lines[0]);
       for(let i=1;i<this.lines.length;i++){
-        const boundary=this.lines[i].audio;
-        const start=boundary-1.25,end=boundary+.2;
+        const boundary=this.lines[i].audio,start=boundary-1.25,end=boundary+.2;
         if(t<start)break;
         if(t<end){scroll=lerp(target(this.lines[i-1]),target(this.lines[i]),smooth((t-start)/(end-start)));break;}
         scroll=target(this.lines[i]);
@@ -799,8 +836,8 @@
           const r=el.getBoundingClientRect();
           if(!r.width||!r.height)continue;
           const scale=this.viewport.getBoundingClientRect().width/this.viewport.clientWidth||1;
-          cx=(r.left+r.width*.5-box.left)/scale/(this.cameraScale||1);
-          cy=(r.top+r.height*.5-box.top)/scale/(this.cameraScale||1);
+          cx=(r.left+r.width*.5-box.left)/scale;
+          cy=(r.top+r.height*.5-box.top)/scale;
         }
         const aura=document.createElement('i');aura.className='note-aura';
         aura.style.left=`${cx}px`;aura.style.top=`${cy}px`;
