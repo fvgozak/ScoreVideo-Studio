@@ -89,11 +89,13 @@
    });
  }
  function syncInfo(){
-   if(!project?.sync){$('syncInfo').textContent='음원의 첫 유효한 소리와 MIDI 첫 타건을 자동 정렬합니다. 곡 전체 템포가 다르면 수동 보정이 필요할 수 있습니다.';$('clearSyncButton').hidden=true;return;}
+   if(!project?.sync){$('syncInfo').textContent='싱크 대기';$('syncInfo').title='음원의 첫 유효한 소리와 MIDI 첫 타건을 자동 정렬합니다. 곡 전체 템포가 다르면 수동 보정이 필요할 수 있습니다.';$('clearSyncButton').hidden=true;return;}
    const s=project.sync;
-   $('syncInfo').textContent=s.method==='first-sound-offset'
+   const detail=s.method==='first-sound-offset'
        ? `첫 소리 자동 싱크 · MIDI ${s.first_midi_sec.toFixed(3)}초 → 음원 ${s.first_audio_sec.toFixed(3)}초 · 보정 ${s.offset_sec.toFixed(3)}초`
        : `동기화 보정 ${Number(s.offset_sec||0).toFixed(3)}초`;
+   $('syncInfo').textContent=`싱크 ${Number(s.offset_sec)>=0?'+':''}${Number(s.offset_sec||0).toFixed(3)}초`;
+   $('syncInfo').title=detail;
    $('clearSyncButton').hidden=false;
  }
  for(let i=0;i<inputIds.length;i++)$(inputIds[i]).addEventListener('change',()=>{$(labelIds[i]).textContent=$(inputIds[i]).files?.[0]?.name||'파일 선택';});
@@ -294,6 +296,17 @@
  });
 
  $('offset').addEventListener('input',()=>{$('offsetVal').textContent=`${offset().toFixed(2)}초`;queueApply();});
+ $('syncAdjustToggle').addEventListener('click',()=>{
+   const open=$('syncAdjustPopover').hidden;
+   $('syncAdjustPopover').hidden=!open;$('syncAdjustToggle').setAttribute('aria-expanded',String(open));
+ });
+ document.addEventListener('click',event=>{
+   if(event.target.closest('.sync-adjust-control'))return;
+   $('syncAdjustPopover').hidden=true;$('syncAdjustToggle').setAttribute('aria-expanded','false');
+ });
+ document.addEventListener('keydown',event=>{
+   if(event.key==='Escape'&&!$('syncAdjustPopover').hidden){$('syncAdjustPopover').hidden=true;$('syncAdjustToggle').setAttribute('aria-expanded','false');}
+ });
  $('backgroundFile').addEventListener('change',async()=>{
    const file=$('backgroundFile').files?.[0];if(!file)return;
    void analyzePaletteImage(file);
@@ -338,7 +351,8 @@
    const repeatText=repeat?.mode==='unfolded'
      ?` · 되돌이표 전개 ${repeat.source_measures}→${repeat.playback_measures}마디`
      :(repeat?.warning?` · ${repeat.warning}`:'');
-   $('scoreAlignmentInfo').textContent=alignmentText+repeatText;
+   $('scoreAlignmentInfo').textContent=a?`매칭 ${Math.round(a.coverage*100)}%`:'매칭 정보 없음';
+   $('scoreAlignmentInfo').title=alignmentText+repeatText;
    $('scoreAlignmentInfo').classList.toggle('error',a?.status!=='ok');
    $('metadata').textContent=`${meta.note_count.toLocaleString()}개 MIDI 음표 · ${fmt(meta.audio_duration_sec)} · 템포 변화 ${meta.tempo_map.length}개 · 악보/MIDI 음표 매칭 ${Math.round((a?.coverage||0)*100)}%`;
    if(a?.status==='needs-review')message(`악보 ↔ MIDI 매칭 주의 (${Math.round(a.coverage*100)}%): ${a.message}`,true);

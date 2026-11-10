@@ -164,31 +164,34 @@ main{max-width:1540px;padding-top:20px}
 @media(max-width:630px){.preview-actions{flex-wrap:wrap}.fullscreen-preview-button{flex:none}}
 
 
-/* v0.17 quick-access zoom is always visible above the score preview. */
-.preview-zoom-bar{display:flex;align-items:center;gap:9px;padding:8px 15px 7px;border-bottom:1px solid #283748;background:#141f2b;min-height:46px;flex:none}
+/* Compact zoom + sync toolbar; detailed sync adjustment opens on demand. */
+.preview-zoom-bar{position:relative;display:flex;align-items:center;gap:8px;padding:7px 12px;background:#141f2b;min-height:46px;flex:none;z-index:12}
 .preview-zoom-bar label{font-size:12px;color:#c0d7e5;font-weight:750;white-space:nowrap}
 .preview-zoom-bar label icon{font-size:18px;color:#72d7e2;font-style:normal;vertical-align:middle}
-.preview-zoom-bar input[type=range]{min-width:70px;max-width:260px;flex:1;accent-color:#63d4e3;cursor:pointer}
+.preview-zoom-bar input[type=range]{min-width:48px;max-width:200px;flex:1;accent-color:#63d4e3;cursor:pointer}
 .preview-zoom-bar button{width:28px;height:28px;flex:none;background:#223849;border:1px solid #395569;color:#b9f4fa;border-radius:7px;font-size:18px;font-weight:650;cursor:pointer}
 .preview-zoom-bar output{min-width:45px;text-align:right;color:#c5f2f5;font-size:12px;font-weight:750;font-variant-numeric:tabular-nums}
 .preview-zoom-bar button.zoom-reset{width:auto;padding:0 9px;font-size:10px;color:#a4c4d4;white-space:nowrap}
 .preview-zoom-bar button:hover{background:#315469}
 #playerDock:fullscreen .preview-zoom-bar{background:#0d1724;width:100%}
-@media(max-width:640px){.preview-zoom-bar{gap:6px;padding:7px 9px}.preview-zoom-bar label{font-size:11px}.preview-zoom-bar button.zoom-reset{display:none}}
-.preview-sync-panel{flex:none;padding:9px 15px 10px;background:#111c28;border-bottom:1px solid #283748;color:#d9e5eb}
-.preview-sync-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-.preview-sync-head strong{font-size:12px;color:#d9f5f6}
-.preview-sync-results{display:flex;flex-wrap:wrap;gap:2px 16px}
-.preview-sync-panel .sync-result{margin:4px 0 0;font-size:10px;line-height:1.45}
-.preview-sync-actions{display:flex;align-items:center;gap:7px;flex:none}
-.preview-sync-actions .secondary-button,.preview-sync-actions .subtle-button{width:auto;margin:0;padding:7px 10px;font-size:10px;white-space:nowrap}
-.preview-offset{display:grid;grid-template-columns:150px minmax(80px,1fr);align-items:center;gap:2px 12px;margin-top:7px}
-.preview-offset label{font-size:10px;color:#b8ced9}.preview-offset label span{color:#e0f4f6;font-variant-numeric:tabular-nums}
-.preview-offset input{width:100%;accent-color:#66d7df}
-.preview-offset .field-foot,.preview-offset small{grid-column:2;font-size:9px;color:#8198a8}
-.preview-offset .field-foot{display:flex;justify-content:space-between;margin-top:-2px}
-.preview-offset small{line-height:1.35}
-@media(max-width:760px){.preview-sync-panel{padding:8px 10px}.preview-sync-head{flex-direction:column;gap:6px}.preview-sync-actions{flex-wrap:wrap}.preview-offset{grid-template-columns:112px minmax(70px,1fr);gap:2px 8px}}
+.sync-quick-controls{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0}
+.sync-compact{max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#a8bfca;font-size:10px;font-variant-numeric:tabular-nums}
+.sync-compact.error{color:#ffbd9b}
+.sync-quick-controls button{height:28px;width:auto;padding:0 9px;border:1px solid #395569;border-radius:7px;background:#223849;color:#c2eef2;font-size:10px;font-weight:700;white-space:nowrap;cursor:pointer}
+.sync-quick-controls button:hover{background:#315469}.sync-quick-controls button:disabled{opacity:.48;cursor:default}
+.sync-quick-controls .sync-auto-button{background:#21404a;border-color:#3b7880;color:#aff2f0}
+.sync-adjust-control{position:relative;flex:none}
+.sync-adjust-toggle span{margin-left:3px;color:#8faebb}
+.sync-adjust-popover{position:absolute;top:calc(100% + 8px);right:0;width:min(300px,calc(100vw - 28px));padding:13px 14px;background:#172432;border:1px solid #446171;border-radius:10px;box-shadow:0 12px 34px #0009;color:#dce8ec;z-index:30}
+.sync-adjust-popover[hidden]{display:none}
+.sync-adjust-popover label{display:flex;justify-content:space-between;font-size:11px;color:#c1d6df}
+.sync-adjust-popover label strong{color:#e2fbfb;font-variant-numeric:tabular-nums}
+.sync-adjust-popover input{display:block;width:100%;margin:10px 0 3px;accent-color:#66d7df}
+.sync-adjust-popover .field-foot{display:flex;justify-content:space-between;color:#8fa6b3;font-size:9px}
+.sync-adjust-popover small{display:block;margin-top:8px;color:#93aab7;font-size:10px;line-height:1.4}
+.sync-adjust-popover .subtle-button{width:100%;margin-top:10px;padding:8px;font-size:10px}
+@media(max-width:760px){.preview-zoom-bar{flex-wrap:wrap;gap:6px;padding:7px 9px}.preview-zoom-bar label{font-size:11px}.preview-zoom-bar input[type=range]{min-width:60px}.preview-zoom-bar button.zoom-reset{display:none}.sync-quick-controls{flex:1;justify-content:flex-end}.sync-compact{max-width:82px}}
+@media(max-width:480px){.sync-compact:first-child{display:none}.sync-compact{max-width:74px}}
 /* Artwork palette studio - stays in the Design tab; no additional sidebar column. */
 .image-palette-studio{border:1px solid #396c75!important;background:linear-gradient(150deg,#1b303d,#17222e)!important}
 .palette-help,.palette-footnote{font-size:11px;line-height:1.6;color:#a3bbc8;margin:1px 0 11px}

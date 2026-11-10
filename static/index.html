@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>ScoreVideo Studio v0.17.3 · 작업공간</title>
-<link href="/static/style.css?v=0.17.3" rel="stylesheet"/><link href="/static/effects.css?v=0.17.3" rel="stylesheet"/><link href="/static/stage.css?v=0.17.3" rel="stylesheet"/></head>
+<title>ScoreVideo Studio v0.17.4 · 작업공간</title>
+<link href="/static/style.css?v=0.17.4" rel="stylesheet"/><link href="/static/effects.css?v=0.17.4" rel="stylesheet"/><link href="/static/stage.css?v=0.17.4" rel="stylesheet"/></head>
 <body><div class="app">
-<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.17.3</small></div></div>
-<div class="top-right"><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.17.3</span></div></header>
+<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.17.4</small></div></div>
+<div class="top-right"><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.17.4</span></div></header>
 <main>
 <section class="intro compact-intro"><div class="eyebrow">SCORE + MIDI + AUDIO → VIDEO</div>
 <h1>연주를 따라 움직이는<br/><em>악보 영상</em>을 만들어보세요.</h1>
@@ -173,28 +173,29 @@
 </section></div></aside>
 <section class="workspace"><div class="workspace-header"><div><span class="status-dot"></span><strong id="projectTitle">악보 미리보기</strong><p id="metadata">파일 세 개를 선택해 주세요.</p></div><div class="tag">MUSICXML RENDERER</div></div>
 <div aria-label="항상 보이는 미리보기 플레이어" class="player-dock" id="playerDock">
-<div class="preview-zoom-bar" role="group" aria-label="악보 확대 바로 조절">
+<div class="preview-zoom-bar" role="group" aria-label="악보 확대 및 동기화 조절">
   <label for="zoom"><icon aria-hidden="true">⌕</icon> 악보 확대</label>
   <button type="button" id="zoomOutButton" title="악보 축소" aria-label="악보 축소">−</button>
   <input id="zoom" type="range" min="0.55" max="1.45" step="0.05" value="0.9" aria-label="악보 확대 비율"/>
   <button type="button" id="zoomInButton" title="악보 확대" aria-label="악보 확대">+</button>
   <output id="zoomVal" for="zoom">90%</output>
   <button type="button" id="zoomResetButton" class="zoom-reset" title="악보 확대를 100%로 초기화">100% 복원</button>
-</div>
-<section class="preview-sync-panel" aria-label="악보 자동 동기화">
-  <div class="preview-sync-head"><div><strong>자동 동기화</strong><div class="preview-sync-results">
-    <div class="sync-result" id="scoreAlignmentInfo">악보↔MIDI 음표 매칭: 파일 업로드 후 자동 분석합니다.</div>
-    <div class="sync-result" id="syncInfo">MIDI↔음원 첫 소리 정렬: 별도로 실행합니다.</div>
-  </div></div><div class="preview-sync-actions">
-    <button class="secondary-button" disabled="" id="autoSyncButton">✦ 첫 소리 자동 싱크 맞추기</button>
-    <button class="subtle-button" hidden="" id="clearSyncButton">자동 싱크 초기화</button>
-  </div></div>
-  <div class="preview-offset"><label for="offset">수동 미세 조정 <span id="offsetVal">0.00초</span></label>
-    <input id="offset" max="5" min="-5" step="0.05" type="range" value="0"/>
-    <div class="field-foot"><span>-5초</span><span>+5초</span></div>
-    <small>자동 싱크 후에도 ±5초를 더하거나 뺄 수 있습니다.</small>
+  <div class="sync-quick-controls" aria-label="동기화">
+    <span class="sync-compact" id="scoreAlignmentInfo" title="악보와 MIDI 음표 매칭 상태">매칭 —</span>
+    <span class="sync-compact" id="syncInfo" title="첫 소리 자동 싱크 상태">첫 소리 대기</span>
+    <button class="sync-auto-button" disabled="" id="autoSyncButton" title="MIDI의 첫 타건과 음원의 첫 소리를 자동으로 맞춥니다">✦ 첫 소리 싱크</button>
+    <div class="sync-adjust-control">
+      <button class="sync-adjust-toggle" id="syncAdjustToggle" type="button" aria-expanded="false" aria-controls="syncAdjustPopover">미세 조정 <span aria-hidden="true">⌄</span></button>
+      <div class="sync-adjust-popover" id="syncAdjustPopover" hidden>
+        <label for="offset">수동 미세 조정 <strong id="offsetVal">0.00초</strong></label>
+        <input id="offset" max="5" min="-5" step="0.05" type="range" value="0"/>
+        <div class="field-foot"><span>-5초</span><span>+5초</span></div>
+        <small>자동 싱크에 ±5초를 더하거나 빼서 맞출 수 있습니다.</small>
+        <button class="subtle-button" hidden="" id="clearSyncButton" type="button">자동 싱크 초기화</button>
+      </div>
+    </div>
   </div>
-</section>
+</div>
 <div class="preview-surround" id="previewSurround"><div class="stage-frame" id="stageFrame"><div class="video-stage" id="scoreViewport"><div id="placeholder"><span class="bigclef">𝄞</span><h3>악보가 여기에 표시됩니다</h3><p>MusicXML · MIDI · 음원 파일을 업로드해 시작하세요.</p></div><div class="score-window" id="scoreWindow"><div class="score-panel" id="scorePanel"></div><div class="score-scroll" id="scoreScroll"><div id="osmdContainer"></div></div></div></div><div aria-label="악보 표시 영역 드래그 및 크기 조절" class="score-edit-overlay" hidden="" id="scoreEditOverlay"><div class="score-edit-box" id="scoreEditBox"><span class="score-edit-label">악보 영역 · 끌어서 이동</span><span class="score-edit-size" id="scoreEditSize">94% × 70%</span><i aria-hidden="true" class="edit-handle edit-handle-right" data-resize="right"></i><i aria-hidden="true" class="edit-handle edit-handle-bottom" data-resize="bottom"></i><i aria-hidden="true" class="edit-handle edit-handle-corner" data-resize="corner"></i></div></div></div></div>
 <div aria-label="미리보기 재생 조작" class="playbar" role="group">
 <button aria-label="이전 마디" class="measure-button" disabled="" id="previousMeasureButton" title="이전 마디 (, 키)" type="button">⏮</button>
@@ -218,13 +219,13 @@
 </main>
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
-<script src="/static/vendor-loader.js?v=0.17.3"></script>
-<script src="/static/theme.js?v=0.17.3"></script>
-<script src="/static/image-palette.js?v=0.17.3"></script>
-<script src="/static/score-core.js?v=0.17.3"></script>
-<script src="/static/studio-scene.js?v=0.17.3"></script>
-<script src="/static/stage-runtime.js?v=0.17.3"></script>
-<script src="/static/transport.js?v=0.17.3"></script>
-<script src="/static/hex-colors.js?v=0.17.3"></script>
-<script src="/static/visual-editor.js?v=0.17.3"></script><script src="/static/app.js?v=0.17.3"></script>
+<script src="/static/vendor-loader.js?v=0.17.4"></script>
+<script src="/static/theme.js?v=0.17.4"></script>
+<script src="/static/image-palette.js?v=0.17.4"></script>
+<script src="/static/score-core.js?v=0.17.4"></script>
+<script src="/static/studio-scene.js?v=0.17.4"></script>
+<script src="/static/stage-runtime.js?v=0.17.4"></script>
+<script src="/static/transport.js?v=0.17.4"></script>
+<script src="/static/hex-colors.js?v=0.17.4"></script>
+<script src="/static/visual-editor.js?v=0.17.4"></script><script src="/static/app.js?v=0.17.4"></script>
 </body></html>
