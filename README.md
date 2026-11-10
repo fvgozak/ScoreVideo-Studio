@@ -1,4 +1,8 @@
-# ScoreVideo Studio v0.18.5 — Final Draw-on Score Reveal
+# ScoreVideo Studio v0.19.0 — Cinematic Score Camera
+
+## v0.19.0 악보 진행 연동 Cinematic 카메라
+
+- Cinematic 카메라는 악보의 마디 타임라인에 맞춰 구절마다 완만하게 확대·축소하며, 현재 연주 위치를 따라 가로·세로로 재구도합니다. Follow와 Fixed 모드는 기존 동작을 유지합니다. 미리보기와 MP4가 같은 재생 시간 기반 카메라를 사용합니다.
 
 ## v0.18.5 마지막 음표 그리기 표시 보정
 

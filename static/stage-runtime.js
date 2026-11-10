@@ -53,7 +53,11 @@
      if(!this.scorePanel){this.scorePanel=document.createElement('div');this.scorePanel.className='score-panel';this.scoreWindow.appendChild(this.scorePanel);}
      this.scoreScroll=this.scoreWindow.querySelector('.score-scroll');
      if(!this.scoreScroll){this.scoreScroll=document.createElement('div');this.scoreScroll.className='score-scroll';this.scoreWindow.appendChild(this.scoreScroll);}
-     if(this.container.parentElement!==this.scoreScroll)this.scoreScroll.appendChild(this.container);
+     this.cameraSpace=this.scoreScroll.querySelector('.score-camera-space');
+     if(!this.cameraSpace){this.cameraSpace=document.createElement('div');this.cameraSpace.className='score-camera-space';this.scoreScroll.appendChild(this.cameraSpace);}
+     this.cameraSpacer=this.cameraSpace.querySelector('.score-camera-spacer');
+     if(!this.cameraSpacer){this.cameraSpacer=document.createElement('div');this.cameraSpacer.className='score-camera-spacer';this.cameraSpace.appendChild(this.cameraSpacer);}
+     if(this.container.parentElement!==this.cameraSpace)this.cameraSpace.appendChild(this.container);
    }
    static scoreGeometry(settings){
      const w=settings.width,h=settings.height,r=settings.scoreRegion,s=settings.scene;

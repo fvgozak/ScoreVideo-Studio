@@ -224,10 +224,11 @@
       const containerBox=follower.container?.getBoundingClientRect?.()||null;
       const containerX=containerBox?(containerBox.left-view.left)/scale:NaN;
       const containerY=containerBox?(containerBox.top-view.top)/scale:NaN;
+      const cameraScale=Number(follower.cameraScale)||1;
       for(let i=low;i<events.length&&events[i].audio<=t+.015;i++){
         const e=events[i],age=t-e.audio;
         if(age<0||age>1.8)continue;
-        let x=containerX+e.noteX,y=containerY+e.noteY;
+        let x=containerX+e.noteX*cameraScale,y=containerY+e.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)){
           const rect=e.el.getBoundingClientRect();if(!rect.width||!rect.height)continue;
           x=(rect.left+rect.width/2-view.left)/scale;
@@ -248,7 +249,7 @@
       // velocity color with gentle sustained illumination only (no particles).
       for(const hold of (follower.activeTies?.(t)||follower.tieContinuations||[])){
         if(t<hold.audio||t>hold.endAudio)continue;
-        let x=containerX+hold.noteX,y=containerY+hold.noteY;
+        let x=containerX+hold.noteX*cameraScale,y=containerY+hold.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)||x<-60||x>w+60||y<-60||y>h+60)continue;
         const color=noteLightColor(s,hold.velocity,p.glow,follower.velocityRange);
         const remain=clamp((hold.endAudio-t)/.28,0,1);

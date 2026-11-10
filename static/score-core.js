@@ -11,6 +11,9 @@
       this.container=container;
       this.viewport=viewport;
       this.stageRoot=stageRoot||viewport;
+      this.cameraSpace=container.parentElement;
+      this.cameraSpacer=this.cameraSpace?.querySelector('.score-camera-spacer');
+      this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;
       this.tempoMap=tempoMap;
       this.scoreAlignment=scoreAlignment;
       this.scoreAnchors=Array.isArray(scoreAlignment?.anchors)?scoreAlignment.anchors:[];
@@ -409,6 +412,9 @@
       rules.NewPartAndSystemAfterFinalBarline=false;
     }
     async load(url){
+      this.container.style.removeProperty('transform');
+      this.cameraScale=1;
+      if(this.cameraSpacer){this.cameraSpacer.style.width='0px';this.cameraSpacer.style.height='0px';}
       await window.loadOSMD();
       if(!window.opensheetmusicdisplay?.OpenSheetMusicDisplay)throw Error('OSMD 라이브러리를 불러오지 못했습니다.');
       const c=this.colors();
@@ -587,6 +593,8 @@
       if(!this.timestamps.length)throw Error('MusicXML에서 음표 위치를 찾지 못했습니다.');
       cursor.reset();cursor.hide();
       this.index=0;
+      this.cameraBaseWidth=Math.max(this.viewport.clientWidth,this.container.scrollWidth,this.cameraSpace?.scrollWidth||0);
+      this.cameraBaseHeight=Math.max(this.viewport.clientHeight,this.container.scrollHeight,this.cameraSpace?.scrollHeight||0);
       this.buildEffectLayers();
       this.rebuildAudioAxis();
       this.prepareDrawing();
@@ -628,10 +636,43 @@
       this._highlightIndex=target;
       this.updateAmbient(audioSeconds);
     }
-    // Music score stays one vertically scrollable document. Scroll movement is
-    // interpolated around system transitions (not page flips).
+    cameraScaleAt(t){
+      if(this.cameraMode!=='cinematic')return 1;
+      const bars=this.measureStarts||[];
+      if(bars.length<2)return 1.045;
+      let lo=0,hi=bars.length;
+      while(lo<hi){const mid=(lo+hi)>>>1;if(bars[mid].audio<=t)lo=mid+1;else hi=mid;}
+      const index=clamp(lo-1,0,bars.length-1),phraseStart=Math.floor(index/4)*4;
+      const a=bars[phraseStart]?.audio??bars[0].audio;
+      const nextIndex=Math.min(phraseStart+4,bars.length-1);
+      let b=bars[nextIndex]?.audio;
+      if(!(b>a))b=Number(this.audioDuration)||a+8;
+      const phase=clamp((t-a)/Math.max(.001,b-a),0,1);
+      return 1.035+.045*Math.sin(Math.PI*phase);
+    }
+    updateCameraScale(t){
+      const scale=this.cameraScaleAt(t);
+      if(Math.abs(scale-this.cameraScale)<.0005)return scale;
+      this.cameraScale=scale;
+      if(this.container){
+        this.container.style.transformOrigin='0 0';
+        this.container.style.transform=scale===1?'':'scale('+scale.toFixed(4)+')';
+      }
+      if(this.cameraSpacer&&this.cameraBaseWidth&&this.cameraBaseHeight){
+        this.cameraSpacer.style.width=Math.ceil(this.cameraBaseWidth*scale)+'px';
+        this.cameraSpacer.style.height=Math.ceil(this.cameraBaseHeight*scale)+'px';
+      }
+      return scale;
+    }
+    // Camera motion is a pure function of score time, shared by preview/MP4.
     scrollAt(t){
+      const scale=this.updateCameraScale(t);
       if(this.cameraMode==='fixed')return;
+      const maxX=Math.max(0,(this.cameraBaseWidth||this.viewport.scrollWidth)*scale-this.viewport.clientWidth);
+      const maxY=Math.max(0,(this.cameraBaseHeight||this.viewport.scrollHeight)*scale-this.viewport.clientHeight);
+      const originX=this.container.offsetLeft||0,originY=this.container.offsetTop||0;
+      const screenX=x=>originX+(x-originX)*scale;
+      const screenY=y=>originY+(y-originY)*scale;
       if(this.scrollMode==='horizontal'){
         // Cinema-style tracking shot: the entire score is one wide strip.
         // The left edge follows the interpolated MIDI-synchronized X axis,
@@ -640,15 +681,18 @@
           const widths=this.container.querySelectorAll?Array.from(this.container.querySelectorAll('svg')).map(el=>el.getBoundingClientRect().width):[];
           this._scoreContentWidth=Math.max(this.container.scrollWidth,...widths);
         }
-        const contentWidth=this._scoreContentWidth;
+        const contentWidth=Math.max(this._scoreContentWidth,this.cameraBaseWidth||0);
         const anchorBase=clamp(Number(this.effects.scorePositionX??38)/100,.05,.95);
-        const anchor=this.cameraMode==='cinematic'?clamp(anchorBase+.016*Math.sin(t*.13),.05,.95):anchorBase;
-        this.viewport.scrollLeft=ScoreFollower.cameraX(t,this.positions,this.viewport.clientWidth,contentWidth,anchor);
+        const anchor=this.cameraMode==='cinematic'?clamp(anchorBase,.30,.50):anchorBase;
+        const cursor=ScoreFollower.cursorAt(t,this.positions,this.effects.cursorMotion);
+        this.viewport.scrollLeft=this.cameraMode==='cinematic'&&cursor
+          ?clamp(screenX(cursor.x)-this.viewport.clientWidth*anchor,0,maxX)
+          :ScoreFollower.cameraX(t,this.positions,this.viewport.clientWidth,contentWidth,anchor);
         this.viewport.scrollTop=0;
         return;
       }
       if(!this.lines.length)return;
-      if(this.scrollMode==='page'){
+      if(this.scrollMode==='page'&&this.cameraMode!=='cinematic'){
         const c=this.osmd.cursor.cursorElement;
         const pos=c?.getBoundingClientRect();
         if(pos){const vr=this.viewport.getBoundingClientRect();
@@ -656,10 +700,17 @@
           this.viewport.scrollTop=desired;}
         return;
       }
-      const maxScroll=Math.max(0,this.container.scrollHeight-this.viewport.clientHeight);
+      const maxScroll=maxY;
       const scorePosY=clamp((Number(this.effects.scorePositionY)||12)/100,0,1);
-      const focusY=.16+scorePosY*.54;
-      const target=(l)=>clamp(l.y-this.viewport.clientHeight*focusY,0,maxScroll);
+      const focusY=this.cameraMode==='cinematic'?.56:(.16+scorePosY*.54);
+      const target=(l)=>clamp(screenY(l.y)-this.viewport.clientHeight*focusY,0,maxScroll);
+      if(this.cameraMode==='cinematic'){
+        const cursor=ScoreFollower.cursorAt(t,this.positions,this.effects.cursorMotion);
+        if(cursor){
+          const anchor=clamp(Number(this.effects.scorePositionX??38)/100,.32,.48);
+          this.viewport.scrollLeft=clamp(screenX(cursor.x)-this.viewport.clientWidth*anchor,0,maxX);
+        }
+      }else this.viewport.scrollLeft=0;
       let scroll=target(this.lines[0]);
       for(let i=1;i<this.lines.length;i++){
         const boundary=this.lines[i].audio;
@@ -748,8 +799,8 @@
           const r=el.getBoundingClientRect();
           if(!r.width||!r.height)continue;
           const scale=this.viewport.getBoundingClientRect().width/this.viewport.clientWidth||1;
-          cx=(r.left+r.width*.5-box.left)/scale;
-          cy=(r.top+r.height*.5-box.top)/scale;
+          cx=(r.left+r.width*.5-box.left)/scale/(this.cameraScale||1);
+          cy=(r.top+r.height*.5-box.top)/scale/(this.cameraScale||1);
         }
         const aura=document.createElement('i');aura.className='note-aura';
         aura.style.left=`${cx}px`;aura.style.top=`${cy}px`;
