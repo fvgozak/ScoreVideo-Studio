@@ -303,17 +303,23 @@
       if(!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
       if(!this.drawingActive)this.activateDrawing();
       const cursor=ScoreFollower.cursorAt(time,this.positions,this.effects.cursorMotion);
-      const offsetLeft=this.container.offsetLeft||0;
-      let current=null;
-      for(const system of this.drawSystems){if(time>=system.first-.03&&time<=system.last+.03){current=system;break;}}
-      if(!current){
-        for(const system of this.drawSystems)if(system.first<=time)current=system;
-        if(!current)current=this.drawSystems[0]||null;
+      const offsetLeft=this.container.offsetLeft||0,offsetTop=this.container.offsetTop||0;
+      let currentIndex=0;
+      if(cursor&&Number.isFinite(cursor.y)&&this.drawSystems.length){
+        const cursorY=cursor.y-offsetTop;
+        let nearest=Infinity;
+        for(let i=0;i<this.drawSystems.length;i++){
+          const distance=Math.abs(this.drawSystems[i].y-cursorY);
+          if(distance<nearest){nearest=distance;currentIndex=i;}
+        }
       }
-      for(const system of this.drawSystems){
-        const state=time>=system.last-.001?1:time<system.first-.001?0:(system===current?2:0);
-        let cursorX=NaN;
-        if(system===current&&cursor)cursorX=cursor.x-offsetLeft;
+      for(let i=0;i<this.drawSystems.length;i++){
+        const system=this.drawSystems[i];
+        // Use the visible score cursor's row, not MIDI attack-time ranges.
+        // A rest or a sync gap at a system boundary must not strand the draw
+        // animation on the preceding row.
+        const state=i<currentIndex?1:i===currentIndex?2:0;
+        const cursorX=state===2&&cursor?cursor.x-offsetLeft:NaN;
         for(const item of system.items){
           const reveal=state===1||(state===2&&Number.isFinite(cursorX)&&item.right<=cursorX+1);
           if(item.revealed!==reveal){this.setDrawClip(item,reveal?1:0);item.revealed=reveal;}
