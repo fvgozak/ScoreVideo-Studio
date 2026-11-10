@@ -12,6 +12,7 @@ main{max-width:1470px;margin:0 auto;padding:38px 28px 0}.intro .eyebrow{font-siz
 
 /* v0.2 controls */
 .secondary-button { display:block;width:100%;padding:12px 14px;background:#233c4a;color:#a3edf4;border:1px solid #3f8590;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer; }
+.demo-load-button{margin-top:9px;background:linear-gradient(110deg,#214d59,#273d56);border-color:#58a1a8}
 .secondary-button:disabled{opacity:.5;cursor:default}
 .subtle-button{border:0;background:transparent;color:#8197a9;text-decoration:underline;margin:10px 0 0;padding:0;cursor:pointer;font-size:11px}
 .sync-result{margin:10px 0 14px;color:#a4b9c5;font-size:11px;line-height:1.6;white-space:pre-wrap}

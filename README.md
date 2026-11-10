@@ -1,5 +1,10 @@
 # ScoreVideo Studio v0.17 — Artwork Palette & Quick Zoom
 
+## v0.17.3 Dream Journey 예제
+
+- 파일 탭의 `Dream Journey 예제 바로 체험하기` 버튼으로 MusicXML·MIDI·MP3를 한 번에 불러오고 커버 이미지를 영상 배경으로 적용합니다.
+- 예제 원본은 `examples/dream-journey/`에 포함되어 있습니다. 악보·음원·MIDI는 공개 데모 목적으로 포함했으며, 커버 크레딧은 이미지에 표기된 Lim Hyeon Jun입니다.
+
 ## v0.17.2 화면 배경 및 동기화 조작 개선
 
 - 이미지 분석 패널의 체크박스를 켜면 선택한 그림을 즉시 영상 배경으로 저장하고 미리보기에 적용합니다. 같은 파일명으로 바꿔도 캐시된 이전 이미지가 남지 않도록 배경 버전을 URL에 포함합니다.

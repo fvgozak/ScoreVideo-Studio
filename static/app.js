@@ -358,12 +358,39 @@
      message(`되돌이표를 MIDI 연주 순서로 전개했습니다 (${meta.repeat_info.source_measures}→${meta.repeat_info.playback_measures}마디). 미리보기·MP4에 동일 적용됩니다.`);
    }else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
  }
- $('uploadForm').addEventListener('submit',async e=>{
-   e.preventDefault();$('uploadButton').disabled=true;message('악보와 MIDI, 음원 분석 중...');
-   const form=new FormData();for(const name of inputIds){if(!$(name).files?.length){message(`${name} 파일을 선택해 주세요.`,true);$('uploadButton').disabled=false;return;}form.append(name,$(name).files[0]);}
-   try{const r=await fetch('/api/projects',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'파일 처리 실패');
+ async function importProjectFiles(files,{backgroundFile=null}={}){
+   $('uploadButton').disabled=true;$('demoButton').disabled=true;message('악보와 MIDI, 음원 분석 중...');
+   const form=new FormData();for(const name of inputIds){if(!files[name]){message(`${name} 파일을 선택해 주세요.`,true);$('uploadButton').disabled=false;$('demoButton').disabled=false;return;}form.append(name,files[name]);}
+   try{
+     const r=await fetch('/api/projects',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'파일 처리 실패');
+     if(backgroundFile){
+       const bg=new FormData();bg.append('background',backgroundFile);
+       const response=await fetch(`/api/projects/${data.id}/background`,{method:'POST',body:bg});const image=await response.json();
+       if(!response.ok)throw Error(image.detail||'예제 커버 적용 실패');
+       data.background_filename=image.background_filename;data.background_version=image.background_version;
+     }
      localStorage.setItem('scorevideo_last_project',data.id);await loadProject(data);
-   }catch(err){message(`악보 로딩 실패: ${err.message}`,true);}finally{$('uploadButton').disabled=false;}
+   }catch(err){message(`악보 로딩 실패: ${err.message}`,true);}finally{$('uploadButton').disabled=false;$('demoButton').disabled=false;}
+ }
+ $('uploadForm').addEventListener('submit',async e=>{
+   e.preventDefault();const files=Object.fromEntries(inputIds.map(name=>[name,$(name).files?.[0]]));
+   if(inputIds.some(name=>!files[name])){message('MusicXML, MIDI, 음원 파일을 모두 선택해 주세요.',true);return;}
+   await importProjectFiles(files);
+ });
+ $('demoButton').addEventListener('click',async()=>{
+   $('demoButton').disabled=true;message('Dream Journey 예제 파일을 준비하고 있습니다...');
+   try{
+     const assets={score:'dream-journey.musicxml',midi:'dream-journey.mid',audio:'dream-journey.mp3',background:'cover.png'};
+     const files={};
+     await Promise.all(Object.entries(assets).map(async([key,name])=>{
+       const response=await fetch(`/api/examples/dream-journey/${name}`);
+       if(!response.ok)throw Error(`${name} 예제 파일을 읽을 수 없습니다.`);
+       const blob=await response.blob();files[key]=new File([blob],name,{type:blob.type});
+     }));
+     for(const name of inputIds){const transfer=new DataTransfer();transfer.items.add(files[name]);$(name).files=transfer.files;
+       const label=labelIds[inputIds.indexOf(name)];$(label).textContent=files[name].name;}
+     await importProjectFiles(files,{backgroundFile:files.background});
+   }catch(error){message(`예제 준비 실패: ${error.message}`,true);$('demoButton').disabled=false;}
  });
  $('autoSyncButton').addEventListener('click',async()=>{
    if(!project)return;$('autoSyncButton').disabled=true;

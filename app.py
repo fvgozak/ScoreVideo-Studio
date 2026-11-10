@@ -232,6 +232,23 @@ def index():
     return (STATIC / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/api/examples/dream-journey/{asset}")
+def dream_journey_example(asset: str):
+    """Serve only the curated demo files bundled with the application."""
+    allowed = {
+        "dream-journey.musicxml": "application/vnd.recordare.musicxml+xml",
+        "dream-journey.mid": "audio/midi",
+        "dream-journey.mp3": "audio/mpeg",
+        "cover.png": "image/png",
+    }
+    if asset not in allowed:
+        raise HTTPException(404, "Example asset not found")
+    path = BASE / "examples" / "dream-journey" / asset
+    if not path.is_file():
+        raise HTTPException(404, "Example asset not installed")
+    return FileResponse(path, media_type=allowed[asset], filename=asset)
+
+
 @app.post("/api/projects")
 async def create_project(score: UploadFile = File(...), midi: UploadFile = File(...),
                          audio: UploadFile = File(...)):
