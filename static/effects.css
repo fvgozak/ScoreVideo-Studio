@@ -6,7 +6,6 @@
 .score-glowing { filter:drop-shadow(0 0 var(--score-glow-blur, 3px) var(--score-note-active)); }
 .score-glowing path, .score-glowing ellipse, .score-glowing circle,
 .score-glowing use { fill:var(--score-note-active) !important; stroke:var(--score-note-active) !important; }
-.note-aura{position:absolute;width:38px;height:38px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,var(--score-accent) 0%,transparent 75%);filter:blur(8px);mix-blend-mode:screen;pointer-events:none}
 .note-star,.ambient-star{position:absolute;width:5px;height:5px;background:var(--score-accent);border-radius:1px;box-shadow:0 0 6px 1px var(--score-accent);pointer-events:none;}
 .note-star:before,.ambient-star:before{content:"";position:absolute;left:2px;top:-4px;width:1px;height:13px;background:var(--score-accent);}
 .ambient-star{width:3px;height:3px;transform:rotate(45deg)}
@@ -22,13 +21,10 @@
 .score-texture[data-texture="dots"]{opacity:.30;background-image:radial-gradient(rgba(110,110,110,.35) 1px,transparent 1px);background-size:14px 14px}
 #osmdContainer{position:relative;z-index:1;background:transparent!important}
 .score-glitter-overlay{z-index:7}
-.note-aura{background:radial-gradient(circle,var(--score-glow) 0%,transparent 75%)}
 .note-star,.ambient-star{background:var(--score-glow);box-shadow:0 0 6px 1px var(--score-glow)}
 .note-star:before,.ambient-star:before{background:var(--score-glow)}
 
-/* v0.4 elegant deterministic afterglow: concentric bloom + thin comet strokes. */
-.note-aura{background:radial-gradient(circle, var(--score-glow) 0%,color-mix(in srgb,var(--score-glow) 35%,transparent) 33%,transparent 73%);filter:blur(9px);mix-blend-mode:screen}
-.note-halo{position:absolute;transform:translate(-50%,-50%);border:1.5px solid var(--score-glow);border-radius:50%;box-shadow:0 0 11px 1px var(--score-glow),inset 0 0 8px -2px var(--score-glow);pointer-events:none;mix-blend-mode:screen}
+/* Note glow is anchored to the engraved head; keep the added trail restrained. */
 .note-trail{position:absolute;height:2.1px;border-radius:20px;background:linear-gradient(90deg,transparent,var(--score-glow),transparent);filter:drop-shadow(0 0 4px var(--score-glow));pointer-events:none;mix-blend-mode:screen}
 #scoreViewport {isolation:isolate}
 

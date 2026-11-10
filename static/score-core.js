@@ -882,13 +882,15 @@
       this.viewport.scrollTop=scroll;
     }
     clearActiveNodes(){
-      for(const {el} of this.activeNodes){
-        el.classList.remove('score-glowing','score-note-moving');
+      for(const {el,motionEl=el} of this.activeNodes){
+        el.classList.remove('score-glowing');
         el.style.removeProperty('--score-note-active');
-        el.style.removeProperty('translate');
-        el.style.removeProperty('scale');
         el.style.removeProperty('opacity');
         el.style.removeProperty('--score-glow-blur');
+        motionEl.classList.remove('score-note-moving');
+        motionEl.style.removeProperty('translate');
+        motionEl.style.removeProperty('scale');
+        motionEl.style.removeProperty('opacity');
       }
       this.activeNodes=[];
     }
@@ -928,12 +930,12 @@
       // the continuation head with the ORIGINAL velocity/color, not a burst.
       if(effect.sparkle){
         for(const hold of this.activeTies(t)){
-          const el=hold.el;
+          const motionEl=hold.el,el=hold.headEl||motionEl;
           const remaining=clamp((hold.endAudio-t)/.28,0,1);
           el.classList.add('score-glowing');
           el.style.setProperty('--score-note-active',this.eventLightColor(hold.velocity));
-          el.style.setProperty('--score-glow-blur',`${(1.8+3.2*remaining).toFixed(2)}px`);
-          this.activeNodes.push({el,velocity:hold.velocity});
+          el.style.setProperty('--score-glow-blur',`${(1.8+1.4*remaining).toFixed(2)}px`);
+          this.activeNodes.push({el,motionEl,velocity:hold.velocity});
         }
       }
       const box=this.container.getBoundingClientRect();
@@ -941,17 +943,17 @@
         const entry=events[i],elapsed=t-entry.audio;
         const dyn=ScoreFollower.dynamics(entry.velocity,elapsed,effect);
         if(!dyn.alive)continue;
-        const el=entry.el;
+        const motionEl=entry.el,el=entry.headEl||motionEl;
         const noteLightColor=this.eventLightColor(entry.velocity);
-        this.activeNodes.push({el,velocity:entry.velocity});
+        this.activeNodes.push({el,motionEl,velocity:entry.velocity});
         el.classList.toggle('score-glowing',Boolean(effect.sparkle));
-        el.classList.toggle('score-note-moving',Boolean(effect.noteMotion));
+        motionEl.classList.toggle('score-note-moving',Boolean(effect.noteMotion));
         if(effect.noteMotion){
-          el.style.setProperty('translate',`${dyn.dx.toFixed(3)}px ${dyn.dy.toFixed(3)}px`);
-          el.style.setProperty('scale',dyn.scale.toFixed(4));
+          motionEl.style.setProperty('translate',`${dyn.dx.toFixed(3)}px ${dyn.dy.toFixed(3)}px`);
+          motionEl.style.setProperty('scale',dyn.scale.toFixed(4));
         }
         el.style.setProperty('--score-note-active',noteLightColor);
-        el.style.setProperty('--score-glow-blur',`${(1.5+dyn.intensity*5).toFixed(2)}px`);
+        el.style.setProperty('--score-glow-blur',`${(2+dyn.intensity*2.2).toFixed(2)}px`);
         if(!effect.sparkle||!this.overlay)continue;
         // Recompute only when a note was not available at layout prepass.
         let cx=entry.noteX,cy=entry.noteY;
@@ -962,21 +964,8 @@
           cx=(r.left+r.width*.5-box.left)/scale;
           cy=(r.top+r.height*.5-box.top)/scale;
         }
-        const aura=document.createElement('i');aura.className='note-aura';
-        aura.style.left=`${cx}px`;aura.style.top=`${cy}px`;
-        aura.style.width=aura.style.height=`${dyn.radius*2}px`;
-        aura.style.opacity=String(dyn.opacity*.8);
-        aura.style.setProperty('--score-accent',noteLightColor);
-        this.overlay.appendChild(aura);
-        // Expanding translucent ring: smooth, restrained, deterministic.
-        const ring=document.createElement('i');ring.className='note-halo';
-        ring.style.left=`${cx}px`;ring.style.top=`${cy}px`;
-        ring.style.width=ring.style.height=`${18+dyn.progress*dyn.radius*2.1}px`;
-        ring.style.opacity=String(dyn.opacity*(1-dyn.progress)*.68);
-        ring.style.setProperty('--score-glow',noteLightColor);
-        this.overlay.appendChild(ring);
-        // An arpeggio leaves a short curved-feeling streak following each
-        // individual note; no random numbers/real-time CSS clocks are used.
+        // Keep note light attached to the engraved notehead. A short streak
+        // and a few restrained particles carry motion without large orbs.
         const trails=Math.round(1+Math.min(2,dyn.intensity));
         for(let j=0;j<trails;j++){
           const trail=document.createElement('i');trail.className='note-trail';
