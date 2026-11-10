@@ -94,9 +94,20 @@
       const notes=events.filter(e=>e.hand===hand&&Number.isFinite(e.audio)&&e.audio<=now+.015&&e.audio>=now-recentWindow)
         .sort((a,b)=>a.audio-b.audio||a.index-b.index);
       if(!notes.length)continue;
+      // A chord can arrive as several note-ons a few milliseconds apart.
+      // Keep its highest pitch as the hand's melodic trail anchor so dense
+      // voicings do not make the light jump down through inner/bass notes.
+      const anchors=[];
+      for(let i=0;i<notes.length;){
+        const first=notes[i],group=[first];let j=i+1;
+        while(j<notes.length&&notes[j].systemKey===first.systemKey&&notes[j].audio-first.audio<=.06){group.push(notes[j]);j++;}
+        const pitched=group.filter(e=>Number.isFinite(e.pitch));
+        anchors.push(pitched.length?pitched.reduce((top,e)=>e.pitch>top.pitch?e:top):group[group.length-1]);
+        i=j;
+      }
       // Only the newest system for this hand is allowed to emit a trail.
-      const system=notes[notes.length-1].systemKey;
-      const same=notes.filter(e=>e.systemKey===system);
+      const system=anchors[anchors.length-1].systemKey;
+      const same=anchors.filter(e=>e.systemKey===system);
       let path=[same[0]];
       for(let i=1;i<same.length;i++){
         const a=same[i-1],b=same[i];
@@ -214,7 +225,7 @@
         const decay=Math.exp(-age*(s.fxMode==='trail'?1.9:3.4));
         const solidColor=s.fxMode==='trail'?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
-        visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,color:lightColor});
+        visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,pitch:e.pitch,color:lightColor});
         if(s.fxMode!=='trail')this.drawBloom(ctx,x,y,decay*power,lightColor,14+power*23);
         if(s.fxMode==='resonance')this.drawRing(ctx,x,y,age,power,lightColor);
         if(s.fxMode==='glitter'||s.fxMode==='trail')this.drawGlitter(ctx,x,y,age,power,lightColor,i);

@@ -49,12 +49,13 @@
       this.sync=sync;
       this.offsetSec=Number(offsetSec)||0;
       this.zoom=zoom;
-      this.effects={paper:'#fffdf6',ink:'#181b22',staff:'#323a43',accent:'#2ec9d3',glow:'#68ddfa',cursor:'#2ec9d3',cursorVisible:true,cursorMotion:'smooth',texture:'none',backgroundUrl:'',backgroundOpacity:.5,backgroundFit:'cover',backgroundPositionX:50,backgroundPositionY:50,scorePositionX:38,scorePositionY:12,inverted:false,glitter:false,sparkle:true,velocityReactive:true,noteMotion:true,motionStrength:1,...effects};
+      this.effects={paper:'#fffdf6',ink:'#181b22',staff:'#323a43',accent:'#2ec9d3',glow:'#68ddfa',cursor:'#2ec9d3',cursorVisible:true,cursorMotion:'smooth',texture:'none',backgroundUrl:'',backgroundOpacity:.5,backgroundFit:'cover',backgroundPositionX:50,backgroundPositionY:50,scorePositionX:38,scorePositionY:12,inverted:false,glitter:false,sparkle:true,velocityReactive:true,noteMotion:true,drawScore:false,motionStrength:1,...effects};
       this.scrollMode=scrollMode;this.cameraMode='follow';
       this.osmd=null;
       this.timestamps=[]; this.beats=[]; this.audioTimestamps=[]; this.lines=[]; this.positions=[]; this.measureStarts=[];
       this.index=0; this.activeNodes=[]; this.noteTriggers=[]; this.tieContinuations=[];
       this.activeTime=-1; this.overlay=null; this.glitterLayer=null;
+      this.drawItems=[];this.drawSystems=[];this.drawCompleteCount=0;this.drawingActive=false;this.lastSeekTime=0;
     }
     beatToSeconds(beat) {
       let lo=0, hi=this.tempoMap.length-1;
@@ -230,6 +231,78 @@
       this.measureStarts.forEach(m=>m.audio=this.midiToAudio(m.midi));
       ScoreFollower.assignHands(this.noteTriggers);
     }
+    prepareDrawing(){
+      const items=new Map();
+      const add=(el,audio)=>{
+        if(!(el instanceof Element)||!Number.isFinite(audio)||items.has(el))return;
+        items.set(el,{el,audio,originalClipPath:el.style.clipPath||''});
+      };
+      for(const note of this.noteTriggers)add(note.el,note.audio);
+      for(const tie of this.tieContinuations)add(tie.el,tie.audio);
+      this.drawItems=[...items.values()].sort((a,b)=>a.audio-b.audio);
+
+      const rows=new Map();
+      for(const note of this.noteTriggers){
+        const key=note.systemKey??0;
+        if(!rows.has(key))rows.set(key,{key,ys:[],times:[]});
+        if(Number.isFinite(note.noteY))rows.get(key).ys.push(note.noteY);
+        rows.get(key).times.push(note.audio);
+      }
+      const systems=[...rows.values()].map(row=>({key:row.key,
+        y:row.ys.reduce((a,b)=>a+b,0)/Math.max(1,row.ys.length),
+        first:Math.min(...row.times),last:Math.max(...row.times),lines:[]}));
+      const svg=this.container.querySelector('svg');
+      const viewportWidth=this.viewport.clientWidth||1000;
+      const scale=this.viewport.getBoundingClientRect().width/viewportWidth||1;
+      const containerTop=this.container.getBoundingClientRect().top;
+      if(svg&&systems.length){
+        for(const el of svg.querySelectorAll('path,line,polyline')){
+          let rect;try{rect=el.getBoundingClientRect();}catch(_){continue;}
+          if(rect.width<Math.max(90,viewportWidth*.18)||rect.height>Math.max(4,4*scale))continue;
+          const css=getComputedStyle(el);
+          if(css.display==='none'||css.visibility==='hidden'||(css.stroke==='none'&&css.fill==='none'))continue;
+          const y=(rect.top+rect.height*.5-containerTop)/scale;
+          let nearest=systems[0],distance=Infinity;
+          for(const system of systems){const next=Math.abs(system.y-y);if(next<distance){distance=next;nearest=system;}}
+          if(distance<360)nearest.lines.push({el,originalClipPath:el.style.clipPath||''});
+        }
+      }
+      this.drawSystems=systems;
+    }
+    setDrawClip(item,progress){
+      const right=`${(100-(Math.max(0,Math.min(1,progress))*100)).toFixed(2)}%`;
+      item.el.style.clipPath=`inset(0 ${right} 0 0)`;
+      item.el.style.webkitClipPath=`inset(0 ${right} 0 0)`;
+    }
+    activateDrawing(){
+      for(const item of this.drawItems)this.setDrawClip(item,0);
+      for(const system of this.drawSystems)for(const line of system.lines)this.setDrawClip(line,0);
+      this.drawCompleteCount=0;this.drawingActive=true;
+      this.updateDrawing(this.lastSeekTime);
+    }
+    deactivateDrawing(){
+      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalClipPath;}
+      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalClipPath;}
+      this.drawCompleteCount=0;this.drawingActive=false;
+    }
+    updateDrawing(time){
+      if(!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
+      if(!this.drawingActive)this.activateDrawing();
+      const duration=.14;
+      let low=0,high=this.drawItems.length;
+      while(low<high){const mid=(low+high)>>>1;if(this.drawItems[mid].audio+duration<=time)low=mid+1;else high=mid;}
+      const complete=low;
+      if(complete>this.drawCompleteCount){for(let i=this.drawCompleteCount;i<complete;i++)this.setDrawClip(this.drawItems[i],1);}
+      else if(complete<this.drawCompleteCount){for(let i=complete;i<this.drawCompleteCount;i++)this.setDrawClip(this.drawItems[i],0);}
+      this.drawCompleteCount=complete;
+      let started=complete;while(started<this.drawItems.length&&this.drawItems[started].audio<=time)started++;
+      for(let i=complete;i<started;i++)this.setDrawClip(this.drawItems[i],(time-this.drawItems[i].audio)/duration);
+      for(const system of this.drawSystems){
+        const start=system.first-.38,end=Math.max(start+.25,system.last+.20);
+        const progress=time<=start?0:time>=end?1:(time-start)/(end-start);
+        for(const line of system.lines)this.setDrawClip(line,progress);
+      }
+    }
     colors(){
       const p=hex(this.effects.paper,'#fffdf6');
       const i=hex(this.effects.ink,'#181b22');
@@ -257,7 +330,12 @@
       this.glitterLayer=ambient;
     }
     setEffects(effects){
+      const wasDrawing=this.effects.drawScore;
       this.effects={...this.effects,...effects};
+      if(this.drawItems.length){
+        if(this.effects.drawScore&&!this.drawingActive)this.activateDrawing();
+        else if(!this.effects.drawScore&&wasDrawing&&this.drawingActive)this.deactivateDrawing();
+      }
       const {paper,ink,accent,glow,cursor}=this.colors();
       this.viewport.style.backgroundColor=this.stageRoot===this.viewport?paper:'transparent';
       this.stageRoot.style.backgroundColor=paper;
@@ -468,6 +546,7 @@
       this.index=0;
       this.buildEffectLayers();
       this.rebuildAudioAxis();
+      this.prepareDrawing();
       this.setEffects({});
       this.seek(0,true);
       return this.timestamps.length;
@@ -495,10 +574,12 @@
     seek(audioSeconds,force=false){
       if(!this.osmd)return;
       const target=this.findIndex(audioSeconds);
+      this.lastSeekTime=audioSeconds;
       // All note positions were sampled during load. Replaying the native
       // OSMD cursor per frame only introduced hard steps and wasted time.
       this.index=target;
       this.scrollAt(audioSeconds);
+      this.updateDrawing(audioSeconds);
       this.updatePlaybackCursor(audioSeconds);
       this.updateNoteEffects(audioSeconds, target!==this._highlightIndex||force);
       this._highlightIndex=target;

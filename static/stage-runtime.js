@@ -14,7 +14,7 @@
      backgroundUrl:meta.background_filename?`/api/projects/${meta.id}/background?v=${encodeURIComponent(meta.background_version||meta.background_filename)}`: '',
      backgroundOpacity:clamp(number(s.background_opacity,.5),0,1),backgroundFit:s.background_fit||'cover',
      backgroundPositionX:clamp(number(s.background_position_x,50),0,100),backgroundPositionY:clamp(number(s.background_position_y,50),0,100),
-     glitter:Boolean(s.glitter),sparkle:s.sparkle!==false,
+     glitter:Boolean(s.glitter),sparkle:s.sparkle!==false,drawScore:Boolean(s.draw_score),
      velocityReactive:s.velocity_reactive!==false,noteMotion:s.note_motion!==false,
      motionStrength:clamp(number(s.motion_strength,1),0,2),
      scorePositionX:clamp(number(s.score_position_x,38),0,100),scorePositionY:clamp(number(s.score_position_y,12),0,100),

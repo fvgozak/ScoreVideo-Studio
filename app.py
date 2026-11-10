@@ -64,6 +64,7 @@ class RenderRequest(BaseModel):
     sparkle: bool = True
     velocity_reactive: bool = True
     note_motion: bool = True
+    draw_score: bool = False
     motion_strength: float = Field(default=1.0, ge=0.0, le=2.0)
     layout_mode: str = Field(default="page", pattern=r"^(page|singleline|vertical|horizontal)$")
     scroll_mode: str = Field(default="vertical", pattern=r"^(vertical|horizontal|page)$")
