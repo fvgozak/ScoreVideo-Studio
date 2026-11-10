@@ -1,0 +1,472 @@
+/* Editor uses exactly the same ScoreStage as the MP4 renderer. */
+(function(){
+ 'use strict';
+ const $=id=>document.getElementById(id),audio=$('audioPlayer'),transport=window.ScoreTransport;
+ window.ScoreHexControls?.setup();
+ const inputIds=['score','midi','audio'],labelIds=['scoreName','midiName','audioName'];
+ const persistent=['paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','layoutMode','scorePosX','scorePosY','zoom','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
+ 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor'];
+ const storeKey='scorevideo_studio_v05_settings';
+ let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0;
+ const fmt=(s)=>{const t=Math.max(0,Math.floor(Number(s)||0));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
+ function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
+ const offset=()=>Number($('offset').value), zoom=()=>Number($('zoom').value);
+ function sceneOptions(){return {
+   template:$('sceneTemplate').value,cameraMode:$('cameraMode').value,fxMode:$('fxMode').value,fxStrength:Number($('fxStrength').value),lightColorMode:$('lightColorMode').value,velocityScale:$('velocityScale').value,
+   trailUpper:$('trailUpperColor').value,trailLower:$('trailLowerColor').value,
+   auroraPreset:$('auroraPreset').value,auroraLow:$('auroraLow').value,auroraHigh:$('auroraHigh').value,
+   font:$('titleFont').value,titleGap:Number($('titleGap').value),
+   title:$('titleText').value,artist:$('artistText').value,credit:$('creditText').value,showText:$('showText').checked,
+   animateBackground:$('animateBackground').checked,
+   keyframes:[{time:0,color:$('sceneStartColor').value,glow:$('sceneStartGlow').value},
+     {time:Number($('transitionTime').value),color:$('sceneEndColor').value,glow:$('sceneEndGlow').value}],
+ };}
+ function config(){
+   const [width,height]=$('resolution').value.split('x').map(Number);
+   return {width,height,fps:Number($('fps').value),render_mode:$('renderMode').value,offset_sec:offset(),zoom:zoom(),
+      paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
+      glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
+      texture:$('texture').value,background_opacity:Number($('backgroundOpacity').value),background_fit:$('backgroundFit').value,background_position_x:Number($('backgroundPosX').value),background_position_y:Number($('backgroundPosY').value),
+      inverted:$('inverted').checked,glitter:$('glitter').checked,sparkle:$('sparkle').checked,
+      velocity_reactive:$('velocityReactive').checked,note_motion:$('noteMotion').checked,motion_strength:Number($('motionStrength').value),
+      layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
+ }
+ function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));}
+ function restoreSettings(){try{
+   const data=JSON.parse(localStorage.getItem(storeKey)||'{}');
+   if(data.fxMode==='aurora'&&!data.lightColorMode){data.fxMode='bloom';data.lightColorMode='aurora';}
+   for(const id of persistent){const node=$(id);if(data[id]===undefined)continue;if(node.type==='checkbox')node.checked=!!data[id];else node.value=data[id];}
+ }catch(e){}updateLabels();resizePreview();}
+ function updateLabels(){
+   window.ScoreHexControls?.syncAll();
+   $('zoomVal').textContent=`${Math.round(zoom()*100)}%`;
+   $('motionStrengthVal').textContent=`${Math.round(Number($('motionStrength').value)*100)}%`;
+   $('backgroundOpacityVal').textContent=`${Math.round(Number($('backgroundOpacity').value)*100)}%`;
+   $('backgroundPosXVal').textContent=`${$('backgroundPosX').value}%`;
+   $('backgroundPosYVal').textContent=`${$('backgroundPosY').value}%`;
+   $('scorePosXVal').textContent=`${$('scorePosX').value}%`;
+   $('scorePosYVal').textContent=`${$('scorePosY').value}%`;
+   $('titleGapVal').textContent=`${$('titleGap').value}px`;
+   for(const key of ['scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelOpacity'])$(key+'Val').textContent=`${$(key).value}%`;
+   $('singleLineYControl').hidden=$('layoutMode').value!=='singleline';
+   $('auroraOptions').hidden=$('lightColorMode').value!=='aurora';
+   const velocities=project?.note_events?.map(n=>Number(n.velocity)).filter(Number.isFinite)||[];
+   if(velocities.length){const lo=velocities.reduce((a,b)=>Math.min(a,b),127),hi=velocities.reduce((a,b)=>Math.max(a,b),1);$('velocityRangeInfo').textContent=`현재 MIDI: ${lo}~${hi} · 절대값은 1~127, 상대값은 이 범위 전체를 사용`;}
+   $('fxStrengthVal').textContent=`${Math.round(Number($('fxStrength').value)*100)}%`;
+   $('transitionTimeVal').textContent=`${$('transitionTime').value}초`;
+   $('backgroundTrack').style.background=`linear-gradient(90deg,${$('sceneStartColor').value},${$('sceneEndColor').value})`;
+   $('trailOptions').hidden=$('fxMode').value!=='trail';
+ }
+ function resizePreview(){
+   const [w,h]=$('resolution').value.split('x').map(Number);
+   const surround=$('previewSurround'),frame=$('stageFrame'),viewport=$('scoreViewport');
+   const avail=Math.max(140,surround.clientWidth-24);
+   const desktop=window.matchMedia('(min-width:951px)').matches;
+   const inFullscreen=document.fullscreenElement===$('playerDock');
+   const heightLimit=inFullscreen?Math.max(125,surround.clientHeight-12):desktop?Math.max(125,surround.clientHeight-20)
+     :Math.max(180,Math.min(window.innerHeight*.5,570));
+   const scale=Math.min(avail/w,heightLimit/h);
+   const fw=Math.round(w*scale),fh=Math.round(h*scale);
+   frame.style.width=`${fw}px`;frame.style.height=`${fh}px`;
+   viewport.style.width=`${w}px`;viewport.style.height=`${h}px`;
+   viewport.style.transform=`scale(${scale})`;
+   window.ScoreVisualEditor?.sync();
+ }
+ function queueApply(){
+   revision++;
+   const myRevision=revision,setting=config();
+   saveSettings();updateLabels();resizePreview();
+   if(!stage){$('scoreViewport').style.backgroundColor=setting.paper_color;return;}
+   $('previewInfo').textContent='설정을 미리보기에 적용 중…';
+   applySerial=applySerial.catch(()=>{}).then(async()=>{
+     if(myRevision!==revision||!stage)return;
+     await stage.setSettings(setting);
+     stage.seek(audio.currentTime);
+     window.ScoreVisualEditor?.sync();
+     if(myRevision===revision)$('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
+   }).catch(e=>{
+     if(myRevision===revision)message(`미리보기 적용 실패: ${e.message}`,true);
+   });
+ }
+ function syncInfo(){
+   if(!project?.sync){$('syncInfo').textContent='음원의 첫 유효한 소리와 MIDI 첫 타건을 자동 정렬합니다. 곡 전체 템포가 다르면 수동 보정이 필요할 수 있습니다.';$('clearSyncButton').hidden=true;return;}
+   const s=project.sync;
+   $('syncInfo').textContent=s.method==='first-sound-offset'
+       ? `첫 소리 자동 싱크 · MIDI ${s.first_midi_sec.toFixed(3)}초 → 음원 ${s.first_audio_sec.toFixed(3)}초 · 보정 ${s.offset_sec.toFixed(3)}초`
+       : `동기화 보정 ${Number(s.offset_sec||0).toFixed(3)}초`;
+   $('clearSyncButton').hidden=false;
+ }
+ for(let i=0;i<inputIds.length;i++)$(inputIds[i]).addEventListener('change',()=>{$(labelIds[i]).textContent=$(inputIds[i]).files?.[0]?.name||'파일 선택';});
+ for(const id of persistent){
+   if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom'].includes(id))continue;
+   $(id).addEventListener('input',queueApply);
+   $(id).addEventListener('change',queueApply);
+ }
+ // Zoom re-renders the score. Delay expensive OSMD layout while dragging,
+ // but show the percentage immediately and commit on release.
+ let zoomInputDebounce=null;
+ $('zoom').addEventListener('input',()=>{
+   updateLabels();clearTimeout(zoomInputDebounce);
+   zoomInputDebounce=setTimeout(()=>{zoomInputDebounce=null;queueApply();},180);
+ });
+ $('zoom').addEventListener('change',()=>{
+   clearTimeout(zoomInputDebounce);zoomInputDebounce=null;queueApply();
+ });
+ $('scoreReadablePreset').addEventListener('click',()=>{$('scorePanelColor').value='#0c1120';$('scorePanelOpacity').value='55';queueApply();});
+ $('themeColor').addEventListener('input',saveSettings);
+ $('titleText').addEventListener('input',()=>{if(project)localStorage.setItem('scorevideo_title_override_'+project.id,$('titleText').value);});
+ $('resetTitleButton').addEventListener('click',()=>{
+   if(!project)return;localStorage.removeItem('scorevideo_title_override_'+project.id);
+   $('titleText').value=project.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   queueApply();
+ });
+ function applyAuroraPreset(){
+   const chosen=$('auroraPreset').value;
+   const colors=chosen==='theme'?window.ScoreTheme.auroraPalette($('themeColor').value):window.ScoreStudio.auroraPresets[chosen];
+   if(colors){$('auroraLow').value=colors.low;$('auroraHigh').value=colors.high;}
+   queueApply();
+ }
+ $('auroraPreset').addEventListener('change',applyAuroraPreset);
+ for(const id of ['auroraLow','auroraHigh'])$(id).addEventListener('input',()=>{$('auroraPreset').value='custom';queueApply();});
+
+ $('sceneTemplate').addEventListener('change',()=>{
+   const name=$('sceneTemplate').value,p=window.ScoreStudio.presets[name];
+   $('cameraMode').value=p.cameraMode;$('fxMode').value=p.fxMode;$('fxStrength').value=p.fxStrength;
+   $('sceneStartColor').value=p.color;$('sceneStartGlow').value=p.glow;
+   $('animateBackground').checked=name==='cinematic';
+   if(name==='cinematic'){$('sceneEndColor').value='#25132e';$('sceneEndGlow').value='#dab5e8';}
+   if(name==='illustrated'){$('sceneEndColor').value='#d2d7c7';$('sceneEndGlow').value='#caa25f';}
+   if(name==='minimal'){$('sceneEndColor').value='#e8dfd3';$('sceneEndGlow').value='#a49cca';}
+   $('texture').value=p.texture;
+   queueApply();
+ });
+ $('autoPalette').addEventListener('click',()=>{
+   const palette=window.ScoreTheme.palette($('themeColor').value);
+   for(const [key,node] of Object.entries({paper:'paperColor',staff:'staffColor',note:'inkColor',accent:'accentColor',glow:'glowColor',cursor:'cursorColor'}))$(node).value=palette[key];
+   $('sceneStartColor').value=palette.paper;$('sceneStartGlow').value=palette.glow;
+   $('trailUpperColor').value=palette.trailUpper;$('trailLowerColor').value=palette.trailLower;
+   $('auroraLow').value=palette.auroraLow;$('auroraHigh').value=palette.auroraHigh;
+   $('auroraPreset').value='theme';
+   $('animateBackground').checked=false;$('inverted').checked=false;
+   queueApply();message('테마와 어울리는 오선·음표·배경·발광 및 오른손/왼손 궤적 2색을 자동 설정했습니다.');
+ });
+ $('autoTrailPalette').addEventListener('click',()=>{
+   const colors=window.ScoreTheme.trailPalette($('themeColor').value);
+   $('trailUpperColor').value=colors.trailUpper;
+   $('trailLowerColor').value=colors.trailLower;
+   queueApply();message('테마 기준색에 맞춰 오른손과 왼손 궤적색을 자동 설정했습니다.');
+ });
+ // Quick zoom is available without opening the Score tab. It uses the
+ // exact same #zoom setting consumed by preview and export.
+ function adjustZoom(delta){
+   const slider=$('zoom');const next=Math.max(Number(slider.min),Math.min(Number(slider.max),Math.round((Number(slider.value)+delta)*20)/20));
+   if(Math.abs(next-Number(slider.value))<1e-6)return;
+   slider.value=String(next);queueApply();
+ }
+ $('zoomOutButton').addEventListener('click',()=>adjustZoom(-.05));
+ $('zoomInButton').addEventListener('click',()=>adjustZoom(.05));
+ $('zoomResetButton').addEventListener('click',()=>{$('zoom').value='1';queueApply();});
+
+ // Artwork palette extraction uses the original Hemio Image Studio image-color
+ // grouping algorithm via a local FastAPI endpoint. The source image is not
+ // stored unless "이 이미지를 영상 배경으로 사용" is explicitly checked.
+ let paletteSourceFile=null,paletteIsCurrentBackground=false,paletteArtworkURL=null,paletteSerial=0;
+ function paletteMessage(value,isError=false){
+   $('paletteStatus').textContent=value;$('paletteStatus').classList.toggle('error',isError);
+ }
+ async function uploadBackgroundForPalette(file){
+   if(!project)throw Error('배경으로 사용하려면 먼저 악보·MIDI·음원 파일을 불러오세요. 색상 적용은 파일 없이 가능합니다.');
+   if(!/\.(png|jpe?g|webp)$/i.test(file.name))throw Error('BMP/GIF는 색상 추출만 지원합니다. 영상 배경은 PNG, JPG, WebP를 사용해 주세요.');
+   const form=new FormData();form.append('background',file,file.name);
+   const response=await fetch(`/api/projects/${project.id}/background`,{method:'POST',body:form});
+   const data=await response.json();
+   if(!response.ok)throw Error(data.detail||'영상 배경 적용 실패');
+   project.background_filename=data.background_filename;refreshBackground();
+   return data;
+ }
+ async function analyzePaletteImage(file,{existing=false}={}){
+   if(!file)return;
+   if(file.size>20*1024*1024){paletteMessage('이미지는 20MB 이하로 선택해 주세요.',true);return;}
+   const serial=++paletteSerial;
+   paletteSourceFile=file;paletteIsCurrentBackground=existing;
+   $('paletteResults').hidden=true;
+   paletteMessage('이미지의 색상을 분석하고 있습니다…');
+   if(paletteArtworkURL)URL.revokeObjectURL(paletteArtworkURL);
+   paletteArtworkURL=URL.createObjectURL(file);
+   $('paletteArtworkPreview').src=paletteArtworkURL;
+   $('paletteArtworkPreview').hidden=false;
+   $('paletteUploadHint').textContent=file.name;
+   try{
+     const form=new FormData();form.append('image',file,file.name);
+     const response=await fetch('/api/palette/extract',{method:'POST',body:form});
+     const result=await response.json();
+     if(!response.ok)throw Error(result.detail||'색상 추출 실패');
+     if(serial!==paletteSerial)return;
+     window.ScoreImagePaletteUI.chips(result.palette);
+     window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>void applyPaletteScheme(scheme,result.primary));
+     $('paletteResults').hidden=false;
+     paletteMessage(`${result.palette.length}개 주요 색상과 ${result.schemes.length}개 악보 조합을 찾았어요. 원하는 디자인을 선택하세요.`);
+   }catch(error){if(serial===paletteSerial)paletteMessage('이미지 분석 실패: '+error.message,true);}
+ }
+ async function applyPaletteScheme(scheme,primary){
+   const c=scheme?.colors;if(!c)return;
+   for(const [id,key] of Object.entries({paperColor:'paper',inkColor:'ink',staffColor:'staff',accentColor:'accent',glowColor:'glow',cursorColor:'cursor',
+     trailUpperColor:'trail_upper',trailLowerColor:'trail_lower',auroraLow:'aurora_low',auroraHigh:'aurora_high',scorePanelColor:'panel'})){
+       if(/^#[0-9a-f]{6}$/i.test(c[key]||''))$(id).value=c[key];
+   }
+   if(/^#[0-9a-f]{6}$/i.test(primary||''))$('themeColor').value=primary;
+   $('sceneStartColor').value=c.paper;$('sceneEndColor').value=c.paper;
+   $('sceneStartGlow').value=c.glow;$('sceneEndGlow').value=c.glow;
+   $('auroraPreset').value='custom';
+   $('animateBackground').checked=false;
+   $('inverted').checked=false;
+   // Keep scene effects/velocity scale/user font choices, but ensure the
+   // recommended score colors are not overridden by animated background.
+   const useArt=$('paletteUseBackground').checked;
+   const hasPhoto=Boolean(project?.background_filename||useArt);
+   $('scorePanelOpacity').value=hasPhoto?String(Math.round(Number(scheme.panel_opacity||.65)*100/5)*5):'0';
+   queueApply();
+   if(useArt&&!paletteIsCurrentBackground){
+     try{
+       await uploadBackgroundForPalette(paletteSourceFile);
+       paletteIsCurrentBackground=true;
+       paletteMessage(`${scheme.name} 디자인과 사진 배경을 적용했습니다. HEX 색상은 아래에서 수정할 수 있어요.`);
+     }catch(e){paletteMessage(`색상은 적용했습니다. 이미지 배경: ${e.message}`,true);}
+   }else{
+     paletteMessage(`${scheme.name} 디자인을 적용했습니다. 색상은 개별 수정할 수 있어요.`);
+   }
+ }
+ $('paletteImageFile').addEventListener('change',()=>{
+   const file=$('paletteImageFile').files?.[0];
+   $('paletteImageFile').value='';
+   if(file)void analyzePaletteImage(file);
+ });
+ const drop=$('paletteDropZone');
+ for(const eventName of ['dragenter','dragover'])drop.addEventListener(eventName,event=>{
+   event.preventDefault();drop.classList.add('drag-over');
+ });
+ for(const eventName of ['dragleave','drop'])drop.addEventListener(eventName,event=>{
+   event.preventDefault();drop.classList.remove('drag-over');
+   if(eventName==='drop'){
+     const file=Array.from(event.dataTransfer?.files||[]).find(f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name));
+     if(file)void analyzePaletteImage(file);
+   }
+ });
+ $('paletteFromBackground').addEventListener('click',async()=>{
+   if(!project?.background_filename)return;
+   try{
+     paletteMessage('현재 영상 배경 이미지를 읽고 있습니다…');
+     const response=await fetch(`/api/projects/${project.id}/background`,{cache:'no-store'});
+     if(!response.ok)throw Error('배경 이미지를 읽을 수 없습니다.');
+     const blob=await response.blob();
+     const file=new File([blob],project.background_filename,{type:blob.type||'image/png'});
+     await analyzePaletteImage(file,{existing:true});
+   }catch(e){paletteMessage(e.message,true);}
+ });
+
+ $('offset').addEventListener('input',()=>{$('offsetVal').textContent=`${offset().toFixed(2)}초`;queueApply();});
+ $('backgroundFile').addEventListener('change',async()=>{
+   const file=$('backgroundFile').files?.[0];if(!file)return;
+   void analyzePaletteImage(file);
+   if(!project){message('먼저 악보·MIDI·음원을 업로드해 주세요.',true);return;}
+   const form=new FormData();form.append('background',file);
+   try{const r=await fetch(`/api/projects/${project.id}/background`,{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'배경 업로드 실패');
+     project.background_filename=data.background_filename;refreshBackground();if(paletteSourceFile===file)paletteIsCurrentBackground=true;message('배경 이미지를 미리보기와 출력 설정에 적용했습니다. 디자인 탭에서 추천 팔레트를 확인하세요.');
+   }catch(e){message(e.message,true);}
+ });
+ $('removeBackground').addEventListener('click',async()=>{
+   if(!project)return;
+   try{const r=await fetch(`/api/projects/${project.id}/background`,{method:'DELETE'});if(!r.ok)throw Error('배경 삭제 실패');
+     project.background_filename=null;$('backgroundFile').value='';refreshBackground();message('배경 이미지를 제거했습니다.');
+   }catch(e){message(e.message,true);}
+ });
+
+ async function rebuildPreview(reason='미리보기 재설정 중…'){
+   if(!stage||!project)return;
+   $('previewInfo').textContent=reason;
+   await stage.load();
+   stage.seek(audio.currentTime||0);
+   $('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
+ }
+ $('resetPreviewButton').addEventListener('click',()=>void rebuildPreview());
+
+ function refreshBackground(){
+   $('removeBackground').hidden=!project?.background_filename;
+   $('paletteFromBackground').hidden=!project?.background_filename;
+   $('backgroundName').textContent=project?.background_filename||'최대 20MB · PNG / JPG / WebP';
+   if(stage){stage.meta.background_filename=project.background_filename;queueApply();}
+ }
+ async function loadProject(meta){
+   stage=null;revision++;await applySerial.catch(()=>{});
+   project=meta;audio.pause();$('projectTitle').textContent=meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   const titleOverride=localStorage.getItem('scorevideo_title_override_'+meta.id);
+   $('titleText').value=titleOverride!==null?titleOverride:meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   const a=meta.score_alignment;
+   const alignmentText=a?
+     `악보↔MIDI 매칭 ${Math.round(a.coverage*100)}% · ${a.matched_notes}/${a.total_notes}개 음표 · ${a.status==='ok'?'실제 타건 시점 적용':'매칭되지 않은 음표 있음'}`:
+     '악보↔MIDI 매칭 정보 없음';
+   const repeat=meta.repeat_info;
+   const repeatText=repeat?.mode==='unfolded'
+     ?` · 되돌이표 전개 ${repeat.source_measures}→${repeat.playback_measures}마디`
+     :(repeat?.warning?` · ${repeat.warning}`:'');
+   $('scoreAlignmentInfo').textContent=alignmentText+repeatText;
+   $('scoreAlignmentInfo').classList.toggle('error',a?.status!=='ok');
+   $('metadata').textContent=`${meta.note_count.toLocaleString()}개 MIDI 음표 · ${fmt(meta.audio_duration_sec)} · 템포 변화 ${meta.tempo_map.length}개 · 악보/MIDI 음표 매칭 ${Math.round((a?.coverage||0)*100)}%`;
+   if(a?.status==='needs-review')message(`악보 ↔ MIDI 매칭 주의 (${Math.round(a.coverage*100)}%): ${a.message}`,true);
+   audio.src=`/api/projects/${meta.id}/audio`;
+   $('totalTime').textContent=fmt(meta.audio_duration_sec);$('currentTime').textContent='00:00';
+   $('seek').max=meta.audio_duration_sec;$('seek').value=0;
+   $('offset').value=0;$('offsetVal').textContent='0.00초';
+   for(const id of ['playButton','previousMeasureButton','nextMeasureButton','restartButton','seek','exportButton','autoSyncButton'])$(id).disabled=false;
+   $('placeholder').style.display='none';
+   refreshBackground();resizePreview();
+   stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:config()});
+   await stage.load();stage.seek(0);window.ScoreVisualEditor?.sync();syncInfo();
+   $('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
+   if(meta.score_alignment?.status==='needs-review'){
+     message(`악보/MIDI 음표 매칭 ${Math.round(meta.score_alignment.coverage*100)}% — 일치하지 않는 음표가 있어 영상 싱크를 확인해 주세요.`,true);
+   }else if(meta.repeat_info?.mode==='unfolded'){
+     message(`되돌이표를 MIDI 연주 순서로 전개했습니다 (${meta.repeat_info.source_measures}→${meta.repeat_info.playback_measures}마디). 미리보기·MP4에 동일 적용됩니다.`);
+   }else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
+ }
+ $('uploadForm').addEventListener('submit',async e=>{
+   e.preventDefault();$('uploadButton').disabled=true;message('악보와 MIDI, 음원 분석 중...');
+   const form=new FormData();for(const name of inputIds){if(!$(name).files?.length){message(`${name} 파일을 선택해 주세요.`,true);$('uploadButton').disabled=false;return;}form.append(name,$(name).files[0]);}
+   try{const r=await fetch('/api/projects',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'파일 처리 실패');
+     localStorage.setItem('scorevideo_last_project',data.id);await loadProject(data);
+   }catch(err){message(`악보 로딩 실패: ${err.message}`,true);}finally{$('uploadButton').disabled=false;}
+ });
+ $('autoSyncButton').addEventListener('click',async()=>{
+   if(!project)return;$('autoSyncButton').disabled=true;
+   try{const r=await fetch(`/api/projects/${project.id}/auto-sync`,{method:'POST'});const data=await r.json();if(!r.ok)throw Error(data.detail||'자동 싱크 실패');
+     project.sync=data;$('offset').value=0;$('offsetVal').textContent='0.00초';stage?.setSync(data);queueApply();syncInfo();message('첫 소리 자동 싱크 적용. 뒤쪽 마디에서도 연주 시점을 확인해 주세요.');
+   }catch(e){message(e.message,true);}finally{$('autoSyncButton').disabled=false;}
+ });
+ $('clearSyncButton').addEventListener('click',async()=>{
+   if(!project)return;
+   try{const r=await fetch(`/api/projects/${project.id}/auto-sync`,{method:'DELETE'});if(!r.ok)throw Error('초기화 실패');
+     project.sync=null;stage?.setSync(null);syncInfo();message('싱크 초기화됨.');
+   }catch(e){message(e.message,true);}
+ });
+ function duration(){return Number.isFinite(audio.duration)?audio.duration:(Number(project?.audio_duration_sec)||0);}
+ function measureAxis(){return stage?.getMeasureStarts?.()||[];}
+ function updateTimeline(){
+   if(!project)return;
+   const t=Number(audio.currentTime)||0;
+   $('currentTime').textContent=fmt(t);$('seek').value=t;
+   const current=transport.currentMeasure(t,measureAxis());
+   $('measureInfo').textContent=current.total?`마디 ${current.index}/${current.total}`:'마디 —';
+   stage?.seek(t);
+ }
+ function tick(){if(!project)return;updateTimeline();if(!audio.paused)raf=requestAnimationFrame(tick);}
+ function seekTo(time){
+   if(!project)return;
+   const target=transport.seekSeconds(0,Number(time)||0,duration());
+   audio.currentTime=target;
+   updateTimeline();
+ }
+ function moveByMeasure(direction){
+   if(!project)return;
+   const time=transport.seekMeasure(audio.currentTime,direction,measureAxis(),duration());
+   if(time===null){message('마디 위치를 읽지 못했습니다. 악보 로딩 상태를 확인해 주세요.',true);return;}
+   seekTo(time);
+ }
+ async function toggle(){
+   if(!project){message('먼저 악보, MIDI, 음원을 불러오세요.');return;}
+   if(audio.paused){try{await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
+   else audio.pause();
+ }
+ const playerDock=$('playerDock');
+ const fullscreenButton=$('fullscreenPreviewButton');
+ let fullscreenWasEditing=false;
+ async function toggleFullscreen(){
+   try{
+     if(document.fullscreenElement===playerDock){await document.exitFullscreen();return;}
+     if(!playerDock.requestFullscreen)throw Error('이 브라우저에서는 전체화면 미리보기를 지원하지 않습니다.');
+     fullscreenWasEditing=$('editScoreAreaButton').getAttribute('aria-pressed')==='true';
+     if(fullscreenWasEditing)window.ScoreVisualEditor?.setEditing(false);
+     await playerDock.requestFullscreen();
+   }catch(e){message('전체화면 전환 실패: '+e.message,true);}
+ }
+ fullscreenButton.addEventListener('click',()=>void toggleFullscreen());
+ document.addEventListener('fullscreenchange',()=>{
+   const full=document.fullscreenElement===playerDock;
+   fullscreenButton.textContent=full?'⛶ 전체화면 종료':'⛶ 전체화면';
+   fullscreenButton.setAttribute('aria-pressed',String(full));
+   if(!full&&fullscreenWasEditing){window.ScoreVisualEditor?.setEditing(true);fullscreenWasEditing=false;}
+   requestAnimationFrame(()=>{resizePreview();requestAnimationFrame(resizePreview);});
+ });
+ $('playButton').addEventListener('click',()=>void toggle());
+ $('previousMeasureButton').addEventListener('click',()=>moveByMeasure(-1));
+ $('nextMeasureButton').addEventListener('click',()=>moveByMeasure(1));
+ // Capture before the focused slider/colour/button swallows Space or arrows.
+ // Actual text editing is exempt so titles can contain spaces and punctuation.
+ window.addEventListener('keydown',e=>{
+   if((e.key==='f'||e.key==='F')&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!transport.isTextEditing(e.target)&&!e.repeat){
+     e.preventDefault();e.stopImmediatePropagation();void toggleFullscreen();return;
+   }
+   const command=transport.shortcut(e);
+   if(!command||transport.isTextEditing(e.target)||(!project))return;
+   if(e.repeat&&command==='play')return;
+   e.preventDefault();e.stopImmediatePropagation();
+   if(command==='play')void toggle();
+   else if(command==='previous-measure')moveByMeasure(-1);
+   else if(command==='next-measure')moveByMeasure(1);
+   else if(command==='back-five')seekTo(transport.seekSeconds(audio.currentTime,-5,duration()));
+   else if(command==='forward-five')seekTo(transport.seekSeconds(audio.currentTime,5,duration()));
+ },{capture:true});
+ for(const id of ['play','pause','ended'])audio.addEventListener(id,()=>{
+   $('playButton').textContent=audio.paused?'▶':'Ⅱ';
+   $('playButton').setAttribute('aria-label',audio.paused?'재생':'일시정지');
+   cancelAnimationFrame(raf);tick();
+ });
+ $('seek').addEventListener('input',()=>seekTo(Number($('seek').value)));
+ $('restartButton').addEventListener('click',()=>seekTo(0));
+ async function pollStatus(){if(!project)return;try{
+   const r=await fetch(`/api/projects/${project.id}/status`);if(!r.ok)return;
+   const s=await r.json();$('progressWrap').hidden=false;$('statusText').textContent=s.message||s.state;
+   $('percent').textContent=`${s.progress||0}%`;$('progressBar').style.width=`${s.progress||0}%`;
+   if(['done','error'].includes(s.state)){
+     clearInterval(polling);polling=null;$('exportButton').disabled=false;
+     if(s.state==='done'){$('downloadLink').hidden=false;$('downloadLink').href=`/api/projects/${project.id}/download`;message('MP4 영상 출력 완료. 미리보기와 동일한 장면 엔진을 사용했습니다.');}
+     else message('MP4 출력 실패: '+s.message,true);
+   }
+ }catch(e){}}
+ $('exportButton').addEventListener('click',async()=>{
+   if(!project)return;$('exportButton').disabled=true;$('downloadLink').hidden=true;
+   $('progressWrap').hidden=false;$('statusText').textContent='영상 설정 저장 중';$('progressBar').style.width='0%';
+   try{await applySerial;const payload=config();
+     const r=await fetch(`/api/projects/${project.id}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+     const result=await r.json();if(!r.ok)throw Error(result.detail||'출력 실패');
+     clearInterval(polling);polling=setInterval(pollStatus,750);pollStatus();message('미리보기와 같은 설정으로 프레임별 영상 출력 중입니다.');
+   }catch(e){message(e.message,true);$('exportButton').disabled=false;}
+ });
+ window.ScoreVisualEditor=window.createScoreVisualEditor({
+   frame:$('stageFrame'),overlay:$('scoreEditOverlay'),box:$('scoreEditBox'),
+   editButton:$('editScoreAreaButton'),centerButton:$('centerScoreAreaButton'),
+   controls:{x:$('scoreAreaX'),width:$('scoreAreaWidth'),height:$('scoreAreaHeight'),
+     top:$('scoreMarginTop'),bottom:$('scoreMarginBottom')},
+   getResolution:()=>({width:config().width,height:config().height}),
+   getStage:()=>stage,commit:queueApply,label:()=>updateLabels(),
+ });
+ $('editScoreFromSidebar').addEventListener('click',()=>window.ScoreVisualEditor?.activate());
+ restoreSettings();window.addEventListener('resize',resizePreview);
+ if(typeof ResizeObserver!=='undefined'){
+   let lastWidth=0,lastHeight=0;
+   new ResizeObserver(entries=>{
+     const box=entries[0]?.contentRect;
+     if(!box||Math.abs(box.width-lastWidth)<1&&Math.abs(box.height-lastHeight)<1)return;
+     lastWidth=box.width;lastHeight=box.height;resizePreview();
+   }).observe($('previewSurround'));
+ }
+ (async()=>{
+   const id=localStorage.getItem('scorevideo_last_project');if(!id)return;
+   try{const r=await fetch(`/api/projects/${id}`);if(!r.ok)return;await loadProject(await r.json());
+     const s=await fetch(`/api/projects/${id}/status`).then(r=>r.json());
+     if(['queued','rendering'].includes(s.state)){polling=setInterval(pollStatus,750);pollStatus();}
+     else if(s.state==='done'){$('downloadLink').hidden=false;$('downloadLink').href=`/api/projects/${id}/download`;}
+   }catch(e){message('이전 프로젝트 복원 실패: '+e.message,true);}
+ })();
+ // A narrow debug hook to verify preview/export settings parity in browser tests.
+ window.__scoreVideoDebug={config,sceneOptions,getStage:()=>stage,resizePreview,transport,seekTo,moveByMeasure,measureAxis,visualEditor:()=>window.ScoreVisualEditor};
+})();

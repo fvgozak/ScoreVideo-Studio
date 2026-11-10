@@ -1,0 +1,52 @@
+/* IDENTICAL video stage in the editor and video-only renderer. */
+.video-stage{position:relative;overflow:hidden;isolation:isolate;background:#fffdf6;box-sizing:border-box}
+.video-stage #osmdContainer{position:relative;z-index:3;width:95%;margin:0 2.5%;padding:2.8% 1% 4%;box-sizing:border-box;min-height:100%;background:transparent!important}
+.video-stage .score-background{z-index:0;position:absolute;inset:0;pointer-events:none}
+.video-stage .studio-atmosphere{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:screen}
+.video-stage .studio-fx-canvas{position:absolute;left:0;top:0;z-index:8;pointer-events:none}
+.video-stage .studio-titles{position:absolute;inset:0;z-index:10;pointer-events:none;display:flex;flex-direction:column;align-items:center;text-align:center;padding:4% 5%;font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;text-shadow:0 2px 11px rgba(0,0,0,.14)}
+.video-stage .studio-title{font-size:var(--stage-title-size,40px);font-weight:650;letter-spacing:-.035em;max-width:85%;line-height:1.18}
+.video-stage .studio-artist{font-size:var(--stage-artist-size,20px);font-weight:450;letter-spacing:.2em;margin-top:14px}
+.video-stage .studio-credit{font-size:var(--stage-credit-size,17px);font-weight:400;letter-spacing:.08em;margin-top:auto;margin-bottom:5%}
+/* Editor preview is a pixel-perfect scaled rendition of the export viewport. */
+.stage-frame{position:relative;flex:none;overflow:hidden;box-shadow:0 10px 34px rgba(0,0,0,.35);background:#101722;margin:0 auto}
+.stage-frame>.video-stage{position:absolute;left:0;top:0;transform-origin:top left;max-height:none!important;flex-shrink:0}
+/* UI stays outside of the video stage, and never appears in MP4. */
+.preview-info{font-size:11px;color:#9fadc3;text-align:center;padding:8px 8px 4px}
+.timeline-tracks{margin:9px 14px 12px;padding:10px;background:#131c28;border:1px solid #2b394a;border-radius:9px}
+.timeline-tracks>strong{font-size:11px;font-weight:650;color:#cbd4df}
+.timeline-track{display:flex;align-items:center;gap:8px;margin-top:6px}
+.timeline-track>span{font-size:10px;color:#a2b4c9;width:78px;flex:none}
+.track-fill{height:9px;border-radius:4px;background:#548697;flex:1}
+.track-fill.music{background:#4b8b9e}.track-fill.camera{background:#7666ad}.track-fill.background{background:linear-gradient(90deg,#bc9b71,#2d416a)}.track-fill.lighting{background:#6a9d9c}
+
+/* v0.12 — independent, dimensioned score viewport within the video stage. */
+.video-stage,.preview-surround #scoreViewport{overflow:hidden!important}
+.video-stage .score-window{position:absolute;z-index:3;overflow:hidden;box-sizing:border-box;border-radius:8px;visibility:hidden;isolation:isolate}
+.video-stage .score-panel{position:absolute;inset:0;z-index:0;pointer-events:none;background:#0c1120;opacity:0}
+.video-stage .score-scroll{position:absolute;inset:0;z-index:1;box-sizing:border-box;overflow:auto;overscroll-behavior:contain;scroll-behavior:auto;scrollbar-width:none;background:transparent}
+.video-stage .score-scroll::-webkit-scrollbar{display:none}
+.video-stage .score-scroll #osmdContainer{position:relative;z-index:1;width:95%;margin:0 2.5%;min-height:100%;padding:2.8% 1% 4%;box-sizing:border-box;background:transparent!important}
+.video-stage .score-scroll[data-scroll-mode="horizontal"]{overflow-x:auto;overflow-y:hidden}
+.video-stage .score-scroll[data-scroll-mode="vertical"]{overflow-y:auto;overflow-x:hidden}
+
+/* v0.14: 0% top margin must not be overridden by old inherited padding.
+   MusicXML SVG handles its own engraving margins; no extra CSS space. */
+.video-stage #osmdContainer,
+.video-stage .score-scroll #osmdContainer {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  min-height: 0;
+}
+
+/* Editor-only score-region direct manipulation. Never lives inside video-stage. */
+.score-edit-overlay{position:absolute;inset:0;z-index:22;pointer-events:auto;touch-action:none}
+.score-edit-overlay[hidden]{display:none!important}
+.score-edit-box{position:absolute;box-sizing:border-box;border:2px solid #73e9ff;background:rgba(58,171,194,.06);cursor:grab;touch-action:none;user-select:none;box-shadow:0 0 0 9999px rgba(0,0,0,.24),inset 0 0 0 1px rgba(255,255,255,.22)}
+.score-edit-box:active{cursor:grabbing}
+.score-edit-label{position:absolute;top:4px;left:7px;background:rgba(12,31,44,.85);color:#d8faff;font-size:clamp(8px,1vw,11px);padding:4px 7px;border-radius:4px;white-space:nowrap;pointer-events:none}
+.score-edit-size{position:absolute;bottom:5px;left:8px;color:#e6faff;background:rgba(10,23,35,.75);padding:3px 6px;border-radius:4px;font-size:10px;pointer-events:none}
+.edit-handle{position:absolute;border:2px solid #14333f;background:#a7efff;width:12px;height:12px;border-radius:3px;display:block}
+.edit-handle-right{right:-7px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+.edit-handle-bottom{bottom:-7px;left:50%;transform:translateX(-50%);cursor:ns-resize}
+.edit-handle-corner{right:-7px;bottom:-7px;cursor:nwse-resize}

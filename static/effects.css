@@ -1,0 +1,43 @@
+/* Shared by the interactive editor and the offscreen MP4 renderer. */
+.score-notes-overlay { position:absolute;inset:0;z-index:5;pointer-events:none;overflow:visible; }
+.score-glitter-overlay { position:absolute;inset:0;z-index:6;pointer-events:none;overflow:hidden; }
+/* Individual translate/scale properties compose with VexFlow's SVG transforms. */
+.score-note-moving {transform-box:fill-box;transform-origin:center center;}
+.score-glowing { filter:drop-shadow(0 0 var(--score-glow-blur, 3px) var(--score-note-active)); }
+.score-glowing path, .score-glowing ellipse, .score-glowing circle,
+.score-glowing use { fill:var(--score-note-active) !important; stroke:var(--score-note-active) !important; }
+.note-aura{position:absolute;width:38px;height:38px;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,var(--score-accent) 0%,transparent 75%);filter:blur(8px);mix-blend-mode:screen;pointer-events:none}
+.note-star,.ambient-star{position:absolute;width:5px;height:5px;background:var(--score-accent);border-radius:1px;box-shadow:0 0 6px 1px var(--score-accent);pointer-events:none;}
+.note-star:before,.ambient-star:before{content:"";position:absolute;left:2px;top:-4px;width:1px;height:13px;background:var(--score-accent);}
+.ambient-star{width:3px;height:3px;transform:rotate(45deg)}
+.ambient-star:before{left:1px;top:-3px;height:9px;}
+/* Backgrounds are stationary, below the engraving, with separately adjustable alpha. */
+.score-background {position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.score-photo,.score-texture{position:absolute;inset:0;pointer-events:none}
+.score-photo{background-position:center center;background-repeat:no-repeat}
+.score-texture[data-texture="paper"]{opacity:.42;background-image:repeating-linear-gradient(93deg,rgba(84,72,48,.045) 0px,rgba(84,72,48,.045) 1px,transparent 1px,transparent 6px),repeating-linear-gradient(3deg,rgba(80,70,60,.035) 0px,rgba(80,70,60,.035) 1px,transparent 1px,transparent 9px)}
+.score-texture[data-texture="parchment"]{opacity:.8;background-image:radial-gradient(ellipse at 8% 12%,rgba(147,92,34,.20),transparent 40%),radial-gradient(ellipse at 93% 91%,rgba(116,67,21,.19),transparent 48%),repeating-linear-gradient(14deg,rgba(126,81,38,.045) 0px,rgba(126,81,38,.045) 2px,transparent 3px,transparent 9px)}
+.score-texture[data-texture="grain"]{opacity:.65;background-image:repeating-radial-gradient(circle at 20% 30%,rgba(100,100,100,.08) 0px,rgba(100,100,100,.08) .45px,transparent .65px,transparent 5px),repeating-radial-gradient(circle at 80% 60%,rgba(100,100,100,.06) 0px,rgba(100,100,100,.06) .4px,transparent .6px,transparent 7px)}
+.score-texture[data-texture="linen"]{opacity:.5;background-image:repeating-linear-gradient(0deg,rgba(90,86,70,.075) 0px,rgba(90,86,70,.075) 1px,transparent 1px,transparent 4px),repeating-linear-gradient(90deg,rgba(90,86,70,.065) 0px,rgba(90,86,70,.065) 1px,transparent 1px,transparent 5px)}
+.score-texture[data-texture="dots"]{opacity:.30;background-image:radial-gradient(rgba(110,110,110,.35) 1px,transparent 1px);background-size:14px 14px}
+#osmdContainer{position:relative;z-index:1;background:transparent!important}
+.score-glitter-overlay{z-index:7}
+.note-aura{background:radial-gradient(circle,var(--score-glow) 0%,transparent 75%)}
+.note-star,.ambient-star{background:var(--score-glow);box-shadow:0 0 6px 1px var(--score-glow)}
+.note-star:before,.ambient-star:before{background:var(--score-glow)}
+
+/* v0.4 elegant deterministic afterglow: concentric bloom + thin comet strokes. */
+.note-aura{background:radial-gradient(circle, var(--score-glow) 0%,color-mix(in srgb,var(--score-glow) 35%,transparent) 33%,transparent 73%);filter:blur(9px);mix-blend-mode:screen}
+.note-halo{position:absolute;transform:translate(-50%,-50%);border:1.5px solid var(--score-glow);border-radius:50%;box-shadow:0 0 11px 1px var(--score-glow),inset 0 0 8px -2px var(--score-glow);pointer-events:none;mix-blend-mode:screen}
+.note-trail{position:absolute;height:2.1px;border-radius:20px;background:linear-gradient(90deg,transparent,var(--score-glow),transparent);filter:drop-shadow(0 0 4px var(--score-glow));pointer-events:none;mix-blend-mode:screen}
+#scoreViewport {isolation:isolate}
+
+/* v0.14 smooth playback cursor. The native OSMD cursor is hidden after
+   collecting graphical positions; this element is frame-time deterministic. */
+.score-playback-cursor {
+  position:absolute; z-index:6; width:3px; border-radius:3px;
+  background:var(--playback-cursor-color,#2ec9d3);
+  box-shadow:0 0 7px var(--playback-cursor-color,#2ec9d3);
+  opacity:.72; pointer-events:none; transform:translateX(-50%);
+}
+.score-playback-cursor[hidden] {display:none!important}

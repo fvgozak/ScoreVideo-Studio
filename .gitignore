@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+data/
+static/vendor/*.js
+*.pyc
+.DS_Store
