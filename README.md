@@ -1,8 +1,8 @@
-# ScoreVideo Studio v0.19.3 — Note-anchored Camera Points
+# ScoreVideo Studio v0.19.4 — Note-anchored Camera Points
 
-## v0.19.3 음표 포인트 카메라
+## v0.19.4 음표 포인트 선택 개선
 
-- 기존 Follow, Cinematic, Follow + Impact 카메라를 유지하고, 미리보기에서 음표를 선택해 수동 줌 포인트를 두는 Points 모드를 추가했습니다. 포인트별 줌 배율·지속 시간·흔들림을 조절할 수 있으며, 프로젝트와 영상 프리셋에 저장되고 MP4에도 동일하게 적용됩니다.
+- 기존 Follow, Cinematic, Follow + Impact 카메라를 유지하고, 미리보기에서 넓어진 음표 hit area를 클릭하거나, 현재 재생 위치의 가까운 음표를 버튼으로 선택해 수동 줌 포인트를 두는 Points 모드를 개선했습니다. 포인트별 줌 배율·지속 시간·흔들림을 조절할 수 있으며, 프로젝트와 영상 프리셋에 저장되고 MP4에도 동일하게 적용됩니다.
 
 ## v0.18.5 마지막 음표 그리기 표시 보정
 

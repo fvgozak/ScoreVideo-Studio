@@ -547,9 +547,9 @@
               if(!noteHeadNodes.length){
                 try{noteHeadNodes=[...node.querySelectorAll('.vf-notehead,[class*="notehead"]')];}catch(_){ /* old OSMD SVG */ }
               }
-              let noteHeadRect=null;
+              let noteHeadRect=null,noteHeadEl=null;
               for(const head of noteHeadNodes){
-                try{const r=head.getBoundingClientRect();if(r.width||r.height){noteHeadRect=r;break;}}catch(_){ /* skip detached SVG nodes */ }
+                try{const r=head.getBoundingClientRect();if(r.width||r.height){noteHeadRect=r;noteHeadEl=head;break;}}catch(_){ /* skip detached SVG nodes */ }
               }
               const anchorRect=noteHeadRect||nr;
               const scale=viewportRect.width/this.viewport.clientWidth||1;
@@ -569,7 +569,7 @@
                 const midiEnd=Number(attack.end_second);
                 this.noteTriggers.push({el:node,midi:midiOn,
                     midiEnd:Number.isFinite(midiEnd)&&midiEnd>=midiOn?midiEnd:null,
-                    velocity:attack.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,localY,noteX,noteY,
+                    velocity:attack.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,localY,noteX,noteY,headEl:noteHeadEl,
                     staffId:Number.isFinite(staffId)?staffId:null,instrumentRef,handHint,
                     systemKey:systemIds.get(systemToken)});
               }else if(origin){
@@ -578,7 +578,7 @@
                 // A written tied note is a held continuation, never a fresh note-on.
                 this.tieContinuations.push({el:node,midi:begin,
                     midiEnd:Number.isFinite(end)?Math.max(begin+.05,end):begin+.65,
-                    velocity:origin.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,endAudio:0,noteX,noteY});
+                    velocity:origin.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,endAudio:0,noteX,noteY,headEl:noteHeadEl});
               }
             }
           }
@@ -666,6 +666,13 @@
       for(const note of [...this.noteTriggers,...this.tieContinuations]){
         if(!note.el||!note.scoreKey||note._cameraPointBound)continue;
         note._cameraPointBound=true;
+        const head=note.headEl,svg=note.el.ownerSVGElement,ctm=note.el.getScreenCTM?.();
+        if(head&&svg?.createSVGPoint&&ctm){
+          try{const rect=head.getBoundingClientRect(),point=svg.createSVGPoint();point.x=rect.left+rect.width/2;point.y=rect.top+rect.height/2;const local=point.matrixTransform(ctm.inverse());
+            const hit=document.createElementNS('http://www.w3.org/2000/svg','circle'),scale=Math.hypot(ctm.a,ctm.b)||1;
+            hit.setAttribute('cx',String(local.x));hit.setAttribute('cy',String(local.y));hit.setAttribute('r',String(13/scale));hit.setAttribute('class','camera-point-hit');note.el.appendChild(hit);
+          }catch(_){/* retain the original note group as its click target */}
+        }
         note.el.addEventListener('click',event=>{
           const tool=editor();if(!tool?.active?.())return;
           event.preventDefault();event.stopPropagation();
