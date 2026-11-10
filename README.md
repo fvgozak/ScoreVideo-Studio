@@ -1,4 +1,8 @@
-# ScoreVideo Studio v0.18.4 — Named Video Presets
+# ScoreVideo Studio v0.18.5 — Final Draw-on Score Reveal
+
+## v0.18.5 마지막 음표 그리기 표시 보정
+
+- 마지막 MIDI 타격 뒤에는 다음 커서 위치가 없어 마지막 오선 시스템의 음표 머리·기둥·끝 기호 일부가 가려질 수 있던 문제를 수정했습니다. 마지막 타격 시 마지막 시스템의 그리기를 완료합니다.
 
 ## v0.18.4 영상 설정 저장 · Named Video Presets
 

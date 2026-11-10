@@ -318,7 +318,12 @@
         // Use the visible score cursor's row, not MIDI attack-time ranges.
         // A rest or a sync gap at a system boundary must not strand the draw
         // animation on the preceding row.
-        const state=i<currentIndex?1:i===currentIndex?2:0;
+        // There is no following cursor position after the final attack to
+        // carry the reveal past the last notehead/stem. Complete the last
+        // system when its final MIDI attack sounds so its final symbols never
+        // remain clipped for the rest of the video.
+        const finalAttackReached=i===this.drawSystems.length-1&&time>=system.last-1e-4;
+        const state=i<currentIndex||finalAttackReached?1:i===currentIndex?2:0;
         const cursorX=state===2&&cursor?cursor.x-offsetLeft:NaN;
         for(const item of system.items){
           const reveal=state===1||(state===2&&Number.isFinite(cursorX)&&item.right<=cursorX+1);
