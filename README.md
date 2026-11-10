@@ -1,4 +1,9 @@
-# ScoreVideo Studio v0.18.3 — Draw-on Score & Korean/English UI
+# ScoreVideo Studio v0.18.4 — Named Video Presets
+
+## v0.18.4 영상 설정 저장 · Named Video Presets
+
+- 출력 탭에서 곡별 영상 설정을 이름 붙여 저장하고 다시 불러올 수 있습니다. YouTube·Shorts용 화면비와 해상도, 악보 배치, 디자인 색상, 카메라·빛, 제목, 싱크 미세 조정값을 함께 저장합니다.
+- 다른 곡에 적용된 설정을 불러오면 연결된 곡과 프로젝트 배경 이미지도 함께 엽니다. 저장 프리셋은 현재 브라우저의 로컬 저장소에 보관됩니다.
 
 ## v0.18.3 악보 그리기 애니메이션 · 한국어/English
 

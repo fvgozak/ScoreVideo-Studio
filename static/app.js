@@ -37,6 +37,67 @@
    if(data.fxMode==='aurora'&&!data.lightColorMode){data.fxMode='bloom';data.lightColorMode='aurora';}
    for(const id of persistent){const node=$(id);if(data[id]===undefined)continue;if(node.type==='checkbox')node.checked=!!data[id];else node.value=data[id];}
  }catch(e){}updateLabels();resizePreview();}
+ const videoPresetStoreKey='scorevideo_named_video_presets_v1';
+ function readVideoPresets(){try{const items=JSON.parse(localStorage.getItem(videoPresetStoreKey)||'[]');return Array.isArray(items)?items.filter(x=>x&&x.id&&x.name&&x.projectId&&x.settings):[];}catch(_){return[];}}
+ function refreshVideoPresets(selectedId=''){
+   const select=$('videoPresetSelect'),items=readVideoPresets();
+   select.replaceChildren(new Option(items.length?'— 선택 —':'저장한 설정 없음',''));
+   for(const preset of items){
+     const option=new Option(`${preset.projectName} · ${preset.name} · ${String(preset.settings.resolution||'').replace('x','×')}`,preset.id);
+     select.add(option);
+   }
+   if(selectedId&&items.some(x=>x.id===selectedId))select.value=selectedId;
+   $('loadVideoPreset').disabled=!select.value;
+   $('deleteVideoPreset').disabled=!select.value;
+   $('saveVideoPreset').disabled=!project;
+ }
+ function currentVideoPresetSettings(){
+   const settings={};
+   for(const id of persistent){const node=$(id);settings[id]=node.type==='checkbox'?node.checked:node.value;}
+   settings.offset=$('offset').value;
+   return settings;
+ }
+ $('videoPresetSelect').addEventListener('change',()=>{
+   const selected=Boolean($('videoPresetSelect').value);
+   $('loadVideoPreset').disabled=!selected;$('deleteVideoPreset').disabled=!selected;
+ });
+ $('saveVideoPreset').addEventListener('click',()=>{
+   const name=$('videoPresetName').value.trim();
+   if(!project){message('현재 곡을 먼저 불러와 주세요.',true);return;}
+   if(!name){message('설정 이름을 입력해 주세요.',true);$('videoPresetName').focus();return;}
+   const items=readVideoPresets();
+   let preset=items.find(x=>x.projectId===project.id&&x.name.toLocaleLowerCase()===name.toLocaleLowerCase());
+   if(!preset){preset={id:crypto.randomUUID?.()||`${Date.now()}_${Math.random().toString(36).slice(2)}`};items.push(preset);}
+   preset.name=name;preset.projectId=project.id;
+   preset.projectName=project.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   preset.settings=currentVideoPresetSettings();preset.savedAt=new Date().toISOString();
+   try{localStorage.setItem(videoPresetStoreKey,JSON.stringify(items));saveSettings();refreshVideoPresets(preset.id);message('영상 설정을 저장했습니다.');}
+   catch(e){message('설정을 저장하지 못했습니다: '+e.message,true);}
+ });
+ $('loadVideoPreset').addEventListener('click',async()=>{
+   const preset=readVideoPresets().find(x=>x.id===$('videoPresetSelect').value);if(!preset)return;
+   const button=$('loadVideoPreset');button.disabled=true;
+   try{
+     if(project?.id!==preset.projectId){
+       const response=await fetch(`/api/projects/${preset.projectId}`);
+       if(!response.ok)throw Error('저장된 곡을 찾지 못했습니다.');
+       const meta=await response.json();await loadProject(meta);localStorage.setItem('scorevideo_last_project',meta.id);
+     }
+     for(const id of persistent){
+       const node=$(id),value=preset.settings[id];if(value===undefined)continue;
+       if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
+     }
+     if(preset.settings.offset!==undefined)$('offset').value=String(preset.settings.offset);
+     if(preset.settings.titleText!==undefined)localStorage.setItem('scorevideo_title_override_'+preset.projectId,preset.settings.titleText);
+     updateLabels();queueApply();refreshVideoPresets(preset.id);message('저장한 영상 설정을 불러왔습니다.');
+   }catch(e){message('설정을 불러오지 못했습니다: '+e.message,true);}
+   finally{button.disabled=!$('videoPresetSelect').value;}
+ });
+ $('deleteVideoPreset').addEventListener('click',()=>{
+   const id=$('videoPresetSelect').value;if(!id)return;
+   const items=readVideoPresets().filter(x=>x.id!==id);
+   localStorage.setItem(videoPresetStoreKey,JSON.stringify(items));refreshVideoPresets();message('저장한 영상 설정을 삭제했습니다.');
+ });
  function updateLabels(){
    window.ScoreHexControls?.syncAll();
    $('zoomVal').textContent=`${Math.round(zoom()*100)}%`;
@@ -347,7 +408,7 @@
  }
  async function loadProject(meta){
    stage=null;revision++;await applySerial.catch(()=>{});
-   project=meta;audio.pause();$('projectTitle').textContent=meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   project=meta;refreshVideoPresets($('videoPresetSelect').value);audio.pause();$('projectTitle').textContent=meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
    const titleOverride=localStorage.getItem('scorevideo_title_override_'+meta.id);
    $('titleText').value=titleOverride!==null?titleOverride:meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
    const a=meta.score_alignment;
@@ -527,7 +588,7 @@
    getStage:()=>stage,commit:queueApply,label:()=>updateLabels(),
  });
  $('editScoreFromSidebar').addEventListener('click',()=>window.ScoreVisualEditor?.activate());
- restoreSettings();window.addEventListener('resize',resizePreview);
+ refreshVideoPresets();restoreSettings();window.addEventListener('resize',resizePreview);
  if(typeof ResizeObserver!=='undefined'){
    let lastWidth=0,lastHeight=0;
    new ResizeObserver(entries=>{

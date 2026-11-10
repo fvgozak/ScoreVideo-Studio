@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>ScoreVideo Studio v0.18.3 · 작업공간</title>
-<link href="/static/style.css?v=0.18.3" rel="stylesheet"/><link href="/static/effects.css?v=0.18.3" rel="stylesheet"/><link href="/static/stage.css?v=0.18.3" rel="stylesheet"/></head>
+<title>ScoreVideo Studio v0.18.4 · 작업공간</title>
+<link href="/static/style.css?v=0.18.4" rel="stylesheet"/><link href="/static/effects.css?v=0.18.4" rel="stylesheet"/><link href="/static/stage.css?v=0.18.4" rel="stylesheet"/></head>
 <body><div class="app">
-<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.18.3</small></div></div>
-<div class="top-right"><label class="language-picker"><span>언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.18.3</span></div></header>
+<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.18.4</small></div></div>
+<div class="top-right"><label class="language-picker"><span>언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.18.4</span></div></header>
 <main>
 <section class="intro compact-intro"><div class="eyebrow">SCORE + MIDI + AUDIO → VIDEO</div>
 <h1>연주를 따라 움직이는<br/><em>악보 영상</em>을 만들어보세요.</h1>
@@ -150,6 +150,13 @@
 <div class="field"><label for="transitionTime">색상 전환 종료 시점 <span id="transitionTimeVal">20초</span></label><input id="transitionTime" max="180" min="1" step="1" type="range" value="20"/></div>
 <p class="hint">모든 장면 효과는 재생 시간으로 계산하며, 미리보기와 MP4가 동일한 무대 엔진을 사용합니다.</p>
 </details></section></div><div class="editor-tab-panel" data-editor-panel="export" hidden=""><section class="panel"><div class="panel-title"><h2>영상 설정</h2></div>
+<section class="saved-video-presets" aria-label="저장한 영상 설정">
+  <div class="field"><label for="videoPresetName">설정 이름</label><input id="videoPresetName" maxlength="60" placeholder="예: A곡 · Shorts" type="text"/></div>
+  <button class="secondary-button" id="saveVideoPreset" type="button" disabled>현재 설정 저장</button>
+  <div class="field"><label for="videoPresetSelect">저장한 설정</label><select id="videoPresetSelect"><option value="">저장한 설정 없음</option></select></div>
+  <div class="preset-actions"><button class="secondary-button" id="loadVideoPreset" type="button" disabled>불러오기</button><button class="subtle-button" id="deleteVideoPreset" type="button" disabled>삭제</button></div>
+  <small>화면비·해상도·레이아웃·색상·카메라·빛·제목을 저장합니다. 연결된 곡과 배경 이미지도 함께 불러옵니다.</small>
+</section>
 <div class="field"><label for="resolution">SNS 화면비 프리셋</label><select id="resolution">
 <option selected="" value="1920x1080">16:9 · YouTube 가로 (1920×1080)</option>
 <option value="1080x1920">9:16 · Shorts / Reels / TikTok (1080×1920)</option>
@@ -220,14 +227,14 @@
 </main>
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
-<script src="/static/vendor-loader.js?v=0.18.3"></script>
-<script src="/static/i18n.js?v=0.18.3"></script>
-<script src="/static/theme.js?v=0.18.3"></script>
-<script src="/static/image-palette.js?v=0.18.3"></script>
-<script src="/static/score-core.js?v=0.18.3"></script>
-<script src="/static/studio-scene.js?v=0.18.3"></script>
-<script src="/static/stage-runtime.js?v=0.18.3"></script>
-<script src="/static/transport.js?v=0.18.3"></script>
-<script src="/static/hex-colors.js?v=0.18.3"></script>
-<script src="/static/visual-editor.js?v=0.18.3"></script><script src="/static/app.js?v=0.18.3"></script>
+<script src="/static/vendor-loader.js?v=0.18.4"></script>
+<script src="/static/i18n.js?v=0.18.4"></script>
+<script src="/static/theme.js?v=0.18.4"></script>
+<script src="/static/image-palette.js?v=0.18.4"></script>
+<script src="/static/score-core.js?v=0.18.4"></script>
+<script src="/static/studio-scene.js?v=0.18.4"></script>
+<script src="/static/stage-runtime.js?v=0.18.4"></script>
+<script src="/static/transport.js?v=0.18.4"></script>
+<script src="/static/hex-colors.js?v=0.18.4"></script>
+<script src="/static/visual-editor.js?v=0.18.4"></script><script src="/static/app.js?v=0.18.4"></script>
 </body></html>
