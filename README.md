@@ -1,4 +1,8 @@
-# ScoreVideo Studio v0.19.8 — Transparent Camera Targets
+# ScoreVideo Studio v0.19.9 — Light Trail Refinement
+
+## v0.19.9 Light Trail 원형 번짐 축소
+
+큰 원형 Bloom을 제거하고, 궤적과 현재 손별 최고음 끝의 가는 빛 하이라이트를 남깁니다.
 
 ## v0.19.8 카메라 포인트 클릭 영역 표시 수정
 

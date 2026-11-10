@@ -140,27 +140,30 @@
   function drawTrailChain(ctx,items,solidColor,gradientMode=false){
     if(items.length<2)return;
     ctx.save();
-    ctx.lineWidth=2.1;ctx.shadowBlur=15;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.lineCap='round';ctx.lineJoin='round';
     if(!gradientMode){
-      ctx.beginPath();ctx.moveTo(items[0].x,items[0].y);
-      for(let i=1;i<items.length;i++){
-        const a=items[i-1],b=items[i];
-        const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-(6+Math.min(22,Math.abs(a.y-b.y)*.18));
-        ctx.quadraticCurveTo(mx,my,b.x,b.y);
-      }
       const power=items.reduce((m,v)=>Math.max(m,v.decay*v.power),0);
-      ctx.strokeStyle=solidColor;ctx.globalAlpha=clamp(power*.82,0,1);
-      ctx.shadowColor=solidColor;ctx.stroke();
+      for(const pass of [{width:3.6,blur:9,alpha:.16},{width:1.25,blur:2.5,alpha:.78}]){
+        ctx.beginPath();ctx.moveTo(items[0].x,items[0].y);
+        for(let i=1;i<items.length;i++){
+          const a=items[i-1],b=items[i];
+          const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-(6+Math.min(22,Math.abs(a.y-b.y)*.18));
+          ctx.quadraticCurveTo(mx,my,b.x,b.y);
+        }
+        ctx.lineWidth=pass.width;ctx.shadowBlur=pass.blur;ctx.strokeStyle=solidColor;ctx.shadowColor=solidColor;
+        ctx.globalAlpha=clamp(power*pass.alpha,0,1);ctx.stroke();
+      }
     }else{
       for(let i=1;i<items.length;i++){
         const a=items[i-1],b=items[i];
         const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-(6+Math.min(22,Math.abs(a.y-b.y)*.18));
         const gradient=ctx.createLinearGradient(a.x,a.y,b.x,b.y);
         gradient.addColorStop(0,a.color);gradient.addColorStop(1,b.color);
-        ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo(mx,my,b.x,b.y);
-        ctx.strokeStyle=gradient;ctx.shadowColor=b.color;
-        ctx.globalAlpha=clamp(Math.max(a.decay*a.power,b.decay*b.power)*.82,0,1);
-        ctx.stroke();
+        for(const pass of [{width:3.6,blur:9,alpha:.16},{width:1.25,blur:2.5,alpha:.78}]){
+          ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo(mx,my,b.x,b.y);
+          ctx.lineWidth=pass.width;ctx.shadowBlur=pass.blur;ctx.strokeStyle=gradient;ctx.shadowColor=b.color;
+          ctx.globalAlpha=clamp(Math.max(a.decay*a.power,b.decay*b.power)*pass.alpha,0,1);ctx.stroke();
+        }
       }
     }
     ctx.restore();
@@ -260,13 +263,20 @@
         const colorGradient=s.lightColorMode==='aurora';
         drawTrailChain(ctx,trails.upper,s.trailUpper,colorGradient);
         drawTrailChain(ctx,trails.lower,s.trailLower,colorGradient);
-        const anchors=[...trails.upper,...trails.lower];
-        for(const e of anchors){
-          this.drawGlitter(ctx,e.x,e.y,e.age,e.power,e.color,e.index);
-          this.drawBloom(ctx,e.x,e.y,e.decay*e.power*.7,e.color,14+e.power*17);
+        for(const path of [trails.upper,trails.lower]){
+          const tip=path.at(-1);if(!tip)continue;
+          // Keep the light attached to the highest sounding note, but shape
+          // the tip as a narrow flare instead of a large circular bloom.
+          this.drawGlitter(ctx,tip.x,tip.y,tip.age,tip.power,tip.color,tip.index);
+          this.drawTrailTip(ctx,tip.x,tip.y,tip.decay*tip.power,tip.color);
         }
       }
       ctx.restore();
+    }
+    drawTrailTip(ctx,x,y,intensity,color){
+      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.34,0,.42);
+      ctx.shadowColor=color;ctx.shadowBlur=5;ctx.fillStyle=color;
+      ctx.beginPath();ctx.ellipse(x,y,7,2.2,-.12,0,Math.PI*2);ctx.fill();ctx.restore();
     }
     drawBloom(ctx,x,y,intensity,color,size){
       ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.82,0,.95);
