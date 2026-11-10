@@ -232,15 +232,7 @@
       ScoreFollower.assignHands(this.noteTriggers);
     }
     prepareDrawing(){
-      const items=new Map();
-      const add=(el,audio)=>{
-        if(!(el instanceof Element)||!Number.isFinite(audio)||items.has(el))return;
-        items.set(el,{el,audio,originalClipPath:el.style.clipPath||''});
-      };
-      for(const note of this.noteTriggers)add(note.el,note.audio);
-      for(const tie of this.tieContinuations)add(tie.el,tie.audio);
-      this.drawItems=[...items.values()].sort((a,b)=>a.audio-b.audio);
-
+      this.drawItems=[];
       const rows=new Map();
       for(const note of this.noteTriggers){
         const key=note.systemKey??0;
@@ -254,19 +246,54 @@
       const svg=this.container.querySelector('svg');
       const viewportWidth=this.viewport.clientWidth||1000;
       const scale=this.viewport.getBoundingClientRect().width/viewportWidth||1;
-      const containerTop=this.container.getBoundingClientRect().top;
+      const containerBox=this.container.getBoundingClientRect();
+      const offsetLeft=this.container.offsetLeft||0,offsetTop=this.container.offsetTop||0;
+      const cursorBySystem=new Map(systems.map(s=>[s.key,[]]));
+      for(const pos of this.positions){
+        const x=pos.x-offsetLeft,y=pos.y-offsetTop;
+        let nearest=null,distance=Infinity;
+        for(const system of systems){const next=Math.abs(system.y-y);if(next<distance){distance=next;nearest=system;}}
+        if(nearest&&distance<240)cursorBySystem.get(nearest.key)?.push({x,audio:pos.audio});
+      }
+      for(const points of cursorBySystem.values())points.sort((a,b)=>a.audio-b.audio);
+      const cursorBySystemX=new Map([...cursorBySystem].map(([key,points])=>[key,points.slice().sort((a,b)=>a.x-b.x)]));
       if(svg&&systems.length){
-        for(const el of svg.querySelectorAll('path,line,polyline')){
+        const graphicSelector='path,line,polyline,polygon,rect,circle,ellipse,text,use';
+        for(const el of svg.querySelectorAll(graphicSelector)){
           let rect;try{rect=el.getBoundingClientRect();}catch(_){continue;}
-          if(rect.width<Math.max(90,viewportWidth*.18)||rect.height>Math.max(4,4*scale))continue;
+          if(!rect.width&&!rect.height)continue;
           const css=getComputedStyle(el);
           if(css.display==='none'||css.visibility==='hidden'||(css.stroke==='none'&&css.fill==='none'))continue;
-          const y=(rect.top+rect.height*.5-containerTop)/scale;
+          const width=rect.width/scale,height=rect.height/scale;
+          const y=(rect.top+rect.height*.5-containerBox.top)/scale;
           let nearest=systems[0],distance=Infinity;
           for(const system of systems){const next=Math.abs(system.y-y);if(next<distance){distance=next;nearest=system;}}
-          if(distance<360)nearest.lines.push({el,originalClipPath:el.style.clipPath||''});
+          if(distance>=240)continue;
+          const isStaffLine=(el.matches('path,line,polyline')&&width>=Math.max(90,viewportWidth*.18)
+            &&height<=4&&css.fill==='none'&&css.stroke!=='none');
+          if(isStaffLine){
+            nearest.lines.push({el,originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
+            continue;
+          }
+          const points=cursorBySystemX.get(nearest.key)||[];
+          if(!points.length)continue;
+          // Reveal each engraved object when the playback cursor reaches its
+          // right edge. This covers stems, beams, rests, dynamics and text too.
+          const right=(rect.right-containerBox.left)/scale;
+          const byX=points;
+          let lo=0,hi=byX.length;
+          while(lo<hi){const mid=(lo+hi)>>>1;if(byX[mid].x<right-1)lo=mid+1;else hi=mid;}
+          let audio;
+          if(lo===0)audio=byX[0].audio;
+          else if(lo===byX.length)audio=byX.at(-1).audio;
+          else{
+            const a=byX[lo-1],b=byX[lo],span=b.x-a.x;
+            audio=span>1?(a.audio+(b.audio-a.audio)*clamp((right-a.x)/span,0,1)):b.audio;
+          }
+          this.drawItems.push({el,audio,originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
         }
       }
+      this.drawItems.sort((a,b)=>a.audio-b.audio);
       this.drawSystems=systems;
     }
     setDrawClip(item,progress){
@@ -281,22 +308,19 @@
       this.updateDrawing(this.lastSeekTime);
     }
     deactivateDrawing(){
-      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalClipPath;}
-      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalClipPath;}
+      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalWebkitClipPath;}
+      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;}
       this.drawCompleteCount=0;this.drawingActive=false;
     }
     updateDrawing(time){
       if(!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
       if(!this.drawingActive)this.activateDrawing();
-      const duration=.14;
       let low=0,high=this.drawItems.length;
-      while(low<high){const mid=(low+high)>>>1;if(this.drawItems[mid].audio+duration<=time)low=mid+1;else high=mid;}
+      while(low<high){const mid=(low+high)>>>1;if(this.drawItems[mid].audio<=time)low=mid+1;else high=mid;}
       const complete=low;
       if(complete>this.drawCompleteCount){for(let i=this.drawCompleteCount;i<complete;i++)this.setDrawClip(this.drawItems[i],1);}
       else if(complete<this.drawCompleteCount){for(let i=complete;i<this.drawCompleteCount;i++)this.setDrawClip(this.drawItems[i],0);}
       this.drawCompleteCount=complete;
-      let started=complete;while(started<this.drawItems.length&&this.drawItems[started].audio<=time)started++;
-      for(let i=complete;i<started;i++)this.setDrawClip(this.drawItems[i],(time-this.drawItems[i].audio)/duration);
       for(const system of this.drawSystems){
         const start=system.first-.38,end=Math.max(start+.25,system.last+.20);
         const progress=time<=start?0:time>=end?1:(time-start)/(end-start);
