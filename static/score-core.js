@@ -720,7 +720,7 @@
     cameraPointAt(t){
       let total=0,zoomTotal=0,focusX=0,focusY=0,shakeX=0,shakeY=0;
       for(const point of this.cameraPoints){
-        const age=t-point.time;if(age<0)continue;
+        const timing=Number.isFinite(Number(point.timing))?Number(point.timing):-.6,age=t-(point.time+timing);if(age<0)continue;
         // Every note is a camera waypoint, not an independent punch-in.
         // Long ease/decay windows overlap so dense runs form one calm move.
         const duration=clamp(Number(point.duration)||1.6,.4,5),attackWindow=.85,attack=smooth(age/attackWindow),hold=attackWindow,release=Math.max(2.2,duration*1.8);

@@ -34,7 +34,7 @@
        panelColor:hex(s.score_panel_color,'#0c1120'),panelOpacity:clamp(number(s.score_panel_opacity,0),0,1)},
      cameraPoints:(Array.isArray(s.camera_points)?s.camera_points:[]).slice(0,500).map(p=>({
        key:String(p?.key||'').slice(0,80),zoom:clamp(number(p?.zoom,1.3),1.05,1.6),
-       duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1)
+       duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1),timing:clamp(number(p?.timing,-.6),-2,1.5)
      })).filter(p=>p.key),
      effects:effect,scene:root.ScoreStudio.normalize(s.scene||{}),
    };
