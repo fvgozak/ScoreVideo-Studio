@@ -28,7 +28,7 @@
      scrollMode:(layout==='singleline'||layout==='horizontal')?'horizontal':'vertical',
      scoreRegion:{widthPercent:clamp(number(s.score_area_width,94),30,100),
        xPercent:clamp(number(s.score_area_x,50),0,100),
-       heightPercent:clamp(number(s.score_area_height,70),15,100),
+       heightPercent:clamp(number(s.score_area_height,s.piano_enabled===false?70:50),15,100),
        marginTopPercent:clamp(number(s.score_margin_top,12),0,45),
        marginBottomPercent:clamp(number(s.score_margin_bottom,9),0,45),
        panelColor:hex(s.score_panel_color,'#0c1120'),panelOpacity:clamp(number(s.score_panel_opacity,0),0,1)},
@@ -37,12 +37,14 @@
        duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1),timing:clamp(number(p?.timing,-.6),-2,1.5)
      })).filter(p=>p.key),
      effects:effect,scene:root.ScoreStudio.normalize(s.scene||{}),
+     piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,
+       strength:clamp(number(s.piano_light_strength,1.4),0,4)},
    };
  }
  class Stage {
    constructor({viewport,container,meta,settings}) {
      this.viewport=viewport;this.container=container;this.meta=meta;
-     this.settings=normalized(settings,meta);this.follower=null;this.layer=null;this.time=0;
+     this.settings=normalized(settings,meta);this.follower=null;this.layer=null;this.piano=null;this.time=0;
      this.scoreWindow=null;this.scoreScroll=null;this.scorePanel=null;
      this.setupWindow();
    }
@@ -127,6 +129,9 @@
      await this.follower.load(`/api/projects/${this.meta.id}/score`);
      this.layer=new root.ScoreStudio.LayerRenderer(this.viewport);
      this.layer.setScene(s.scene);
+     if(!this.piano)this.piano=new root.ScorePianoFall.PianoFall(this.viewport);
+     this.piano.setSettings(s.piano);
+     this.piano.setFollower(this.follower);
      this.seek(this.time);
      return this;
    }
@@ -150,9 +155,10 @@
      this.follower.setEffects({...next.effects,lightColorMode:next.scene.lightColorMode,
        auroraLow:next.scene.auroraLow,auroraHigh:next.scene.auroraHigh,velocityScale:next.scene.velocityScale});
      this.follower.setOffset(next.offsetSec);
+     this.piano?.setFollower(this.follower);
      if(JSON.stringify(prev.cameraPoints)!==JSON.stringify(next.cameraPoints))this.follower.setCameraPoints(next.cameraPoints);
      this.follower.cameraMode=next.scene.cameraMode;
-     this.layer?.setScene(next.scene);this.seek(this.time);
+     this.layer?.setScene(next.scene);this.piano?.setSettings(next.piano);this.seek(this.time);
      return Promise.resolve();
    }
    seek(time){
@@ -160,9 +166,10 @@
      if(!this.follower)return;
      this.follower.seek(this.time,true);
      this.layer?.draw(this.time,this.follower);
+     this.piano?.draw(this.time);
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}
-   setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.seek(this.time);}}
+   setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.piano?.setFollower(this.follower);this.seek(this.time);}}
    setCameraPoints(points){this.settings.cameraPoints=Array.isArray(points)?points:[];this.follower?.setCameraPoints(this.settings.cameraPoints);this.seek(this.time);}
  }
  root.ScoreStage={normalized,Stage};

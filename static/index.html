@@ -34,7 +34,7 @@
 <details class="score-region-options compact-details"><summary>수치로 정밀 조정 · 영역 / 여백 / 배경</summary><div class="field"><label for="scoreAreaX">악보 영역 가로 위치 <span id="scoreAreaXVal">50%</span></label><input id="scoreAreaX" max="100" min="0" step="1" type="range" value="50"/></div>
 <p class="hint">영상 전체와 분리된 창을 지정합니다. 음악을 재생하면 악보만 이 영역 안에서 움직입니다.</p>
 <div class="field"><label for="scoreAreaWidth">표시 영역 너비 <span id="scoreAreaWidthVal">94%</span></label><input id="scoreAreaWidth" max="100" min="30" step="1" type="range" value="94"/></div>
-<div class="field"><label for="scoreAreaHeight">표시 영역 높이 <span id="scoreAreaHeightVal">70%</span></label><input id="scoreAreaHeight" max="100" min="15" step="1" type="range" value="70"/></div>
+<div class="field"><label for="scoreAreaHeight">표시 영역 높이 <span id="scoreAreaHeightVal">50%</span></label><input id="scoreAreaHeight" max="100" min="15" step="1" type="range" value="50"/></div>
 <div class="field"><label for="scoreMarginTop">위쪽 여백 <span id="scoreMarginTopVal">12%</span></label><input id="scoreMarginTop" max="45" min="0" step="1" type="range" value="12"/><small>0%는 영상의 맨 위에서 악보 표시 영역이 시작됩니다. 제목과 겹치면 여백을 직접 늘리세요.</small></div>
 <div class="field"><label for="scoreMarginBottom">아래쪽 여백 <span id="scoreMarginBottomVal">9%</span></label><input id="scoreMarginBottom" max="45" min="0" step="1" type="range" value="9"/></div>
 <div class="color-grid"><label>악보 영역 배경색<input id="scorePanelColor" type="color" value="#0c1120"/></label>
@@ -143,6 +143,11 @@
 <div class="field"><label for="velocityScale">강약 색상 기준</label><select id="velocityScale"><option value="absolute">절대값 · MIDI 1~127</option><option value="relative">상대값 · 이 MIDI의 최저~최고</option></select><small id="velocityRangeInfo">상대값은 이 곡의 실제 벨로시티 범위를 색상 전체에 배분합니다.</small></div><small>약한 타건은 왼쪽 색, 강한 타건은 오른쪽 색에 가까워집니다. 발광 스타일과 독립적으로 작동합니다.</small>
 </div>
 <div class="field"><label for="fxStrength">빛 효과 강도 <span id="fxStrengthVal">65%</span></label><input id="fxStrength" max="4" min="0" step="0.05" type="range" value="0.65"/><div class="field-foot"><span>0%</span><span>400%</span></div></div>
+<details class="compact-details" open><summary>피아노 낙하 노트 · 건반 빛</summary>
+<div class="toggle-line"><span>낙하 노트와 건반 <small>MIDI 타건이 건반에 닿는 순간 악보 음표와 함께 반응</small></span><input id="pianoEnabled" type="checkbox" checked/></div>
+<div class="toggle-line"><span>건반 타건 빛 <small>악보 음표 빛과 같은 색상·MIDI 타이밍 사용</small></span><input id="pianoLight" type="checkbox" checked/></div>
+<div class="field"><label for="pianoLightStrength">건반 빛 강도 <span id="pianoLightStrengthVal">140%</span></label><input id="pianoLightStrength" max="4" min="0" step="0.1" type="range" value="1.4"/><div class="field-foot"><span>0%</span><span>400%</span></div></div>
+<small>악보 음표 빛은 기존 설정을 유지하며, 건반 빛과 동시에 표시됩니다. 악보 위치는 악보 탭의 영역 설정으로 조절할 수 있습니다.</small></details>
 <details class="compact-details"><summary>제목 · 텍스트 · 장면 전환 상세</summary><div class="field"><label for="titleText">영상 제목 · 파일명 자동 입력</label><input id="titleText" maxlength="120" placeholder="악보의 제목" type="text"/><button class="subtle-button" id="resetTitleButton" type="button">파일명 제목으로 되돌리기</button></div>
 <div class="field"><label for="titleFont">텍스트 글꼴</label><select id="titleFont">
 <option value="sans">Sans · 현대적인 고딕</option><option value="serif">Serif · 클래식 명조</option>
@@ -244,6 +249,7 @@
 <script src="/static/image-palette.js?v=0.19.12"></script>
 <script src="/static/score-core.js?v=0.19.12"></script>
 <script src="/static/studio-scene.js?v=0.19.12"></script>
+<script src="/static/piano-fall.js?v=0.19.12"></script>
 <script src="/static/stage-runtime.js?v=0.19.12"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>

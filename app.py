@@ -66,13 +66,16 @@ class RenderRequest(BaseModel):
     note_motion: bool = True
     draw_score: bool = False
     motion_strength: float = Field(default=1.0, ge=0.0, le=2.0)
+    piano_enabled: bool = True
+    piano_light: bool = True
+    piano_light_strength: float = Field(default=1.4, ge=0.0, le=4.0)
     layout_mode: str = Field(default="page", pattern=r"^(page|singleline|vertical|horizontal)$")
     scroll_mode: str = Field(default="vertical", pattern=r"^(vertical|horizontal|page)$")
     score_position_x: float = Field(default=38.0, ge=0, le=100)
     score_position_y: float = Field(default=12.0, ge=0, le=100)
     score_area_width: float = Field(default=94.0, ge=30, le=100)
     score_area_x: float = Field(default=50.0, ge=0, le=100)
-    score_area_height: float = Field(default=70.0, ge=15, le=100)
+    score_area_height: float = Field(default=50.0, ge=15, le=100)
     score_margin_top: float = Field(default=12.0, ge=0, le=45)
     score_margin_bottom: float = Field(default=9.0, ge=0, le=45)
     score_panel_color: str = Field(default="#0c1120", pattern=r"^#[0-9a-fA-F]{6}$")

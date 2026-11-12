@@ -1,3 +1,13 @@
+# ScoreVideo Studio — Piano Fall Integration
+
+ScoreVideo-Studio의 기존 악보 렌더러에 MIDI 기반 88건반·낙하 노트 바·타건 발광 레이어를 추가했습니다. 악보의 음표 빛은 그대로 유지되며 건반 빛과 동시에 표시됩니다. 두 효과는 동일한 MIDI→오디오 시간 보정 및 색상 반응(Aurora/고정색)을 사용합니다. 미리보기와 MP4 렌더 페이지는 같은 `ScoreStage`를 사용합니다.
+
+디자인 탭의 **피아노 낙하 노트 · 건반 빛**에서 건반 표시, 타건 빛, 건반 빛 강도를 각각 조절할 수 있습니다. 악보 표시 영역 기본 높이는 피아노 공간을 확보하도록 50%이며, 기존에 저장된 영상 설정은 그대로 유지됩니다.
+
+빠른 확인: `uvicorn app:app --host 127.0.0.1 --port 8765` 실행 후 파일 탭의 **Dream Journey 예제 바로 체험하기**를 누르세요.
+
+## 기존 버전 기록
+
 # ScoreVideo Studio v0.19.12 — Expanded Light Strength
 
 ## v0.19.12 빛 효과 강도 400%까지 확장
