@@ -63,4 +63,10 @@ assert.equal(scoreDraws,1);
 assert.equal(pianoDraws,1,'score and piano lights render on the same time axis');
 for(const page of ['index.html','render.html'])
   assert.match(fs.readFileSync(`static/${page}`,'utf8'),/piano-fall\.js/);
+const stageCss=fs.readFileSync('static/stage.css','utf8');
+const pianoDepth=Number(stageCss.match(/\.piano-fall-canvas\{[^}]*z-index:(\d+)/)[1]);
+const scoreDepth=Number(stageCss.match(/\.score-window\{[^}]*z-index:(\d+)/)[1]);
+const noteLightDepth=Number(stageCss.match(/\.studio-fx-canvas\{[^}]*z-index:(\d+)/)[1]);
+assert.ok(pianoDepth<scoreDepth&&scoreDepth<noteLightDepth,
+  'falling notes stay behind the score while score-note lights remain above it');
 console.log('88-key MIDI fall, impact timing, shared preview/export stage verified');
