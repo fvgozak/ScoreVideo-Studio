@@ -89,11 +89,13 @@
       this.follower=follower;
       // Use every physical MIDI attack, including notes without an engraved
       // counterpart. The same midiToAudio mapping drives score-note lights.
+      const trim=(Number(this.settings?.offsetSec)||0)-(Number(follower?.offsetSec)||0);
       this.notes=(follower?.noteEvents||[]).map(event=>{
         const midi=Number.isFinite(event.second)?event.second:follower.beatToSeconds(event.beat);
         const end=Number(event.end_second);
-        return {pitch:event.pitch,velocity:event.velocity,audio:follower.midiToAudio(midi),
-          endAudio:follower.midiToAudio(Number.isFinite(end)&&end>midi?end:midi+.35)};
+        // Auto sync is shared, but score and piano trims are independent.
+        return {pitch:event.pitch,velocity:event.velocity,audio:follower.midiToAudio(midi)+trim,
+          endAudio:follower.midiToAudio(Number.isFinite(end)&&end>midi?end:midi+.35)+trim};
       }).filter(note=>note.pitch>=FIRST&&note.pitch<=LAST&&Number.isFinite(note.audio))
         .sort((a,b)=>a.audio-b.audio);
       this.longestDuration=this.notes.reduce((longest,note)=>Math.max(longest,note.endAudio-note.audio),.35);
@@ -166,5 +168,5 @@
       ctx.restore();
     }
   }
-  root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,drawImpactLight};
+  root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,sparkleSeed,drawImpactLight};
 })(typeof window==='undefined'?globalThis:window);

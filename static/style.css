@@ -191,8 +191,9 @@ main{max-width:1540px;padding-top:20px}
 .sync-quick-controls .sync-auto-button{background:#21404a;border-color:#3b7880;color:#aff2f0}
 .sync-adjust-control{position:relative;flex:none}
 .sync-adjust-toggle span{margin-left:3px;color:#8faebb}
-.sync-adjust-popover{position:absolute;top:calc(100% + 8px);right:0;width:min(300px,calc(100vw - 28px));padding:13px 14px;background:#172432;border:1px solid #446171;border-radius:10px;box-shadow:0 12px 34px #0009;color:#dce8ec;z-index:30}
+.sync-adjust-popover{position:absolute;top:calc(100% + 8px);right:0;width:min(320px,calc(100vw - 28px));padding:13px 14px;background:#172432;border:1px solid #446171;border-radius:10px;box-shadow:0 12px 34px #0009;color:#dce8ec;z-index:30}
 .sync-adjust-popover[hidden]{display:none}
+.sync-offset-group+.sync-offset-group{margin-top:12px;padding-top:12px;border-top:1px solid #385163}
 .sync-adjust-popover label{display:flex;justify-content:space-between;font-size:11px;color:#c1d6df}
 .sync-adjust-popover label strong{color:#e2fbfb;font-variant-numeric:tabular-nums}
 .sync-adjust-popover input{display:block;width:100%;margin:10px 0 3px;accent-color:#66d7df}

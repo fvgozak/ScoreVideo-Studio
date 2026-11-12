@@ -38,7 +38,8 @@
      })).filter(p=>p.key),
      effects:effect,scene:root.ScoreStudio.normalize(s.scene||{}),
      piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,
-       strength:clamp(number(s.piano_light_strength,1.4),0,4)},
+       strength:clamp(number(s.piano_light_strength,1.4),0,4),
+       offsetSec:clamp(number(s.piano_offset_sec,0),-5,5)},
    };
  }
  class Stage {
@@ -155,10 +156,11 @@
      this.follower.setEffects({...next.effects,lightColorMode:next.scene.lightColorMode,
        auroraLow:next.scene.auroraLow,auroraHigh:next.scene.auroraHigh,velocityScale:next.scene.velocityScale});
      this.follower.setOffset(next.offsetSec);
+     this.piano?.setSettings(next.piano);
      this.piano?.setFollower(this.follower);
      if(JSON.stringify(prev.cameraPoints)!==JSON.stringify(next.cameraPoints))this.follower.setCameraPoints(next.cameraPoints);
      this.follower.cameraMode=next.scene.cameraMode;
-     this.layer?.setScene(next.scene);this.piano?.setSettings(next.piano);this.seek(this.time);
+     this.layer?.setScene(next.scene);this.seek(this.time);
      return Promise.resolve();
    }
    seek(time){

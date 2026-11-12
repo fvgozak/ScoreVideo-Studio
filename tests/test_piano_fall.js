@@ -52,6 +52,40 @@ assert.equal(piano.notes.length,2);
 assert.equal(piano.notes[0].audio,1.25);
 assert.ok(Math.abs(piano.notes[0].endAudio-1.85)<1e-10);
 assert.equal(piano.notes[1].audio,2.25,'repeated notes remain separate attacks');
+const sharedSync={noteEvents:[{pitch:60,velocity:100,beat:2,second:1,end_second:1.6}],
+  offsetSec:.2,beatToSeconds:beat=>beat/2,midiToAudio:second=>second+.5+.2};
+piano.settings={offsetSec:.7};piano.setFollower(sharedSync);
+assert.ok(Math.abs(piano.notes[0].audio-2.2)<1e-10,'piano trim is relative to shared auto sync, not score trim');
+sharedSync.offsetSec=.9;sharedSync.midiToAudio=second=>second+.5+.9;
+piano.setFollower(sharedSync);
+assert.ok(Math.abs(piano.notes[0].audio-2.2)<1e-10,'changing the score trim must not move the piano');
+assert.equal(normalized({piano_offset_sec:-.45}).piano.offsetSec,-.45);
+assert.equal(normalized({piano_offset_sec:99}).piano.offsetSec,5);
+assert.match(fs.readFileSync('static/index.html','utf8'),/id="pianoOffset"/);
+assert.match(fs.readFileSync('static/app.js','utf8'),/piano_offset_sec:pianoOffset\(\)/);
+assert.match(fs.readFileSync('static/app.js','utf8'),/closest\?\.\('input,select,textarea,/,
+  'global seek shortcuts must not swallow fine-tune slider arrow keys');
+const scoreSparks=[];
+const scoreImpactContext={...lightContext,ellipse(){},arc(x,y,r){scoreSparks.push([x,y,r]);}};
+const scoreImpact=context.window.ScoreStudio.LayerRenderer.prototype.drawScoreImpact;
+const engraved={pitch:60,audio:2,endAudio:2.5,velocity:120};
+scoreImpact(scoreImpactContext,50,80,0,.9,'#68ddfa',engraved);
+assert.equal(scoreSparks.length,7,'score note receives the same seven-spark attack motion');
+const engravedSparks=JSON.stringify(scoreSparks);scoreSparks.length=0;
+scoreImpact(scoreImpactContext,50,80,0,.9,'#68ddfa',engraved);
+assert.equal(JSON.stringify(scoreSparks),engravedSparks);
+const applyOrder=[];
+const runtime=Object.create(Stage.prototype);
+runtime.settings=normalized({offset_sec:0,piano_offset_sec:0});
+runtime.meta={};runtime.applyScoreWindow=()=>{};runtime.seek=()=>{};
+runtime.follower={setEffects(){},setOffset(value){applyOrder.push(['score',value]);},setCameraPoints(){}};
+runtime.piano={setSettings(value){applyOrder.push(['piano-settings',value.offsetSec]);},
+  setFollower(){applyOrder.push(['piano-events']);}};
+runtime.layer={setScene(){}};
+runtime.setSettings({offset_sec:.1,piano_offset_sec:.25});
+assert.equal(JSON.stringify(applyOrder),JSON.stringify([
+  ['score',.1],['piano-settings',.25],['piano-events']
+]));
 let scoreSeeks=0,scoreDraws=0,pianoDraws=0;
 const stage=Object.create(Stage.prototype);
 stage.follower={seek:()=>scoreSeeks++};

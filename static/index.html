@@ -2,7 +2,7 @@
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>ScoreVideo Studio v0.19.12 · 작업공간</title>
-<link href="/static/style.css?v=0.19.12" rel="stylesheet"/><link href="/static/effects.css?v=0.19.12" rel="stylesheet"/><link href="/static/stage.css?v=0.19.14" rel="stylesheet"/></head>
+<link href="/static/style.css?v=0.19.15" rel="stylesheet"/><link href="/static/effects.css?v=0.19.12" rel="stylesheet"/><link href="/static/stage.css?v=0.19.14" rel="stylesheet"/></head>
 <body><div class="app">
 <header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.19.12</small></div></div>
 <div class="top-right"><label class="language-picker"><span>언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.19.12</span></div></header>
@@ -211,10 +211,13 @@
     <div class="sync-adjust-control">
       <button class="sync-adjust-toggle" id="syncAdjustToggle" type="button" aria-expanded="false" aria-controls="syncAdjustPopover">미세 조정 <span aria-hidden="true">⌄</span></button>
       <div class="sync-adjust-popover" id="syncAdjustPopover" hidden>
-        <label for="offset">수동 미세 조정 <strong id="offsetVal">0.00초</strong></label>
-        <input id="offset" max="5" min="-5" step="0.05" type="range" value="0"/>
-        <div class="field-foot"><span>-5초</span><span>+5초</span></div>
-        <small>자동 싱크에 ±5초를 더하거나 빼서 맞출 수 있습니다.</small>
+        <div class="sync-offset-group"><label for="offset">악보 ↔ 소리 <strong id="offsetVal">0.00초</strong></label>
+        <input id="offset" max="5" min="-5" step="0.01" type="range" value="0"/>
+        <div class="field-foot"><span>-5초</span><span>+5초</span></div></div>
+        <div class="sync-offset-group"><label for="pianoOffset">건반 ↔ 소리 <strong id="pianoOffsetVal">0.00초</strong></label>
+        <input id="pianoOffset" max="5" min="-5" step="0.01" type="range" value="0"/>
+        <div class="field-foot"><span>-5초</span><span>+5초</span></div></div>
+        <small>자동 싱크는 공통 기준입니다. +는 화면을 늦추고 −는 앞당깁니다.</small>
         <button class="subtle-button" hidden="" id="clearSyncButton" type="button">자동 싱크 초기화</button>
       </div>
     </div>
@@ -244,14 +247,14 @@
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
 <script src="/static/vendor-loader.js?v=0.19.12"></script>
-<script src="/static/i18n.js?v=0.19.12"></script>
+<script src="/static/i18n.js?v=0.19.15"></script>
 <script src="/static/theme.js?v=0.19.12"></script>
 <script src="/static/image-palette.js?v=0.19.12"></script>
 <script src="/static/score-core.js?v=0.19.12"></script>
-<script src="/static/studio-scene.js?v=0.19.12"></script>
-<script src="/static/piano-fall.js?v=0.19.13"></script>
-<script src="/static/stage-runtime.js?v=0.19.12"></script>
+<script src="/static/studio-scene.js?v=0.19.15"></script>
+<script src="/static/piano-fall.js?v=0.19.15"></script>
+<script src="/static/stage-runtime.js?v=0.19.15"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>
-<script src="/static/visual-editor.js?v=0.19.12"></script><script src="/static/app.js?v=0.19.12"></script>
+<script src="/static/visual-editor.js?v=0.19.12"></script><script src="/static/app.js?v=0.19.16"></script>
 </body></html>

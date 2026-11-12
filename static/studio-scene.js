@@ -243,8 +243,12 @@
         const decay=Math.exp(-age*(s.fxMode==='trail'?1.9:3.4));
         const solidColor=s.fxMode==='trail'?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
+        const duration=Math.max(.08,(Number(e.endAudio)||e.audio+.4)-e.audio);
+        const impact=root.ScorePianoFall?.impactEnvelope(age,duration,velocity)
+          ??Math.exp(-age*7.5)*velocity;
         visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
-        if(s.fxMode!=='trail')this.drawBloom(ctx,x,y,decay*power,lightColor,14+power*23);
+        if(s.fxMode!=='trail')this.drawBloom(ctx,x,y,Math.max(decay,impact)*power,lightColor,14+power*23);
+        this.drawScoreImpact(ctx,x,y,age,impact*power,follower.eventLightColor?.(e.velocity)||lightColor,e);
         if(s.fxMode==='resonance')this.drawRing(ctx,x,y,age,power,lightColor);
         if(s.fxMode==='glitter')this.drawGlitter(ctx,x,y,age,power,lightColor,i);
       }
@@ -285,6 +289,28 @@
       const radius=Math.max(5,size*.68),g=ctx.createRadialGradient(x,y,0,x,y,radius);
       g.addColorStop(0,color+'75');g.addColorStop(.32,color+'48');g.addColorStop(1,color+'00');
       ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,size*.82,Math.max(3,size*.26),-.12,0,Math.PI*2);ctx.fill();ctx.restore();
+    }
+    drawScoreImpact(ctx,x,y,age,energy,color,note){
+      // Share the piano's attack/hold/release pulse and spark timing, but keep
+      // the footprint small enough to remain attached to an engraved notehead.
+      if(energy<=.006)return;
+      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(energy*.48,0,.85);
+      ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=4+7*Math.min(1,energy);
+      ctx.beginPath();ctx.ellipse(x,y,3.5+energy*2,1.5+energy*.8,-.12,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+      if(age<.72){
+        const seed=(index,salt)=>root.ScorePianoFall?.sparkleSeed(note,index,salt)??random(note.pitch||0,index+salt);
+        const fade=(1-age/.72)**1.6*Math.min(1,energy);
+        for(let index=0;index<7;index++){
+          const dx=(seed(index,0)-.5)*(12+age*14);
+          const rise=3+seed(index,17)*8+age*(8+seed(index,31)*17);
+          const radius=.35+seed(index,53)*.7;
+          ctx.globalAlpha=fade*(.35+seed(index,71)*.55);
+          ctx.fillStyle=index%3===0?'#ffffff':color;
+          ctx.beginPath();ctx.arc(x+dx,y-rise,radius,0,Math.PI*2);ctx.fill();
+        }
+      }
+      ctx.restore();
     }
     drawRing(ctx,x,y,age,power,color){
       ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.globalAlpha=clamp(Math.exp(-age*2.5)*power*.65,0,1);

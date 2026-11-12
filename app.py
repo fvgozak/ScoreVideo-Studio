@@ -46,6 +46,7 @@ class RenderRequest(BaseModel):
     height: int = Field(default=720)
     zoom: float = Field(default=0.9, ge=0.5, le=1.5)
     offset_sec: float = Field(default=0.0, ge=-30, le=30)
+    piano_offset_sec: float = Field(default=0.0, ge=-5, le=5)
     paper_color: str = Field(default="#fffdf6", pattern=r"^#[0-9a-fA-F]{6}$")
     ink_color: str = Field(default="#181b22", pattern=r"^#[0-9a-fA-F]{6}$")
     staff_color: str = Field(default="#323a43", pattern=r"^#[0-9a-fA-F]{6}$")

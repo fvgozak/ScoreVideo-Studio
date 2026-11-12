@@ -10,7 +10,7 @@
  let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0;
  const fmt=(s)=>{const t=Math.max(0,Math.floor(Number(s)||0));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
  function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
- const offset=()=>Number($('offset').value), zoom=()=>Number($('zoom').value);
+ const offset=()=>Number($('offset').value),pianoOffset=()=>Number($('pianoOffset').value),zoom=()=>Number($('zoom').value);
  function cameraPointStoreKey(){return project?`scorevideo_camera_points_${project.id}`:'';}
  function readCameraPoints(){try{const raw=JSON.parse(localStorage.getItem(cameraPointStoreKey())||'[]');return Array.isArray(raw)?raw.slice(0,500):[];}catch(_){return[];}}
  let selectedCameraPoint='',cameraPointPicking=false;
@@ -44,7 +44,7 @@
  };}
  function config(){
    const [width,height]=$('resolution').value.split('x').map(Number);
-   return {width,height,fps:Number($('fps').value),render_mode:$('renderMode').value,offset_sec:offset(),zoom:zoom(),camera_points:readCameraPoints(),
+   return {width,height,fps:Number($('fps').value),render_mode:$('renderMode').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
       paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
       glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
       texture:$('texture').value,background_opacity:Number($('backgroundOpacity').value),background_fit:$('backgroundFit').value,background_position_x:Number($('backgroundPosX').value),background_position_y:Number($('backgroundPosY').value),
@@ -76,7 +76,7 @@
  function currentVideoPresetSettings(){
    const settings={};
    for(const id of persistent){const node=$(id);settings[id]=node.type==='checkbox'?node.checked:node.value;}
-   settings.offset=$('offset').value;settings.cameraPoints=readCameraPoints();
+   settings.offset=$('offset').value;settings.pianoOffset=$('pianoOffset').value;settings.cameraPoints=readCameraPoints();
    return settings;
  }
  $('videoPresetSelect').addEventListener('change',()=>{
@@ -109,7 +109,8 @@
        const node=$(id),value=preset.settings[id];if(value===undefined)continue;
        if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
      }
-     if(preset.settings.offset!==undefined)$('offset').value=String(preset.settings.offset);
+     $('offset').value=String(preset.settings.offset??0);
+     $('pianoOffset').value=String(preset.settings.pianoOffset??0);
      if(Array.isArray(preset.settings.cameraPoints))writeCameraPoints(preset.settings.cameraPoints);
      if(preset.settings.titleText!==undefined)localStorage.setItem('scorevideo_title_override_'+preset.projectId,preset.settings.titleText);
      updateLabels();queueApply();refreshVideoPresets(preset.id);message('저장한 영상 설정을 불러왔습니다.');
@@ -123,6 +124,8 @@
  });
  function updateLabels(){
    window.ScoreHexControls?.syncAll();
+   $('offsetVal').textContent=`${offset()>0?'+':''}${offset().toFixed(2)}초`;
+   $('pianoOffsetVal').textContent=`${pianoOffset()>0?'+':''}${pianoOffset().toFixed(2)}초`;
    $('zoomVal').textContent=`${Math.round(zoom()*100)}%`;
    $('motionStrengthVal').textContent=`${Math.round(Number($('motionStrength').value)*100)}%`;
    $('pianoLightStrengthVal').textContent=`${Math.round(Number($('pianoLightStrength').value)*100)}%`;
@@ -388,7 +391,8 @@
    }catch(e){paletteMessage(e.message,true);}
  });
 
- $('offset').addEventListener('input',()=>{$('offsetVal').textContent=`${offset().toFixed(2)}초`;queueApply();});
+ $('offset').addEventListener('input',queueApply);
+ $('pianoOffset').addEventListener('input',queueApply);
  $('syncAdjustToggle').addEventListener('click',()=>{
    const open=$('syncAdjustPopover').hidden;
    $('syncAdjustPopover').hidden=!open;$('syncAdjustToggle').setAttribute('aria-expanded',String(open));
@@ -452,7 +456,7 @@
    audio.src=`/api/projects/${meta.id}/audio`;
    $('totalTime').textContent=fmt(meta.audio_duration_sec);$('currentTime').textContent='00:00';
    $('seek').max=meta.audio_duration_sec;$('seek').value=0;
-   $('offset').value=0;$('offsetVal').textContent='0.00초';
+   $('offset').value=0;$('pianoOffset').value=0;updateLabels();
    for(const id of ['playButton','previousMeasureButton','nextMeasureButton','restartButton','seek','exportButton','autoSyncButton'])$(id).disabled=false;
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
@@ -502,7 +506,7 @@
  $('autoSyncButton').addEventListener('click',async()=>{
    if(!project)return;$('autoSyncButton').disabled=true;
    try{const r=await fetch(`/api/projects/${project.id}/auto-sync`,{method:'POST'});const data=await r.json();if(!r.ok)throw Error(data.detail||'자동 싱크 실패');
-     project.sync=data;$('offset').value=0;$('offsetVal').textContent='0.00초';stage?.setSync(data);queueApply();syncInfo();message('첫 소리 자동 싱크 적용. 뒤쪽 마디에서도 연주 시점을 확인해 주세요.');
+     project.sync=data;$('offset').value=0;$('pianoOffset').value=0;stage?.setSync(data);queueApply();syncInfo();message('첫 소리 자동 싱크 적용. 악보와 건반은 미세 조정에서 각각 보정할 수 있습니다.');
    }catch(e){message(e.message,true);}finally{$('autoSyncButton').disabled=false;}
  });
  $('clearSyncButton').addEventListener('click',async()=>{
@@ -565,6 +569,8 @@
  // Capture before the focused slider/colour/button swallows Space or arrows.
  // Actual text editing is exempt so titles can contain spaces and punctuation.
  window.addEventListener('keydown',e=>{
+   // Range inputs need their own arrow keys for 0.01-second sync tuning.
+   if(e.target?.closest?.('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
    if((e.key==='f'||e.key==='F')&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!transport.isTextEditing(e.target)&&!e.repeat){
      e.preventDefault();e.stopImmediatePropagation();void toggleFullscreen();return;
    }
