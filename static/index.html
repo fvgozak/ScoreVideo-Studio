@@ -1,41 +1,45 @@
 <!DOCTYPE html>
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>ScoreVideo Studio v0.19.12 · 작업공간</title>
-<link href="/static/style.css?v=0.19.15" rel="stylesheet"/><link href="/static/effects.css?v=0.19.12" rel="stylesheet"/><link href="/static/stage.css?v=0.19.14" rel="stylesheet"/></head>
+<title>ScoreVideo Studio v0.19.31 · 작업공간</title>
+<link href="/static/style.css?v=0.19.30" rel="stylesheet"/><link href="/static/effects.css?v=0.19.12" rel="stylesheet"/><link href="/static/stage.css?v=0.19.31" rel="stylesheet"/></head>
 <body><div class="app">
-<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.19.12</small></div></div>
-<div class="top-right"><label class="language-picker"><span>언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.19.12</span></div></header>
+<header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.19.31</small></div></div>
+<div class="top-right"><label class="language-picker"><span>언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.19.31</span></div></header>
 <main>
-<section class="intro compact-intro"><div class="eyebrow">SCORE + MIDI + AUDIO → VIDEO</div>
+<section class="intro compact-intro"><div class="eyebrow">SCORE / MIDI → PIANO VIDEO</div>
 <h1>연주를 따라 움직이는<br/><em>악보 영상</em>을 만들어보세요.</h1>
-<p>MusicXML과 MIDI의 실제 연주 음표를 매칭해 악보 위치를 계산합니다. 완성 음원을 함께 넣어 MP4로 출력하세요.</p>
+<p>MIDI로 건반 영상을 만들고, MusicXML을 함께 올리면 악보도 표시합니다. 완성 음원은 선택 사항입니다.</p>
 </section>
 <div class="grid">
 <aside class="sidebar"><nav aria-label="작업 설정" class="editor-tabs"><button aria-pressed="true" class="editor-tab active" data-editor-tab="project" type="button">파일</button><button aria-pressed="false" class="editor-tab" data-editor-tab="score" type="button">악보</button><button aria-pressed="false" class="editor-tab" data-editor-tab="design" type="button">디자인</button><button aria-pressed="false" class="editor-tab" data-editor-tab="export" type="button">출력</button></nav>
 <div class="editor-tab-panel" data-editor-panel="project"><section class="panel"><div class="panel-title"><h2>파일 불러오기</h2></div>
-<form id="uploadForm"><label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>MusicXML 악보</strong><small id="scoreName">.musicxml / .xml / .mxl</small></span><span class="choose">선택</span><input accept=".musicxml,.xml,.mxl" id="score" required="" type="file"/></label>
-<label class="filebox"><span class="file-symbol">♬</span><span class="file-desc"><strong>MIDI 연주 정보</strong><small id="midiName">.mid / .midi</small></span><span class="choose">선택</span><input accept=".mid,.midi" id="midi" required="" type="file"/></label>
-<label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>완성 오디오</strong><small id="audioName">.mp3 / .wav / .m4a 등</small></span><span class="choose">선택</span><input accept="audio/*,.flac,.m4a,.aac" id="audio" required="" type="file"/></label>
-<button class="primary" id="uploadButton" type="submit">악보 불러오기 <span>→</span></button>
+<form id="uploadForm"><label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>MusicXML 악보</strong><small id="scoreName">.musicxml / .xml / .mxl</small></span><span class="choose">선택</span><input accept=".musicxml,.xml,.mxl" id="score" type="file"/></label>
+<label class="filebox"><span class="file-symbol">♬</span><span class="file-desc"><strong>MIDI 연주 정보 · 필수</strong><small id="midiName">.mid / .midi</small></span><span class="choose">선택</span><input accept=".mid,.midi" id="midi" type="file"/></label>
+<label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>완성 오디오</strong><small id="audioName">.mp3 / .wav / .m4a 등</small></span><span class="choose">선택</span><input accept="audio/*,.flac,.m4a,.aac" id="audio" type="file"/></label>
+<button class="primary" id="uploadButton" type="submit">프로젝트 만들기 <span>→</span></button>
 </form>
 <button class="secondary-button demo-load-button" id="demoButton" type="button">▶ Dream Journey 예제 바로 체험하기</button>
 <p class="hint">샘플 악보·MIDI·음원과 커버 이미지를 불러옵니다. 파일을 직접 선택하지 않아도 돼요.</p>
+<p class="hint">MIDI는 필수입니다. MusicXML을 함께 올리면 악보가 표시되고, MIDI만 올리면 건반 전용 영상이 됩니다. 오디오는 없으면 Salamander 피아노로 만듭니다.</p>
 <p class="hint">MusicXML 악보 음표와 MIDI의 실제 타건을 음고·순서로 정렬합니다. 페르마타 뒤 정박 어긋남도 보정합니다.</p>
 </section></div><div class="editor-tab-panel" data-editor-panel="score" hidden=""><section class="panel"><div class="panel-title"><h2>악보 레이아웃 · 시각 효과</h2></div><div class="direct-edit-card"><div class="direct-edit-title">악보 영역은 화면에서 직접 편집</div><p>미리보기의 <b>영역 편집</b>을 누르고 끌어 위치를 바꾸세요. 가장자리 핸들로 너비·높이를 조절할 수 있어요.</p><button class="secondary-button" id="editScoreFromSidebar" type="button">▢ 미리보기에서 영역 편집</button></div>
 <div class="field"><label for="layoutMode">레이아웃</label>
 <select id="layoutMode"><option selected="" value="page">페이지 레이아웃 · Page Layout</option><option value="singleline">싱글라인 · Single Line Follow</option></select>
 <small>페이지 레이아웃은 한 줄에 적절한 마디 수로 내려가며, 싱글라인은 가능한 한 한 줄로 길게 펼쳐 카메라가 따라갑니다.</small></div>
-<div class="field"><label for="scorePosX">악보 위치 X <span id="scorePosXVal">38%</span></label>
-<input id="scorePosX" max="100" min="0" step="1" type="range" value="38"/></div>
-<div class="field" id="singleLineYControl"><label for="scorePosY">싱글라인 내부 악보 위치 Y <span id="scorePosYVal">12%</span></label>
-<input id="scorePosY" max="100" min="0" step="1" type="range" value="12"/>
-<small>아래 표시 영역 안에서 악보가 시작되는 높이. 싱글라인에서만 작동합니다.</small></div>
+<div class="field"><label for="notationStyle">악보 기보 스타일</label>
+<select id="notationStyle"><option value="classic">클래식 · 기본 조판</option><option value="modern">모던 · 또렷한 음표</option><option value="jazz">재즈 · 카피스트 느낌</option><option value="manuscript">손사보 · 부드러운 스케치</option></select>
+<small>음표 머리·기둥·오선과 기호의 획을 바꿉니다. 음악 글꼴 자체를 교체하는 기능은 아니며, 미리보기와 MP4에 동일하게 적용됩니다.</small></div>
+<div class="field"><label for="scorePosX">악보 내용 위치 X <span id="scorePosXVal">38%</span></label>
+<input id="scorePosX" max="100" min="0" step="1" type="range" value="38"/><small>악보 영역은 그대로 두고 안의 악보를 가로로 이동합니다.</small></div>
+<div class="field"><label for="scorePosY">악보 내용 위치 Y <span id="scorePosYVal">0%</span></label>
+<input id="scorePosY" max="100" min="0" step="1" type="range" value="0"/>
+<small>악보 영역은 그대로 두고 안의 악보를 세로로 이동합니다. 페이지와 싱글라인 모두 적용됩니다.</small></div>
 <details class="score-region-options compact-details"><summary>수치로 정밀 조정 · 영역 / 여백 / 배경</summary><div class="field"><label for="scoreAreaX">악보 영역 가로 위치 <span id="scoreAreaXVal">50%</span></label><input id="scoreAreaX" max="100" min="0" step="1" type="range" value="50"/></div>
 <p class="hint">영상 전체와 분리된 창을 지정합니다. 음악을 재생하면 악보만 이 영역 안에서 움직입니다.</p>
 <div class="field"><label for="scoreAreaWidth">표시 영역 너비 <span id="scoreAreaWidthVal">94%</span></label><input id="scoreAreaWidth" max="100" min="30" step="1" type="range" value="94"/></div>
 <div class="field"><label for="scoreAreaHeight">표시 영역 높이 <span id="scoreAreaHeightVal">50%</span></label><input id="scoreAreaHeight" max="100" min="15" step="1" type="range" value="50"/></div>
-<div class="field"><label for="scoreMarginTop">위쪽 여백 <span id="scoreMarginTopVal">12%</span></label><input id="scoreMarginTop" max="45" min="0" step="1" type="range" value="12"/><small>0%는 영상의 맨 위에서 악보 표시 영역이 시작됩니다. 제목과 겹치면 여백을 직접 늘리세요.</small></div>
+<div class="field"><label for="scoreMarginTop">위쪽 여백 <span id="scoreMarginTopVal">4%</span></label><input id="scoreMarginTop" max="45" min="0" step="1" type="range" value="4"/><small>0%는 영상의 맨 위에서 악보 표시 영역이 시작됩니다. 제목과 겹치면 여백을 직접 늘리세요.</small></div>
 <div class="field"><label for="scoreMarginBottom">아래쪽 여백 <span id="scoreMarginBottomVal">9%</span></label><input id="scoreMarginBottom" max="45" min="0" step="1" type="range" value="9"/></div>
 <div class="color-grid"><label>악보 영역 배경색<input id="scorePanelColor" type="color" value="#0c1120"/></label>
 <label>패널 불투명도 <span id="scorePanelOpacityVal">0%</span><input id="scorePanelOpacity" max="100" min="0" step="5" type="range" value="0"/></label></div>
@@ -75,29 +79,31 @@
 </details></section></div><div class="editor-tab-panel" data-editor-panel="design" hidden="">
 <section class="panel image-palette-studio">
   <div class="panel-title"><h2>✦ 이미지에서 색상 조합 찾기</h2></div>
-  <p class="palette-help">앨범 커버·사진·일러스트를 넣으면 색상을 추출하고 악보가 잘 읽히는 디자인을 추천합니다.</p>
+  <p class="palette-help">앨범 커버·사진에서 악보 색상을 추출합니다. 영상 배경은 아래에서 별도로 지정할 수 있어요.</p>
   <label class="palette-image-upload" id="paletteDropZone" for="paletteImageFile">
     <img id="paletteArtworkPreview" alt="선택한 이미지 미리보기" hidden=""/>
-    <span class="palette-upload-hint" id="paletteUploadHint">▧ 이미지 선택 또는 드래그 앤 드롭<span>PNG · JPG · WebP · BMP · GIF</span></span>
-    <input type="file" id="paletteImageFile" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif,.png,.jpg,.jpeg,.webp,.bmp,.gif" hidden=""/>
+    <span class="palette-upload-hint" id="paletteUploadHint">▧ 색상 추출용 이미지 선택 또는 드래그 앤 드롭<span>PNG · JPG · WebP · 최대 20MB</span></span>
+    <input type="file" id="paletteImageFile" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden=""/>
   </label>
-  <button type="button" class="palette-existing" id="paletteFromBackground" hidden="">현재 영상 배경 사진에서 추출</button>
-  <div id="paletteStatus" class="palette-status" aria-live="polite">이미지를 선택하면 자동으로 추천 조합을 만들어요.</div>
+  <button class="secondary-button palette-set-background" disabled="" id="paletteSetBackground" type="button">이 이미지를 영상 배경으로 지정</button>
+  <div class="palette-background-controls">
+    <strong>영상 배경 · 색상과 별도로 선택</strong>
+    <div class="background-selection"><img id="backgroundPreview" alt="현재 영상 배경 미리보기" hidden=""/><small id="backgroundName">선택된 배경 이미지 없음</small></div>
+    <div class="background-actions"><label class="secondary-button" for="backgroundFile">배경 이미지 지정<input id="backgroundFile" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden=""/></label><button class="subtle-button" hidden="" id="removeBackground" type="button">배경 이미지만 제거</button></div>
+    <button type="button" class="palette-existing" id="paletteFromBackground" hidden="">현재 영상 배경에서 색상 추출</button>
+    <div id="backgroundStatus" class="palette-status" aria-live="polite"></div>
+  </div>
+  <div id="paletteStatus" class="palette-status" aria-live="polite">색상 추출용 이미지는 영상 배경을 자동으로 바꾸지 않습니다.</div>
   <div id="paletteResults" hidden="">
     <div class="palette-subtitle">추출된 대표 색상 <span>HEX</span></div>
     <div class="palette-chips" id="paletteChips"></div>
     <div class="palette-subtitle">추천 악보 디자인 <span>선택하면 즉시 적용</span></div>
     <div class="palette-schemes" id="paletteSchemes"></div>
-    <label class="palette-use-background"><input type="checkbox" id="paletteUseBackground"/> 체크하면 이 이미지가 영상 배경으로 바로 적용됩니다</label>
     <p class="palette-footnote">추천 조합은 오선·음표·배경색·커서·빛과 Aurora 색상을 설정합니다. 각 색상은 아래에서 다시 조절할 수 있어요.</p>
   </div>
 </section>
-<section class="panel video-background-panel"><div class="panel-title"><h2>영상 배경</h2></div>
-<p class="palette-help">그림을 고르면 미리보기와 MP4의 전체 배경에 적용됩니다. 그림 맞춤과 위치도 여기서 조절하세요.</p>
-<div class="field"><label for="backgroundFile">배경 이미지 선택</label>
-<input accept=".jpg,.jpeg,.png,.webp,image/png,image/jpeg,image/webp" id="backgroundFile" type="file"/>
-<small id="backgroundName">최대 20MB · PNG / JPG / WebP · 먼저 악보·MIDI·음원을 불러오세요.</small>
-<button class="subtle-button" hidden="" id="removeBackground" type="button">배경 이미지 제거</button></div>
+<section class="panel video-background-panel"><div class="panel-title"><h2>영상 배경 조정</h2></div>
+<p class="palette-help">위에서 지정한 배경의 투명도, 화면 맞춤과 위치를 조절하세요. 미리보기와 MP4에 동일하게 적용됩니다.</p>
 <div class="field"><label for="backgroundOpacity">사진 투명도 <span id="backgroundOpacityVal">50%</span></label>
 <input id="backgroundOpacity" max="1" min="0" step="0.05" type="range" value="0.5"/></div>
 <div class="field"><label for="backgroundFit">배경 이미지 맞춤</label>
@@ -112,8 +118,10 @@
 <option value="illustrated">Illustrated Story · 따뜻한 일러스트</option>
 <option value="cinematic">Cinematic Score · 오로라와 잔광</option>
 </select></div>
-<div class="field"><label for="cameraMode">카메라</label><select id="cameraMode"><option value="follow">Follow · 연주 위치를 따라가기</option><option value="cinematic">Cinematic · 유려한 카메라</option><option value="dynamic">Follow + Impact · 강약 반응</option><option value="points">Follow + Points · 음표 포인트</option><option value="fixed">Fixed · 카메라 고정</option></select><small>Follow와 Cinematic, 자동 Impact 모드는 유지됩니다. Points는 인접한 음표 포인트를 하나의 부드러운 카메라 경로로 연결합니다.</small></div>
+<div class="field"><label for="cameraMode">카메라</label><select id="cameraMode"><option value="follow">Follow · 연주 위치를 따라가기</option><option value="cinematic">Cinematic · 유려한 카메라</option><option value="dynamic">Follow + Impact · 강약 반응</option><option value="points">Interactive View · 자동/수동 음표 포인트</option><option value="fixed">Fixed · 카메라 고정</option></select><small>Interactive View는 자동 제안과 수동 포인트를 하나의 부드러운 카메라 경로로 연결합니다.</small></div>
 <div class="camera-point-tools" id="cameraPointTools">
+<button class="secondary-button camera-auto-button" id="cameraPointAuto" type="button" disabled>✦ 인터랙티브 뷰 · 자동 포인트 생성</button>
+<small id="cameraAutoStatus">프레이즈 시작, 화성, 강세와 음역 변화를 골라 부드러운 카메라 경로를 제안합니다. 수동 포인트는 유지됩니다.</small>
 <div class="camera-point-actions"><button class="secondary-button" id="cameraPointModeToggle" type="button">＋ 프리뷰에서 음표 포인트 찍기</button><button class="subtle-button" id="cameraPointAtPlayhead" type="button">현재 위치 음표 추가</button></div>
 <small id="cameraPointStatus">Points 모드를 선택하고 버튼을 켠 뒤, 미리보기 음표를 눌러 포인트를 추가하세요.</small>
 <div class="camera-point-list" id="cameraPointList"></div>
@@ -140,14 +148,18 @@
 </select></div>
 <div class="color-grid"><label>약한 타건 (pp)<input id="auroraLow" type="color" value="#419dff"/></label>
 <label>강한 타건 (ff)<input id="auroraHigh" type="color" value="#ff5268"/></label></div>
-<div class="field"><label for="velocityScale">강약 색상 기준</label><select id="velocityScale"><option value="absolute">절대값 · MIDI 1~127</option><option value="relative">상대값 · 이 MIDI의 최저~최고</option></select><small id="velocityRangeInfo">상대값은 이 곡의 실제 벨로시티 범위를 색상 전체에 배분합니다.</small></div><small>약한 타건은 왼쪽 색, 강한 타건은 오른쪽 색에 가까워집니다. 발광 스타일과 독립적으로 작동합니다.</small>
+<div class="field"><label for="velocityScale">강약 색상 기준</label><select id="velocityScale"><option value="absolute">절대값 · MIDI 1~127</option><option value="relative">상대값 · 이 MIDI의 최저~최고</option></select><small id="velocityRangeInfo">상대값은 이 곡의 실제 벨로시티 범위를 색상 전체에 배분합니다.</small><small id="velocityUniformWarning" class="velocity-uniform-warning" role="status" hidden></small></div><small>벨로시티는 빛 색상을, 음높이는 빛의 형태를 바꿉니다. 낮은 음은 넓게 퍼지고 높은 음은 작고 선명하게 빛납니다.</small>
 </div>
 <div class="field"><label for="fxStrength">빛 효과 강도 <span id="fxStrengthVal">65%</span></label><input id="fxStrength" max="4" min="0" step="0.05" type="range" value="0.65"/><div class="field-foot"><span>0%</span><span>400%</span></div></div>
-<details class="compact-details" open><summary>피아노 낙하 노트 · 건반 빛</summary>
-<div class="toggle-line"><span>낙하 노트와 건반 <small>MIDI 타건이 건반에 닿는 순간 악보 음표와 함께 반응</small></span><input id="pianoEnabled" type="checkbox" checked/></div>
+<details class="compact-details" open><summary>피아노 낙하 노트 · 악보/건반 빛</summary>
+<div class="field"><label for="pianoKeyStyle">건반 색상</label><select id="pianoKeyStyle"><option value="auto">자동 · 악보 배경 밝기에 맞춤</option><option value="dark">어두운 건반</option><option value="classic">클래식 흰 건반</option><option value="custom">직접 선택</option></select><small>악보 바탕색이 어두우면 건반도 차분해집니다. 사진 배경에는 직접 선택할 수 있습니다.</small></div>
+<div class="color-grid" id="pianoKeyCustomColors" hidden><label>흰 건반 색<input id="pianoWhiteKeyColor" type="color" value="#5a6576"/></label><label>검은 건반 색<input id="pianoBlackKeyColor" type="color" value="#141b27"/></label></div>
+<div class="toggle-line"><span>악보 음표 타건 빛 <small>건반과 같은 MIDI 타건 시점·색상으로 반응</small></span><input id="scoreImpactEnabled" type="checkbox" checked/></div>
+<div class="field"><label for="scoreImpactStrength">악보 음표 빛 강도 <span id="scoreImpactStrengthVal">140%</span></label><input id="scoreImpactStrength" max="4" min="0" step="0.1" type="range" value="1.4"/><div class="field-foot"><span>0%</span><span>400%</span></div></div>
 <div class="toggle-line"><span>건반 타건 빛 <small>악보 음표 빛과 같은 색상·MIDI 타이밍 사용</small></span><input id="pianoLight" type="checkbox" checked/></div>
 <div class="field"><label for="pianoLightStrength">건반 빛 강도 <span id="pianoLightStrengthVal">140%</span></label><input id="pianoLightStrength" max="4" min="0" step="0.1" type="range" value="1.4"/><div class="field-foot"><span>0%</span><span>400%</span></div></div>
-<small>악보 음표 빛은 기존 설정을 유지하며, 건반 빛과 동시에 표시됩니다. 악보 위치는 악보 탭의 영역 설정으로 조절할 수 있습니다.</small></details>
+<div class="toggle-line"><span>세로 영상 건반 카메라 <small>앞 5초 음역을 따라 건반·낙하 노트가 함께 확대·축소</small></span><input id="pianoCamera" type="checkbox" checked/></div>
+<small>악보·건반 타건 빛의 표시와 강도를 각각 조절합니다. 타건 시점과 빛 색상은 공유합니다.</small></details>
 <details class="compact-details"><summary>제목 · 텍스트 · 장면 전환 상세</summary><div class="field"><label for="titleText">영상 제목 · 파일명 자동 입력</label><input id="titleText" maxlength="120" placeholder="악보의 제목" type="text"/><button class="subtle-button" id="resetTitleButton" type="button">파일명 제목으로 되돌리기</button></div>
 <div class="field"><label for="titleFont">텍스트 글꼴</label><select id="titleFont">
 <option value="sans">Sans · 현대적인 고딕</option><option value="serif">Serif · 클래식 명조</option>
@@ -195,12 +207,12 @@
 <a class="download" hidden="" id="downloadLink">완성된 영상 다운로드 ↓</a>
 <p class="hint">영상은 프레임 단위로 제작합니다. 긴 곡은 출력 시간이 길어질 수 있습니다.</p>
 </section></div></aside>
-<section class="workspace"><div class="workspace-header"><div><span class="status-dot"></span><strong id="projectTitle">악보 미리보기</strong><p id="metadata">파일 세 개를 선택해 주세요.</p></div><div class="tag">MUSICXML RENDERER</div></div>
+<section class="workspace"><div class="workspace-header"><div><span class="status-dot"></span><strong id="projectTitle">악보 미리보기</strong><p id="metadata">MIDI를 선택해 주세요. MusicXML은 선택 사항입니다.</p></div><div class="tag">MUSICXML / MIDI RENDERER</div></div>
 <div aria-label="항상 보이는 미리보기 플레이어" class="player-dock" id="playerDock">
 <div class="preview-zoom-bar" role="group" aria-label="악보 확대 및 동기화 조절">
   <label for="zoom"><icon aria-hidden="true">⌕</icon> 악보 확대</label>
   <button type="button" id="zoomOutButton" title="악보 축소" aria-label="악보 축소">−</button>
-  <input id="zoom" type="range" min="0.55" max="1.45" step="0.05" value="0.9" aria-label="악보 확대 비율"/>
+  <input id="zoom" type="range" min="0.55" max="2" step="0.05" value="0.9" aria-label="악보 확대 비율 (최대 200%)"/>
   <button type="button" id="zoomInButton" title="악보 확대" aria-label="악보 확대">+</button>
   <output id="zoomVal" for="zoom">90%</output>
   <button type="button" id="zoomResetButton" class="zoom-reset" title="악보 확대를 100%로 초기화">100% 복원</button>
@@ -212,10 +224,10 @@
       <button class="sync-adjust-toggle" id="syncAdjustToggle" type="button" aria-expanded="false" aria-controls="syncAdjustPopover">미세 조정 <span aria-hidden="true">⌄</span></button>
       <div class="sync-adjust-popover" id="syncAdjustPopover" hidden>
         <div class="sync-offset-group"><label for="offset">악보 ↔ 소리 <strong id="offsetVal">0.00초</strong></label>
-        <input id="offset" max="5" min="-5" step="0.01" type="range" value="0"/>
+        <div class="sync-offset-controls"><input id="offset" max="5" min="-5" step="0.01" type="range" value="0"/><input id="offsetNumber" aria-label="악보와 소리 미세 조정 값, 초" max="5" min="-5" step="0.01" type="number" value="0.00"/></div>
         <div class="field-foot"><span>-5초</span><span>+5초</span></div></div>
         <div class="sync-offset-group"><label for="pianoOffset">건반 ↔ 소리 <strong id="pianoOffsetVal">0.00초</strong></label>
-        <input id="pianoOffset" max="5" min="-5" step="0.01" type="range" value="0"/>
+        <div class="sync-offset-controls"><input id="pianoOffset" max="5" min="-5" step="0.01" type="range" value="0"/><input id="pianoOffsetNumber" aria-label="건반과 소리 미세 조정 값, 초" max="5" min="-5" step="0.01" type="number" value="0.00"/></div>
         <div class="field-foot"><span>-5초</span><span>+5초</span></div></div>
         <small>자동 싱크는 공통 기준입니다. +는 화면을 늦추고 −는 앞당깁니다.</small>
         <button class="subtle-button" hidden="" id="clearSyncButton" type="button">자동 싱크 초기화</button>
@@ -223,7 +235,7 @@
     </div>
   </div>
 </div>
-<div class="preview-surround" id="previewSurround"><div class="stage-frame" id="stageFrame"><div class="video-stage" id="scoreViewport"><div id="placeholder"><span class="bigclef">𝄞</span><h3>악보가 여기에 표시됩니다</h3><p>MusicXML · MIDI · 음원 파일을 업로드해 시작하세요.</p></div><div class="score-window" id="scoreWindow"><div class="score-panel" id="scorePanel"></div><div class="score-scroll" id="scoreScroll"><div id="osmdContainer"></div></div></div></div><div aria-label="악보 표시 영역 드래그 및 크기 조절" class="score-edit-overlay" hidden="" id="scoreEditOverlay"><div class="score-edit-box" id="scoreEditBox"><span class="score-edit-label">악보 영역 · 끌어서 이동</span><span class="score-edit-size" id="scoreEditSize">94% × 70%</span><i aria-hidden="true" class="edit-handle edit-handle-right" data-resize="right"></i><i aria-hidden="true" class="edit-handle edit-handle-bottom" data-resize="bottom"></i><i aria-hidden="true" class="edit-handle edit-handle-corner" data-resize="corner"></i></div></div></div></div>
+<div class="preview-surround" id="previewSurround"><div class="stage-frame" id="stageFrame"><div class="video-stage" id="scoreViewport"><div id="placeholder"><span class="bigclef">𝄞</span><h3>악보 또는 건반이 여기에 표시됩니다</h3><p>MIDI를 업로드해 시작하세요. MusicXML과 음원은 선택 사항입니다.</p></div><div class="score-window" id="scoreWindow"><div id="scorePanel" class="score-panel"></div><div class="score-scroll" id="scoreScroll"><div id="osmdContainer"></div></div></div></div><div aria-label="악보 표시 영역 드래그 및 크기 조절" class="score-edit-overlay" hidden="" id="scoreEditOverlay"><div class="score-edit-box" id="scoreEditBox"><span class="score-edit-label">악보 영역 · 끌어서 이동</span><span class="score-edit-size" id="scoreEditSize">94% × 70%</span><i aria-hidden="true" class="edit-handle edit-handle-right" data-resize="right"></i><i aria-hidden="true" class="edit-handle edit-handle-bottom" data-resize="bottom"></i><i aria-hidden="true" class="edit-handle edit-handle-corner" data-resize="corner"></i></div></div></div></div>
 <div aria-label="미리보기 재생 조작" class="playbar" role="group">
 <button aria-label="이전 마디" class="measure-button" disabled="" id="previousMeasureButton" title="이전 마디 (, 키)" type="button">⏮</button>
 <button aria-label="재생" disabled="" id="playButton" title="재생/일시정지 (Space)" type="button">▶</button>
@@ -235,8 +247,9 @@
 <button aria-label="처음으로" disabled="" id="restartButton" title="처음으로" type="button">↺</button>
 </div>
 <div class="keyboard-hint"><kbd>Space</kbd> 재생/일시정지   <kbd>,</kbd> / <kbd>.</kbd> 이전·다음 마디   <kbd>←</kbd> / <kbd>→</kbd> 5초 이동</div>
-<div class="preview-actions"><button aria-pressed="false" class="edit-score-btn" id="editScoreAreaButton" type="button">▢ 악보 영역 편집</button><button class="subtle-button" hidden="" id="centerScoreAreaButton" type="button">가로 중앙</button><button id="fullscreenPreviewButton" class="fullscreen-preview-button" type="button" aria-pressed="false" aria-label="전체화면 미리보기 (F 키)" title="전체화면 미리보기 (F 키)">⛶ 전체화면</button><button class="subtle-button" id="resetPreviewButton" type="button">미리보기 재설정</button><div class="preview-info" id="previewInfo">설정은 미리보기와 MP4에 같은 값으로 적용됩니다.</div></div>
+<div class="preview-actions"><button aria-pressed="false" class="edit-score-btn" id="editScoreAreaButton" type="button">▢ 악보 영역 편집</button><button class="subtle-button" hidden="" id="centerScoreAreaButton" type="button">가로 중앙</button><button class="subtle-button" id="compactScoreTopButton" type="button" title="악보 영역의 위쪽 여백을 4%로 줄입니다">위 여백 4%</button><button class="subtle-button score-panel-jump" id="scorePanelColorLink" type="button" title="악보 탭의 영역 배경색 설정으로 이동합니다">악보 영역 배경색 ↗</button><button id="fullscreenPreviewButton" class="fullscreen-preview-button" type="button" aria-pressed="false" aria-label="전체화면 미리보기 (F 키)" title="전체화면 미리보기 (F 키)">⛶ 전체화면</button><button class="subtle-button" id="resetPreviewButton" type="button">미리보기 재설정</button><div class="preview-info" id="previewInfo">설정은 미리보기와 MP4에 같은 값으로 적용됩니다.</div></div>
 </div>
+<div class="layer-visibility-controls" role="group" aria-label="영상 레이어 표시"><span>레이어 표시</span><label><input id="scoreVisible" type="checkbox" checked/><span>악보</span></label><label><input id="pianoEnabled" type="checkbox" checked/><span>건반 · 낙하 노트</span></label><small>악보는 항상 건반 위에 표시됩니다.</small></div>
 <div class="timeline-tracks"><strong>장면 타임라인</strong><div class="timeline-track"><span>음원 · 악보</span><div class="track-fill music"></div></div><div class="timeline-track"><span>카메라</span><div class="track-fill camera"></div></div><div class="timeline-track"><span>배경 전환</span><div class="track-fill background" id="backgroundTrack"></div></div><div class="timeline-track"><span>발광 효과</span><div class="track-fill lighting"></div></div></div>
 <audio id="audioPlayer" preload="metadata"></audio>
 <div class="note"><span>✦</span><div><strong>동기화 방식</strong><p>자동 싱크는 MIDI 첫 타건과 음원 첫 유효한 소리를 맞춥니다. 뒤쪽 구간에서 루바토가 달라지면 별도 정렬이 필요할 수 있습니다.</p></div></div>
@@ -247,14 +260,15 @@
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
 <script src="/static/vendor-loader.js?v=0.19.12"></script>
-<script src="/static/i18n.js?v=0.19.15"></script>
+<script src="/static/i18n.js?v=0.19.31"></script>
 <script src="/static/theme.js?v=0.19.12"></script>
 <script src="/static/image-palette.js?v=0.19.12"></script>
-<script src="/static/score-core.js?v=0.19.12"></script>
-<script src="/static/studio-scene.js?v=0.19.15"></script>
-<script src="/static/piano-fall.js?v=0.19.15"></script>
-<script src="/static/stage-runtime.js?v=0.19.15"></script>
+<script src="/static/camera-auto.js?v=0.19.31"></script>
+<script src="/static/score-core.js?v=0.19.28"></script>
+<script src="/static/studio-scene.js?v=0.19.28"></script>
+<script src="/static/piano-fall.js?v=0.19.27"></script>
+<script src="/static/stage-runtime.js?v=0.19.28"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>
-<script src="/static/visual-editor.js?v=0.19.12"></script><script src="/static/app.js?v=0.19.16"></script>
+<script src="/static/visual-editor.js?v=0.19.24"></script><script src="/static/app.js?v=0.19.31"></script>
 </body></html>

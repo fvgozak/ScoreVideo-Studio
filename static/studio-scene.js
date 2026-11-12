@@ -37,6 +37,12 @@
     return scene.lightColorMode==='aurora'
       ?auroraColor(normalizedVelocity(velocity,scene.velocityScale,range),scene.auroraLow,scene.auroraHigh):solidColor;
   }
+  function pitchLightProfile(pitch){
+    // Low notes have a broad halo; high notes have a tighter, brighter core.
+    // This changes geometry only: Aurora hue still depends on MIDI velocity.
+    const highness=clamp((Number(pitch)-21)/87,0,1);
+    return {spread:lerp(1.65,.65,highness),focus:lerp(.78,1.3,highness)};
+  }
   const presets={
     illustrated:{label:'Illustrated Story',cameraMode:'follow',fxMode:'glitter',fxStrength:0.8,color:'#f0e8d6',glow:'#e3bd70',texture:'paper'},
     cinematic:{label:'Cinematic Score',cameraMode:'cinematic',fxMode:'trail',fxStrength:1.15,color:'#151b32',glow:'#91d3ff',texture:'grain'},
@@ -58,10 +64,12 @@
     const auroraPreset=auroraPresets[x.auroraPreset] ? x.auroraPreset : (x.auroraPreset==='theme'||x.auroraPreset==='custom'?x.auroraPreset:'polar');
     const auroraDefault=auroraPresets[auroraPreset]||auroraPresets.polar;
     const font=FONT_STACKS[x.font]?x.font:'sans';
+    const notationStyle=['classic','modern','jazz','manuscript'].includes(x.notationStyle)?x.notationStyle:'classic';
     return {template,cameraMode,fxMode,lightColorMode,velocityScale:x.velocityScale==='relative'?'relative':'absolute',animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,4),
+      scoreImpactEnabled:x.scoreImpactEnabled!==false,scoreImpactStrength:clamp(Number(x.scoreImpactStrength??1.4)||0,0,4),
       title:String(x.title||'').slice(0,120),artist:String(x.artist||'').slice(0,120),
       credit:String(x.credit||'').slice(0,200),showText:x.showText!==false,
-      font,titleGap:clamp(Number(x.titleGap??65),0,320),
+      font,notationStyle,titleGap:clamp(Number(x.titleGap??65),0,320),
       auroraPreset,auroraLow:validColor(x.auroraLow,auroraDefault.low),auroraHigh:validColor(x.auroraHigh,auroraDefault.high),
       trailUpper:validColor(x.trailUpper, '#7ed8ff'), trailLower:validColor(x.trailLower, '#f2d16f'),
       keyframes};
@@ -210,7 +218,9 @@
       this.titleBox.querySelector('.studio-credit').style.opacity=s.showText?String(ease(outro)):0;
       this.titleBox.style.color=s.animateBackground?(s.template==='cinematic'?'#fffdf7':'#303039'):follower.colors().ink;
       ctx.clearRect(0,0,w,h);
-      if(s.fxMode==='none'||strength<=0)return;
+      const sceneFxOn=s.fxMode!=='none'&&strength>0;
+      const scoreImpactOn=s.scoreImpactEnabled&&s.scoreImpactStrength>0;
+      if(!sceneFxOn&&!scoreImpactOn)return;
       // Light and particles belong to the score window, not to the entire video.
       // The clipping rectangle is in unscaled stage coordinates.
       const target=follower.viewport.getBoundingClientRect();
@@ -243,18 +253,25 @@
         const decay=Math.exp(-age*(s.fxMode==='trail'?1.9:3.4));
         const solidColor=s.fxMode==='trail'?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
+        const pitchLight=pitchLightProfile(e.pitch);
         const duration=Math.max(.08,(Number(e.endAudio)||e.audio+.4)-e.audio);
         const impact=root.ScorePianoFall?.impactEnvelope(age,duration,velocity)
           ??Math.exp(-age*7.5)*velocity;
         visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
-        if(s.fxMode!=='trail')this.drawBloom(ctx,x,y,Math.max(decay,impact)*power,lightColor,14+power*23);
-        this.drawScoreImpact(ctx,x,y,age,impact*power,follower.eventLightColor?.(e.velocity)||lightColor,e);
-        if(s.fxMode==='resonance')this.drawRing(ctx,x,y,age,power,lightColor);
-        if(s.fxMode==='glitter')this.drawGlitter(ctx,x,y,age,power,lightColor,i);
+        if(sceneFxOn&&s.fxMode!=='trail')this.drawBloom(ctx,x,y,Math.max(decay,impact)*power*pitchLight.focus,lightColor,(14+power*23)*pitchLight.spread);
+        if(scoreImpactOn)this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+        for(const extra of e.fallbackHeads||[]){
+          const extraX=containerX+extra.noteX*cameraScale,extraY=containerY+extra.noteY*cameraScale;
+          if(!Number.isFinite(extraX)||!Number.isFinite(extraY))continue;
+          if(sceneFxOn&&s.fxMode!=='trail')this.drawBloom(ctx,extraX,extraY,Math.max(decay,impact)*power*pitchLight.focus,lightColor,(14+power*23)*pitchLight.spread);
+          if(scoreImpactOn)this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+        }
+        if(sceneFxOn&&s.fxMode==='resonance')this.drawRing(ctx,x,y,age,power,lightColor);
+        if(sceneFxOn&&s.fxMode==='glitter')this.drawGlitter(ctx,x,y,age,power,lightColor,i);
       }
       // A tie continuation is not a new attack: inherit its preceding note's
       // velocity color with gentle sustained illumination only (no particles).
-      for(const hold of (follower.activeTies?.(t)||follower.tieContinuations||[])){
+      for(const hold of (sceneFxOn?(follower.activeTies?.(t)||follower.tieContinuations||[]):[])){
         if(t<hold.audio||t>hold.endAudio)continue;
         let x=containerX+hold.noteX*cameraScale,y=containerY+hold.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)||x<-60||x>w+60||y<-60||y>h+60)continue;
@@ -262,7 +279,7 @@
         const remain=clamp((hold.endAudio-t)/.28,0,1);
         this.drawBloom(ctx,x,y,Math.min(.48,.21+hold.velocity/127*.22)*remain*strength,color,12+hold.velocity/127*12);
       }
-      if(s.fxMode==='trail'){
+      if(sceneFxOn&&s.fxMode==='trail'){
         const trails=selectHandTrails(visible,t,{windowSec:1.3,maxGapSec:.85,maxDistance:Math.max(160,Math.min(w*.38,480))});
         const colorGradient=s.lightColorMode==='aurora';
         drawTrailChain(ctx,trails.upper,s.trailUpper,colorGradient);
@@ -290,14 +307,30 @@
       g.addColorStop(0,color+'75');g.addColorStop(.32,color+'48');g.addColorStop(1,color+'00');
       ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,size*.82,Math.max(3,size*.26),-.12,0,Math.PI*2);ctx.fill();ctx.restore();
     }
-    drawScoreImpact(ctx,x,y,age,energy,color,note){
-      // Share the piano's attack/hold/release pulse and spark timing, but keep
-      // the footprint small enough to remain attached to an engraved notehead.
+    drawScoreImpact(ctx,x,y,age,strength,color,note){
+      // Use the SAME raster effect as the piano key, scaled to a notehead.
+      // This keeps bloom, beam, reflection, white flash and sparks identical.
+      if(root.ScorePianoFall?.drawImpactLight&&Number.isFinite(note.audio)){
+        root.ScorePianoFall.drawImpactLight(ctx,note,{x:x-5,w:10},note.audio+age,
+          {impact:y,keyHeight:24,whiteWidth:10,black:false,strength,color});
+        return;
+      }
+      // Fallback for older standalone scene consumers without the piano layer.
+      const energy=(root.ScorePianoFall?.impactEnvelope(age,Math.max(.08,(note.endAudio||note.audio+.4)-note.audio),note.velocity/127)||Math.exp(-age*7.5))*strength;
       if(energy<=.006)return;
-      ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(energy*.48,0,.85);
-      ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=4+7*Math.min(1,energy);
-      ctx.beginPath();ctx.ellipse(x,y,3.5+energy*2,1.5+energy*.8,-.12,0,Math.PI*2);ctx.fill();
-      ctx.shadowBlur=0;
+      const paint=alpha=>color+Math.round(clamp(alpha,0,1)*255).toString(16).padStart(2,'0');
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      const radius=10+8*Math.min(1,energy);
+      const bloom=ctx.createRadialGradient(x,y,1,x,y,radius);
+      bloom.addColorStop(0,paint(.4*energy));bloom.addColorStop(.38,paint(.16*energy));bloom.addColorStop(1,paint(0));
+      ctx.fillStyle=bloom;ctx.fillRect(x-radius,y-radius,radius*2,radius*2);
+      const beam=ctx.createLinearGradient(0,y-20,0,y+5);
+      beam.addColorStop(0,paint(0));beam.addColorStop(.65,paint(.12*energy));beam.addColorStop(1,paint(.32*energy));
+      ctx.fillStyle=beam;ctx.fillRect(x-2,y-20,4,25);
+      ctx.globalAlpha=clamp(.35+.55*energy,0,1);ctx.fillStyle=color;
+      ctx.shadowColor=color;ctx.shadowBlur=5+8*Math.min(1,energy);
+      ctx.beginPath();ctx.ellipse(x,y,3.5+Math.min(1,energy)*2,1.6+Math.min(1,energy),-.12,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;ctx.globalAlpha=1;
       if(age<.72){
         const seed=(index,salt)=>root.ScorePianoFall?.sparkleSeed(note,index,salt)??random(note.pitch||0,index+salt);
         const fade=(1-age/.72)**1.6*Math.min(1,energy);
@@ -330,6 +363,6 @@
       }
     }
   }
-  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,noteLightColor,normalize,frame,mix,random,selectHandTrails,LayerRenderer};
+  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,noteLightColor,pitchLightProfile,normalize,frame,mix,random,selectHandTrails,LayerRenderer};
 })(typeof window!=='undefined'?window:globalThis);
 if(typeof module!=='undefined')module.exports=globalThis.ScoreStudio;

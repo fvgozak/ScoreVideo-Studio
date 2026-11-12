@@ -34,13 +34,29 @@
     };
     return {time,x:value('x','vx','vx'),y:value('y','vy','vy'),zoom:value('zoom','vz','vz')};
   }
+  function pickNoteheadForChord(gn,graphical,node,candidates){
+    const heads=[...(node.querySelectorAll?.('.vf-notehead')||[])];
+    if(heads.length<2)return candidates;
+    const seen=new Set(),peers=[];
+    for(const other of graphical){
+      if(other?.getSVGGElement?.()!==node||!Number.isFinite(Number(other?.sourceNote?.halfTone)))continue;
+      const key=other.sourceNote||other;
+      if(seen.has(key))continue;
+      seen.add(key);peers.push(other);
+    }
+    peers.sort((a,b)=>Number(b.sourceNote.halfTone)-Number(a.sourceNote.halfTone));
+    heads.sort((a,b)=>a.getBoundingClientRect().top-b.getBoundingClientRect().top||
+      a.getBoundingClientRect().left-b.getBoundingClientRect().left);
+    const index=peers.indexOf(gn);
+    return index>=0&&index<heads.length?[heads[index]]:candidates;
+  }
 
   class ScoreFollower {
     constructor({container,viewport,stageRoot=null,tempoMap,noteEvents=[],scoreAlignment=null,tieContinuations=[],cameraPoints=[],sync=null,offsetSec=0,zoom=.9,effects={},scrollMode='vertical'}) {
       this.container=container;
       this.viewport=viewport;
       this.stageRoot=stageRoot||viewport;
-      this.cameraSpace=container.parentElement;
+      this.cameraSpace=container?.parentElement||null;
       this.cameraSpacer=this.cameraSpace?.querySelector('.score-camera-spacer');
       this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;this.cameraPointsRaw=Array.isArray(cameraPoints)?cameraPoints:[];this.cameraPoints=[];this.cameraShots=[];
       this.tempoMap=tempoMap;
@@ -81,7 +97,7 @@
       this.sync=sync;
       this.offsetSec=Number(offsetSec)||0;
       this.zoom=zoom;
-      this.effects={paper:'#fffdf6',ink:'#181b22',staff:'#323a43',accent:'#2ec9d3',glow:'#68ddfa',cursor:'#2ec9d3',cursorVisible:true,cursorMotion:'smooth',texture:'none',backgroundUrl:'',backgroundOpacity:.5,backgroundFit:'cover',backgroundPositionX:50,backgroundPositionY:50,scorePositionX:38,scorePositionY:12,inverted:false,glitter:false,sparkle:true,velocityReactive:true,noteMotion:true,drawScore:false,motionStrength:1,...effects};
+      this.effects={paper:'#fffdf6',ink:'#181b22',staff:'#323a43',accent:'#2ec9d3',glow:'#68ddfa',cursor:'#2ec9d3',cursorVisible:true,cursorMotion:'smooth',texture:'none',backgroundUrl:'',backgroundOpacity:.5,backgroundFit:'cover',backgroundPositionX:50,backgroundPositionY:50,scorePositionX:38,scorePositionY:0,inverted:false,glitter:false,sparkle:true,velocityReactive:true,noteMotion:true,drawScore:false,motionStrength:1,...effects};
       this.scrollMode=scrollMode;this.cameraMode='follow';
       this.osmd=null;
       this.timestamps=[]; this.beats=[]; this.audioTimestamps=[]; this.lines=[]; this.positions=[]; this.measureStarts=[];
@@ -453,7 +469,7 @@
       const leftPad=16+Math.round((this.viewport.clientWidth||1080)*0.22*(scorePosX/100));
       const topPad=Number.isFinite(this.effects.scoreTopPadding)?Math.max(0,this.effects.scoreTopPadding):0;
       this.container.style.paddingLeft=`${leftPad}px`;
-      this.container.style.paddingTop=`${topPad}px`;
+      this.container.style.setProperty('--score-content-top',`${topPad}px`);
       this.container.style.paddingRight='24px';
       this.container.style.paddingBottom='0px';
       // The engraving rules, not a giant HTML container width, control wrapping.
@@ -472,6 +488,11 @@
       this.osmd.zoom=this.zoom;
       if(this.osmd.EngravingRules)this.osmd.EngravingRules.StaffLineColor=c.staff;
       this.osmd.render();
+      // A tiny fixed tilt sequence gives the manuscript preset a hand-copied
+      // rhythm. It is deterministic, so preview and exported frames agree.
+      const tilt=[-4,2,-2,3,-1,1];
+      this.container.querySelectorAll('.vf-notehead').forEach((head,index)=>
+        head.style.setProperty('--notation-tilt',`${tilt[index%tilt.length]}deg`));
       this.viewport.dataset.scrollMode=this.scrollMode;
       // Some OSMD releases put their wide SVG in a nested div. Force that
       // width into the scrollable layout, so the camera can reach later bars.
@@ -536,8 +557,11 @@
           for(const gn of graphical){
             if(typeof gn?.sourceNote?.isRest==='function'?gn.sourceNote.isRest():Boolean(gn?.sourceNote?.isRest))continue;
             const node=gn?.getSVGGElement?.();
-            if(!(node instanceof Element)||seenGraphical.has(node))continue;
-            seenGraphical.add(node);
+            // VexFlow gives all notes in a chord one SVG stavenote group.
+            // De-duplicating that group discarded every head after the first.
+            const identity=gn?.sourceNote||gn||node;
+            if(!(node instanceof Element)||seenGraphical.has(identity))continue;
+            seenGraphical.add(identity);
             const ht=Number(gn?.sourceNote?.halfTone);
             // MusicXML halfTone is semitones above C-1 in OSMD (+12 maps to MIDI).
             const pitch=Number.isFinite(ht)?Math.round(ht+12):null;
@@ -577,6 +601,9 @@
                 try{noteHeadNodes=[...node.querySelectorAll('.vf-notehead,[class*="notehead"]')];}catch(_){ /* old OSMD SVG */ }
               }
               let noteHeadRect=null,noteHeadEl=null;
+              // A shared stavenote may contain several notehead elements.
+              // Pair each graphical pitch with its own head, top to bottom.
+              noteHeadNodes=pickNoteheadForChord(gn,graphical,node,noteHeadNodes);
               for(const head of noteHeadNodes){
                 try{const r=head.getBoundingClientRect();if(r.width||r.height){noteHeadRect=r;noteHeadEl=head;break;}}catch(_){ /* skip detached SVG nodes */ }
               }
@@ -627,6 +654,7 @@
       }
       if(!this.timestamps.length)throw Error('MusicXML에서 음표 위치를 찾지 못했습니다.');
       cursor.reset();cursor.hide();
+      this.attachUnmatchedChordHeads();
       this.index=0;
       this.cameraBaseWidth=Math.max(this.viewport.clientWidth,this.container.scrollWidth,this.cameraSpace?.scrollWidth||0);
       this.cameraBaseHeight=Math.max(this.viewport.clientHeight,this.container.scrollHeight,this.cameraSpace?.scrollHeight||0);
@@ -636,6 +664,35 @@
       this.setEffects({});
       this.seek(0,true);
       return this.timestamps.length;
+    }
+    attachUnmatchedChordHeads(){
+      // A few written chord heads may lack an exact MIDI match. Keep the
+      // notation visually complete by borrowing the nearest sibling attack
+      // in the same shared-stem group; do not create a fake MIDI event.
+      const grouped=new Map();
+      for(const note of [...this.noteTriggers,...this.tieContinuations]){
+        if(!note.el)return;
+        if(!grouped.has(note.el))grouped.set(note.el,[]);
+        grouped.get(note.el).push(note);
+      }
+      const containerBox=this._initialContainerBox||this.container.getBoundingClientRect();
+      const view=this.viewport.getBoundingClientRect(),scale=view.width/this.viewport.clientWidth||1;
+      const attackSet=new Set(this.noteTriggers);
+      for(const [group,notes] of grouped){
+        const attacks=notes.filter(note=>attackSet.has(note));
+        if(!attacks.length)continue;
+        const used=new Set(notes.map(note=>note.headEl).filter(Boolean));
+        for(const head of group.querySelectorAll('.vf-notehead')){
+          if(used.has(head))continue;
+          const rect=head.getBoundingClientRect();if(!rect.width&&!rect.height)continue;
+          const donor=attacks.reduce((best,note)=>Math.abs((note.headEl?.getBoundingClientRect().top??rect.top)-rect.top)<
+            Math.abs((best.headEl?.getBoundingClientRect().top??rect.top)-rect.top)?note:best);
+          if(!donor.fallbackHeads)donor.fallbackHeads=[];
+          donor.fallbackHeads.push({el:head,noteX:(rect.left+rect.width*.5-containerBox.left)/scale,
+            noteY:(rect.top+rect.height*.5-containerBox.top)/scale});
+          head.setAttribute('data-score-light-fallback','');
+        }
+      }
     }
     updatePlaybackCursor(audioSeconds){
       if(!this.playbackCursor)return;
@@ -866,7 +923,7 @@
         return;
       }
       const maxScroll=dynamic?maxY:Math.max(0,this.container.scrollHeight-this.viewport.clientHeight);
-      const scorePosY=clamp((Number(this.effects.scorePositionY)||12)/100,0,1);
+      const scorePosY=clamp((Number(this.effects.scorePositionY)||0)/100,0,1);
       const focusY=dynamic?.48:(.16+scorePosY*.54);
       const target=l=>clamp((dynamic?screenY(l.y):l.y)-this.viewport.clientHeight*focusY,0,maxScroll);
       if(dynamic&&cursor){
@@ -934,7 +991,8 @@
           const remaining=clamp((hold.endAudio-t)/.28,0,1);
           el.classList.add('score-glowing');
           el.style.setProperty('--score-note-active',this.eventLightColor(hold.velocity));
-          el.style.setProperty('--score-glow-blur',`${(1.8+1.4*remaining).toFixed(2)}px`);
+          const spread=window.ScoreStudio?.pitchLightProfile(hold.pitch)?.spread||1;
+          el.style.setProperty('--score-glow-blur',`${((1.8+1.4*remaining)*spread).toFixed(2)}px`);
           this.activeNodes.push({el,motionEl,velocity:hold.velocity});
         }
       }
@@ -953,7 +1011,14 @@
           motionEl.style.setProperty('scale',dyn.scale.toFixed(4));
         }
         el.style.setProperty('--score-note-active',noteLightColor);
-        el.style.setProperty('--score-glow-blur',`${(2+dyn.intensity*2.2).toFixed(2)}px`);
+        const spread=window.ScoreStudio?.pitchLightProfile(entry.pitch)?.spread||1;
+        el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread).toFixed(2)}px`);
+        for(const extra of entry.fallbackHeads||[]){
+          extra.el.classList.toggle('score-glowing',Boolean(effect.sparkle));
+          extra.el.style.setProperty('--score-note-active',noteLightColor);
+          extra.el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread).toFixed(2)}px`);
+          this.activeNodes.push({el:extra.el,velocity:entry.velocity});
+        }
         if(!effect.sparkle||!this.overlay)continue;
         // Recompute only when a note was not available at layout prepass.
         let cx=entry.noteX,cy=entry.noteY;
@@ -994,5 +1059,6 @@
     }
     updateAmbient(t){ return; }
   }
+  ScoreFollower.pickNoteheadForChord=pickNoteheadForChord;
   window.ScoreFollower=ScoreFollower;
 })();

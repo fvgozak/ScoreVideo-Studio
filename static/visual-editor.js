@@ -8,13 +8,13 @@
   const num=(v, fallback)=>Number.isFinite(Number(v))?Number(v):fallback;
   function readValues(controls){
     return {x:num(controls.x.value,50),width:num(controls.width.value,94),
-      height:num(controls.height.value,70),top:num(controls.top.value,12),
+      height:num(controls.height.value,70),top:num(controls.top.value,4),
       bottom:num(controls.bottom.value,9)};
   }
   function geometry(v,w,h){
     w=Math.max(1,w);h=Math.max(1,h);
     const pw=clamp(num(v.width,94),30,100), ph=clamp(num(v.height,70),15,100);
-    const x=clamp(num(v.x,50),0,100),t=clamp(num(v.top,12),0,45),b=clamp(num(v.bottom,9),0,45);
+    const x=clamp(num(v.x,50),0,100),t=clamp(num(v.top,4),0,45),b=clamp(num(v.bottom,9),0,45);
     const width=w*pw/100, top=h*t/100, bottom=h*b/100;
     const height=Math.max(1,Math.min(h*ph/100,h-top-bottom));
     return {left:(w-width)*x/100,top,width,height,bottom};
@@ -56,7 +56,7 @@
       for(const b of buttons){const active=b.dataset.editorTab===key;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));}
       for(const p of panels)p.hidden=p.dataset.editorPanel!==key;
     }
-    for(const b of buttons)b.addEventListener('click',()=>selectTab(b.dataset.editorTab));
+    for(const b of buttons)b.addEventListener('click',()=>{if(!b.disabled)selectTab(b.dataset.editorTab);});
     selectTab('project');
     return selectTab;
   }
@@ -76,7 +76,7 @@
       return g;
     }
     function setEditing(next){
-      active=Boolean(next);
+      active=Boolean(next)&&!editButton.disabled;
       overlay.hidden=!active;
       editButton.setAttribute('aria-pressed',String(active));
       editButton.textContent=active?'✓ 영역 편집 완료':'▢ 악보 영역 편집';

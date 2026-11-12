@@ -31,11 +31,44 @@
 .video-stage .score-scroll[data-scroll-mode="horizontal"]{overflow-x:auto;overflow-y:hidden}
 .video-stage .score-scroll[data-scroll-mode="vertical"]{overflow-y:auto;overflow-x:hidden}
 
+/* Notation presets style the SVG glyphs without moving their musical anchors.
+   They are shared by the editor and the offscreen MP4 renderer. */
+.score-window[data-notation-style="modern"] .vf-notehead path{
+  stroke:var(--notation-ink);stroke-width:.85px;paint-order:stroke fill;
+}
+.score-window[data-notation-style="modern"] .vf-stem path.vf-stem{stroke-width:1.75px}
+.score-window[data-notation-style="modern"] .vf-clef path,
+.score-window[data-notation-style="modern"] .vf-rest path{stroke:var(--notation-ink);stroke-width:.25px;paint-order:stroke fill}
+.score-window[data-notation-style="modern"] .vf-measure>path[fill="none"]{stroke-width:.8px}
+
+.score-window[data-notation-style="jazz"] .vf-notehead{
+  transform-box:fill-box;transform-origin:center;transform:rotate(-9deg) skewX(-5deg) scale(1.08,.94);
+}
+.score-window[data-notation-style="jazz"] .vf-notehead path{
+  stroke:var(--notation-ink);stroke-width:.48px;paint-order:stroke fill;
+}
+.score-window[data-notation-style="jazz"] .vf-stem path.vf-stem{stroke-width:1.9px;stroke-linecap:round}
+.score-window[data-notation-style="jazz"] .vf-beam path{stroke:var(--notation-ink);stroke-width:.5px;stroke-linejoin:round;paint-order:stroke fill}
+.score-window[data-notation-style="jazz"] .vf-clef{transform-box:fill-box;transform-origin:center;transform:rotate(-3deg)}
+.score-window[data-notation-style="jazz"] svg text{font-family:"Marker Felt","Chalkboard SE",cursive;font-weight:600}
+
+.score-window[data-notation-style="manuscript"] .vf-notehead{
+  transform-box:fill-box;transform-origin:center;transform:rotate(var(--notation-tilt,-3deg)) skewX(-4deg) scale(1.02,1.04);
+}
+.score-window[data-notation-style="manuscript"] .vf-notehead path{
+  stroke:var(--notation-ink);stroke-width:.32px;stroke-linejoin:round;paint-order:stroke fill;
+}
+.score-window[data-notation-style="manuscript"] .vf-stem path.vf-stem{stroke-width:1.3px;stroke-linecap:round}
+.score-window[data-notation-style="manuscript"] .vf-beam path{stroke:var(--notation-ink);stroke-width:.28px;stroke-linejoin:round;paint-order:stroke fill}
+.score-window[data-notation-style="manuscript"] .vf-measure>path[fill="none"]{stroke-width:1.05px;stroke-linecap:round}
+.score-window[data-notation-style="manuscript"] .vf-clef{transform-box:fill-box;transform-origin:center;transform:rotate(2deg) scale(.98,1.03)}
+.score-window[data-notation-style="manuscript"] svg text{font-family:"Bradley Hand","Chalkboard SE",cursive;font-style:italic}
+
 /* v0.14: 0% top margin must not be overridden by old inherited padding.
    MusicXML SVG handles its own engraving margins; no extra CSS space. */
 .video-stage #osmdContainer,
 .video-stage .score-scroll #osmdContainer {
-  padding-top: 0 !important;
+  padding-top: var(--score-content-top, 0px) !important;
   padding-bottom: 0 !important;
   min-height: 0;
 }
@@ -72,6 +105,8 @@
 .camera-point-selectable:hover{filter:drop-shadow(0 0 5px rgba(86,224,255,1));opacity:.9}
 
 .camera-point-tools[hidden]{display:none!important}
+.camera-auto-button{width:100%;border-color:#5c9daa;background:linear-gradient(115deg,#214653,#253b55);color:#dffbff;font-weight:750}
+.camera-auto-button:hover:not(:disabled){background:linear-gradient(115deg,#2b6271,#354c6e)}
 
 .camera-point-actions{display:flex;flex-wrap:wrap;gap:6px}
 .camera-point-hit{fill:transparent;stroke:transparent;pointer-events:none}

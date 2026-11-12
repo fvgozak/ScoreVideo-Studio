@@ -11,6 +11,7 @@ const base={width:1080,height:1920,score_area_width:100,score_area_height:70,
   score_margin_top:0,score_margin_bottom:0,
   scene:{showText:true,title:'Large MusicXML title',artist:'Composer',titleGap:200}};
 const normalized=Stage.normalized(base);
+assert.equal(Stage.normalized({}).scoreRegion.marginTopPercent,4,'new projects start with a compact score top gap');
 const geometry=Stage.Stage.scoreGeometry(normalized);
 assert.equal(geometry.top,0,'0% margin must place the score at the stage top, even when title is visible');
 assert.equal(geometry.left,0);

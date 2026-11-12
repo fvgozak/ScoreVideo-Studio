@@ -4,7 +4,7 @@
  const $=id=>document.getElementById(id),audio=$('audioPlayer'),transport=window.ScoreTransport;
  window.ScoreHexControls?.setup();
  const inputIds=['score','midi','audio'],labelIds=['scoreName','midiName','audioName'];
- const persistent=['paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','pianoEnabled','pianoLight','pianoLightStrength','layoutMode','scorePosX','scorePosY','zoom','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
+ const persistent=['paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
  'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor'];
  const storeKey='scorevideo_studio_v05_settings';
  let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0;
@@ -18,7 +18,7 @@
  function noteName(pitch){const names=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];return `${names[((pitch%12)+12)%12]}${Math.floor(pitch/12)-1}`;}
  function renderCameraPointList(){
    const list=$('cameraPointList');if(!list)return;const points=readCameraPoints();list.replaceChildren();
-   for(const point of points){const button=document.createElement('button');button.type='button';button.className='camera-point-item'+(point.key===selectedCameraPoint?' selected':'');button.textContent=`마디 ${point.measure||'—'} · ${noteName(Number(point.pitch)||60)}`;button.addEventListener('click',()=>{selectedCameraPoint=point.key;syncCameraPointControls();renderCameraPointList();const resolved=stage?.follower?.cameraPoints?.find(p=>p.key===point.key);if(resolved)seekTo(resolved.time);});list.append(button);}
+   for(const point of points){const button=document.createElement('button');button.type='button';button.className='camera-point-item'+(point.key===selectedCameraPoint?' selected':'');button.textContent=`${point.auto?'✦ ':''}마디 ${point.measure||'—'} · ${noteName(Number(point.pitch)||60)}`;button.title=point.auto?`자동 제안 · ${point.kind||'음표'}`:'수동 포인트';button.addEventListener('click',()=>{selectedCameraPoint=point.key;syncCameraPointControls();renderCameraPointList();const resolved=stage?.follower?.cameraPoints?.find(p=>p.key===point.key);if(resolved)seekTo(resolved.time);});list.append(button);}
    $('cameraPointControls').hidden=!points.some(p=>p.key===selectedCameraPoint);
    $('cameraPointStatus').textContent=cameraPointPicking?'미리보기에서 음표를 클릭하세요. 다시 누르면 선택을 마칩니다.':points.length?`${points.length}개 포인트 · 목록에서 줌·타이밍·지속 시간을 조절하세요.`:'포인트 없음 · Points 모드를 고르고 미리보기 음표를 눌러 추가하세요.';
    $('cameraPointModeToggle').textContent=cameraPointPicking?'✓ 음표 선택 끝내기':'＋ 프리뷰에서 음표 포인트 찍기';
@@ -27,16 +27,27 @@
  function syncCameraPointControls(){const p=readCameraPoints().find(x=>x.key===selectedCameraPoint);if(!p)return;for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake'],['cameraPointTiming','timing']])$(id).value=String(p[key]??({zoom:1.3,duration:1.6,shake:0,timing:-.6}[key]));$('cameraPointZoomVal').textContent=`${Math.round(Number(p.zoom||1.3)*100)}%`;$('cameraPointDurationVal').textContent=`${Number(p.duration||1.6).toFixed(1)}초`;$('cameraPointShakeVal').textContent=`${Math.round(Number(p.shake||0)*100)}%`;const timing=Number.isFinite(Number(p.timing))?Number(p.timing):-.6;$('cameraPointTimingVal').textContent=timing<0?`${Math.abs(timing).toFixed(2)}초 먼저`:`${timing.toFixed(2)}초 뒤`;}
  window.ScoreCameraPointEditor={active:()=>cameraPointPicking,add(data){const points=readCameraPoints();let point=points.find(p=>p.key===data.key);if(!point){point={key:data.key,measure:data.measure,pitch:data.pitch,beat:data.beat,zoom:1.3,duration:1.6,shake:0,timing:-.6};points.push(point);}selectedCameraPoint=point.key;writeCameraPoints(points);if($('cameraMode').value!=='points'){$('cameraMode').value='points';if(stage?.follower)stage.follower.cameraMode='points';queueApply();}syncCameraPointControls();if(Number.isFinite(data.time))seekTo(data.time);}};
  $('cameraPointModeToggle').addEventListener('click',()=>{cameraPointPicking=!cameraPointPicking;if(cameraPointPicking&&$('cameraMode').value!=='points'){$('cameraMode').value='points';queueApply();}renderCameraPointList();});
+ $('cameraPointAuto').addEventListener('click',()=>{
+   const notes=stage?.follower?.noteTriggers||[];
+   if(project?.has_score===false||!notes.length){$('cameraAutoStatus').textContent='MusicXML 악보와 MIDI를 불러온 뒤 사용할 수 있습니다.';return;}
+   const manual=readCameraPoints().filter(p=>!p.auto);
+   const suggested=window.ScoreCameraAuto.suggest(notes,{duration:project.audio_duration_sec,existing:manual});
+   if(!suggested.length){$('cameraAutoStatus').textContent='이 곡에서 자동 포인트를 찾지 못했습니다. 음표를 직접 선택해 주세요.';return;}
+   cameraPointPicking=false;selectedCameraPoint=suggested[0].key;
+   $('cameraMode').value='points';
+   writeCameraPoints([...manual,...suggested]);syncCameraPointControls();queueApply();
+   $('cameraAutoStatus').textContent=`${suggested.length}개 자동 포인트를 만들었습니다. 수동 ${manual.length}개는 유지하고, 이전 자동 포인트만 새로 제안했습니다.`;
+ });
  $('cameraPointAtPlayhead').addEventListener('click',()=>{const notes=stage?.follower?.noteTriggers||[],time=Number(audio.currentTime)||0;let best=null,distance=Infinity;for(const note of notes){const d=Math.abs(note.audio-time);if(d<distance){best=note;distance=d;}}if(!best||distance>.6){message('현재 위치 근처에서 음표를 찾지 못했습니다. 재생 위치를 음표 가까이 옮겨 주세요.',true);return;}const chord=notes.filter(n=>Math.abs(n.audio-best.audio)<.055&&n.systemKey===best.systemKey);const target=chord.reduce((top,n)=>(Number(n.pitch)>Number(top.pitch)?n:top),best);window.ScoreCameraPointEditor.add({key:target.scoreKey,time:target.audio,beat:target.beat,pitch:target.pitch,measure:target.measure});});
- for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake'],['cameraPointTiming','timing']])$(id).addEventListener('input',()=>{const points=readCameraPoints(),p=points.find(x=>x.key===selectedCameraPoint);if(!p)return;p[key]=Number($(id).value);writeCameraPoints(points);syncCameraPointControls();});
+ for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake'],['cameraPointTiming','timing']])$(id).addEventListener('input',()=>{const points=readCameraPoints(),p=points.find(x=>x.key===selectedCameraPoint);if(!p)return;p[key]=Number($(id).value);p.auto=false;writeCameraPoints(points);syncCameraPointControls();});
  $('cameraPointRemove').addEventListener('click',()=>{const removed=selectedCameraPoint;selectedCameraPoint='';writeCameraPoints(readCameraPoints().filter(p=>p.key!==removed));});
  $('cameraPointClear').addEventListener('click',()=>{selectedCameraPoint='';writeCameraPoints([]);});
  $('cameraMode').addEventListener('change',()=>{if($('cameraMode').value!=='points'){cameraPointPicking=false;renderCameraPointList();}});
  function sceneOptions(){return {
-   template:$('sceneTemplate').value,cameraMode:$('cameraMode').value,fxMode:$('fxMode').value,fxStrength:Number($('fxStrength').value),lightColorMode:$('lightColorMode').value,velocityScale:$('velocityScale').value,
+   template:$('sceneTemplate').value,cameraMode:$('cameraMode').value,fxMode:$('fxMode').value,fxStrength:Number($('fxStrength').value),scoreImpactEnabled:$('scoreImpactEnabled').checked,scoreImpactStrength:Number($('scoreImpactStrength').value),lightColorMode:$('lightColorMode').value,velocityScale:$('velocityScale').value,
    trailUpper:$('trailUpperColor').value,trailLower:$('trailLowerColor').value,
    auroraPreset:$('auroraPreset').value,auroraLow:$('auroraLow').value,auroraHigh:$('auroraHigh').value,
-   font:$('titleFont').value,titleGap:Number($('titleGap').value),
+   font:$('titleFont').value,notationStyle:$('notationStyle').value,titleGap:Number($('titleGap').value),
    title:$('titleText').value,artist:$('artistText').value,credit:$('creditText').value,showText:$('showText').checked,
    animateBackground:$('animateBackground').checked,
    keyframes:[{time:0,color:$('sceneStartColor').value,glow:$('sceneStartGlow').value},
@@ -50,7 +61,7 @@
       texture:$('texture').value,background_opacity:Number($('backgroundOpacity').value),background_fit:$('backgroundFit').value,background_position_x:Number($('backgroundPosX').value),background_position_y:Number($('backgroundPosY').value),
       inverted:$('inverted').checked,glitter:$('glitter').checked,sparkle:$('sparkle').checked,draw_score:$('drawScore').checked,
       velocity_reactive:$('velocityReactive').checked,note_motion:$('noteMotion').checked,motion_strength:Number($('motionStrength').value),
-      piano_enabled:$('pianoEnabled').checked,piano_light:$('pianoLight').checked,piano_light_strength:Number($('pianoLightStrength').value),
+      score_visible:$('scoreVisible').checked,piano_enabled:$('pianoEnabled').checked,piano_camera:$('pianoCamera').checked,piano_key_style:$('pianoKeyStyle').value,piano_white_key_color:$('pianoWhiteKeyColor').value,piano_black_key_color:$('pianoBlackKeyColor').value,piano_light:$('pianoLight').checked,piano_light_strength:Number($('pianoLightStrength').value),
       layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
  }
  function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));}
@@ -91,7 +102,7 @@
    let preset=items.find(x=>x.projectId===project.id&&x.name.toLocaleLowerCase()===name.toLocaleLowerCase());
    if(!preset){preset={id:crypto.randomUUID?.()||`${Date.now()}_${Math.random().toString(36).slice(2)}`};items.push(preset);}
    preset.name=name;preset.projectId=project.id;
-   preset.projectName=project.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   preset.projectName=(project.has_score===false?project.midi_name:project.score_name).replace(/\.(musicxml|xml|mxl|mid|midi)$/i,'');
    preset.settings=currentVideoPresetSettings();preset.savedAt=new Date().toISOString();
    try{localStorage.setItem(videoPresetStoreKey,JSON.stringify(items));saveSettings();refreshVideoPresets(preset.id);message('영상 설정을 저장했습니다.');}
    catch(e){message('설정을 저장하지 못했습니다: '+e.message,true);}
@@ -126,9 +137,16 @@
    window.ScoreHexControls?.syncAll();
    $('offsetVal').textContent=`${offset()>0?'+':''}${offset().toFixed(2)}초`;
    $('pianoOffsetVal').textContent=`${pianoOffset()>0?'+':''}${pianoOffset().toFixed(2)}초`;
+   if(document.activeElement!==$('offsetNumber'))$('offsetNumber').value=offset().toFixed(2);
+   if(document.activeElement!==$('pianoOffsetNumber'))$('pianoOffsetNumber').value=pianoOffset().toFixed(2);
+   $('editScoreAreaButton').disabled=project?.has_score===false||!$('scoreVisible').checked;
+   $('compactScoreTopButton').disabled=project?.has_score===false;
+   $('scorePanelColorLink').disabled=project?.has_score===false;
+   $('pianoKeyCustomColors').hidden=$('pianoKeyStyle').value!=='custom';
    $('zoomVal').textContent=`${Math.round(zoom()*100)}%`;
    $('motionStrengthVal').textContent=`${Math.round(Number($('motionStrength').value)*100)}%`;
    $('pianoLightStrengthVal').textContent=`${Math.round(Number($('pianoLightStrength').value)*100)}%`;
+   $('scoreImpactStrengthVal').textContent=`${Math.round(Number($('scoreImpactStrength').value)*100)}%`;
    $('backgroundOpacityVal').textContent=`${Math.round(Number($('backgroundOpacity').value)*100)}%`;
    $('backgroundPosXVal').textContent=`${$('backgroundPosX').value}%`;
    $('backgroundPosYVal').textContent=`${$('backgroundPosY').value}%`;
@@ -136,10 +154,17 @@
    $('scorePosYVal').textContent=`${$('scorePosY').value}%`;
    $('titleGapVal').textContent=`${$('titleGap').value}px`;
    for(const key of ['scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelOpacity'])$(key+'Val').textContent=`${$(key).value}%`;
-   $('singleLineYControl').hidden=$('layoutMode').value!=='singleline';
    $('auroraOptions').hidden=$('lightColorMode').value!=='aurora';
    const velocities=project?.note_events?.map(n=>Number(n.velocity)).filter(Number.isFinite)||[];
-   if(velocities.length){const lo=velocities.reduce((a,b)=>Math.min(a,b),127),hi=velocities.reduce((a,b)=>Math.max(a,b),1);$('velocityRangeInfo').textContent=`현재 MIDI: ${lo}~${hi} · 절대값은 1~127, 상대값은 이 범위 전체를 사용`;}
+   const uniformWarning=$('velocityUniformWarning');uniformWarning.hidden=true;
+   if(velocities.length){
+     const lo=velocities.reduce((a,b)=>Math.min(a,b),127),hi=velocities.reduce((a,b)=>Math.max(a,b),1);
+     $('velocityRangeInfo').textContent=`현재 MIDI: ${lo}~${hi} · 절대값은 1~127, 상대값은 이 범위 전체를 사용`;
+     if($('lightColorMode').value==='aurora'&&lo===hi){
+       uniformWarning.textContent=`이 MIDI의 모든 음표가 벨로시티 ${lo}로 같습니다. 강약 차이가 없어 Aurora 색상도 변하지 않습니다. 색 변화를 원하면 벨로시티가 다른 MIDI를 사용하세요.`;
+       uniformWarning.hidden=false;
+     }
+   }
    $('fxStrengthVal').textContent=`${Math.round(Number($('fxStrength').value)*100)}%`;
    $('transitionTimeVal').textContent=`${$('transitionTime').value}초`;
    $('backgroundTrack').style.background=`linear-gradient(90deg,${$('sceneStartColor').value},${$('sceneEndColor').value})`;
@@ -189,7 +214,7 @@
  }
  for(let i=0;i<inputIds.length;i++)$(inputIds[i]).addEventListener('change',()=>{$(labelIds[i]).textContent=$(inputIds[i]).files?.[0]?.name||'파일 선택';});
  for(const id of persistent){
-   if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom'].includes(id))continue;
+   if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom','scorePosX','scorePosY'].includes(id))continue;
    $(id).addEventListener('input',queueApply);
    $(id).addEventListener('change',queueApply);
  }
@@ -210,12 +235,22 @@
  $('zoom').addEventListener('change',()=>{
    clearTimeout(zoomInputDebounce);zoomInputDebounce=null;queueApply();
  });
+ let scorePositionDebounce=null;
+ for(const id of ['scorePosX','scorePosY']){
+   $(id).addEventListener('input',()=>{
+     updateLabels();clearTimeout(scorePositionDebounce);
+     scorePositionDebounce=setTimeout(()=>{scorePositionDebounce=null;queueApply();},180);
+   });
+   $(id).addEventListener('change',()=>{
+     clearTimeout(scorePositionDebounce);scorePositionDebounce=null;queueApply();
+   });
+ }
  $('scoreReadablePreset').addEventListener('click',()=>{$('scorePanelColor').value='#0c1120';$('scorePanelOpacity').value='55';queueApply();});
  $('themeColor').addEventListener('input',saveSettings);
  $('titleText').addEventListener('input',()=>{if(project)localStorage.setItem('scorevideo_title_override_'+project.id,$('titleText').value);});
  $('resetTitleButton').addEventListener('click',()=>{
    if(!project)return;localStorage.removeItem('scorevideo_title_override_'+project.id);
-   $('titleText').value=project.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   $('titleText').value=(project.has_score===false?project.midi_name:project.score_name).replace(/\.(musicxml|xml|mxl|mid|midi)$/i,'');
    queueApply();
  });
  function applyAuroraPreset(){
@@ -265,43 +300,51 @@
  $('zoomInButton').addEventListener('click',()=>adjustZoom(.05));
  $('zoomResetButton').addEventListener('click',()=>{$('zoom').value='1';queueApply();});
 
- // Artwork palette extraction uses the original Hemio Image Studio image-color
- // grouping algorithm via a local FastAPI endpoint. The source image is not
- // stored unless "이 이미지를 영상 배경으로 사용" is explicitly checked.
- let paletteSourceFile=null,paletteIsCurrentBackground=false,paletteArtworkURL=null,paletteSerial=0,paletteBackgroundTask=null;
+ // Palette source and video background are independent: A can supply the
+ // colors while B remains the photo, and removing B never clears A.
+ let paletteSourceFile=null,paletteArtworkURL=null,paletteSerial=0;
+ let pendingBackgroundFile=null,backgroundPreviewURL=null,backgroundSerial=0,backgroundTask=Promise.resolve();
  function paletteMessage(value,isError=false){
    $('paletteStatus').textContent=value;$('paletteStatus').classList.toggle('error',isError);
  }
- async function uploadBackgroundForPalette(file){
-   if(!project)throw Error('배경으로 사용하려면 먼저 악보·MIDI·음원 파일을 불러오세요. 색상 적용은 파일 없이 가능합니다.');
-   if(!/\.(png|jpe?g|webp)$/i.test(file.name))throw Error('BMP/GIF는 색상 추출만 지원합니다. 영상 배경은 PNG, JPG, WebP를 사용해 주세요.');
+ function backgroundMessage(value,isError=false){
+   $('backgroundStatus').textContent=value;$('backgroundStatus').classList.toggle('error',isError);
+ }
+ function validImage(file,report){
+   if(!file||!/\.(png|jpe?g|webp)$/i.test(file.name)){report('PNG, JPG, WebP 이미지만 사용할 수 있습니다.',true);return false;}
+   if(file.size>20*1024*1024){report('이미지는 20MB 이하로 선택해 주세요.',true);return false;}
+   return true;
+ }
+ async function uploadBackground(file,target){
    const form=new FormData();form.append('background',file,file.name);
-   const response=await fetch(`/api/projects/${project.id}/background`,{method:'POST',body:form});
+   const response=await fetch(`/api/projects/${target.id}/background`,{method:'POST',body:form});
    const data=await response.json();
    if(!response.ok)throw Error(data.detail||'영상 배경 적용 실패');
-   project.background_filename=data.background_filename;project.background_version=data.background_version;refreshBackground();
+   if(project===target){project.background_filename=data.background_filename;project.background_version=data.background_version;
+     project.background_original_name=data.background_original_name||file.name;refreshBackground();}
    return data;
  }
- async function ensurePaletteBackground(){
-   while(true){
-     const file=paletteSourceFile;
-     if(!file)throw Error('먼저 영상 배경으로 사용할 이미지를 선택해 주세요.');
-     if(paletteIsCurrentBackground)return;
-     if(paletteBackgroundTask){await paletteBackgroundTask;continue;}
-     const task=uploadBackgroundForPalette(file);paletteBackgroundTask=task;
-     try{
-       await task;
-       if(paletteSourceFile===file){paletteIsCurrentBackground=true;return;}
-     }finally{if(paletteBackgroundTask===task)paletteBackgroundTask=null;}
-   }
+ async function setBackground(file){
+   if(!validImage(file,backgroundMessage))return;
+   const serial=++backgroundSerial;
+   if(!project){pendingBackgroundFile=file;refreshBackground();backgroundMessage('프로젝트를 만들면 선택한 이미지를 영상 배경으로 적용합니다.');return;}
+   const target=project;
+   backgroundMessage('영상 배경을 적용하고 있습니다…');
+   const task=backgroundTask.catch(()=>{}).then(async()=>{
+     if(serial!==backgroundSerial||project!==target)return false;
+     return uploadBackground(file,target);
+   });
+   backgroundTask=task.catch(()=>{});
+   try{const result=await task;if(result&&serial===backgroundSerial)backgroundMessage('영상 배경을 적용했습니다. 색상 추천은 그대로 유지됩니다.');}
+   catch(error){if(serial===backgroundSerial)backgroundMessage('영상 배경 적용 실패: '+error.message,true);}
  }
- async function analyzePaletteImage(file,{existing=false}={}){
-   if(!file)return;
-   if(file.size>20*1024*1024){paletteMessage('이미지는 20MB 이하로 선택해 주세요.',true);return;}
+ async function analyzePaletteImage(file){
+   if(!validImage(file,paletteMessage))return;
    const serial=++paletteSerial;
-   paletteSourceFile=file;paletteIsCurrentBackground=existing;$('paletteUseBackground').checked=existing;
+   paletteSourceFile=file;
    $('paletteResults').hidden=true;
-   paletteMessage('이미지의 색상을 분석하고 있습니다…');
+   $('paletteSetBackground').disabled=false;
+   paletteMessage('이미지에서 색상 조합을 찾고 있습니다…');
    if(paletteArtworkURL)URL.revokeObjectURL(paletteArtworkURL);
    paletteArtworkURL=URL.createObjectURL(file);
    $('paletteArtworkPreview').src=paletteArtworkURL;
@@ -316,8 +359,11 @@
      window.ScoreImagePaletteUI.chips(result.palette);
      window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>void applyPaletteScheme(scheme,result.primary));
      $('paletteResults').hidden=false;
-     paletteMessage(`${result.palette.length}개 주요 색상과 ${result.schemes.length}개 악보 조합을 찾았어요. 원하는 디자인을 선택하세요.`);
-   }catch(error){if(serial===paletteSerial)paletteMessage('이미지 분석 실패: '+error.message,true);}
+     paletteMessage(`${result.palette.length}개 주요 색상과 ${result.schemes.length}개 악보 조합을 찾았어요. 영상 배경은 변경하지 않았습니다.`);
+   }catch(error){if(serial===paletteSerial){
+     $('paletteResults').hidden=true;
+     paletteMessage('색상 추출 실패: '+error.message,true);
+   }}
  }
  async function applyPaletteScheme(scheme,primary){
    const c=scheme?.colors;if(!c)return;
@@ -333,40 +379,20 @@
    $('inverted').checked=false;
    // Keep scene effects/velocity scale/user font choices, but ensure the
    // recommended score colors are not overridden by animated background.
-   const useArt=$('paletteUseBackground').checked;
-   const hasPhoto=Boolean(project?.background_filename||useArt);
+   const hasPhoto=Boolean(project?.background_filename||pendingBackgroundFile);
    $('scorePanelOpacity').value=hasPhoto?String(Math.round(Number(scheme.panel_opacity||.65)*100/5)*5):'0';
    queueApply();
-   if(useArt){
-     try{
-       await ensurePaletteBackground();
-       paletteMessage(`${scheme.name} 디자인과 사진 배경을 적용했습니다. HEX 색상은 아래에서 수정할 수 있어요.`);
-     }catch(e){paletteMessage(`색상은 적용했습니다. 이미지 배경: ${e.message}`,true);}
-   }else{
-     paletteMessage(`${scheme.name} 디자인을 적용했습니다. 색상은 개별 수정할 수 있어요.`);
-   }
+   paletteMessage(`${scheme.name} 디자인을 적용했습니다. 배경 이미지는 그대로 유지됩니다. 색상은 개별 수정할 수 있어요.`);
  }
- $('paletteUseBackground').addEventListener('change',async()=>{
-   const control=$('paletteUseBackground'),useArt=control.checked;
-   control.disabled=true;
-   try{
-     if(useArt){
-       await ensurePaletteBackground();
-       paletteMessage('선택한 그림을 미리보기와 영상 배경에 적용했습니다. 디자인 탭에서 투명도와 위치를 조절할 수 있어요.');
-     }else if(paletteIsCurrentBackground&&project){
-       const response=await fetch(`/api/projects/${project.id}/background`,{method:'DELETE'});
-       if(!response.ok)throw Error('배경 이미지 제거 실패');
-       project.background_filename=null;project.background_version=null;paletteIsCurrentBackground=false;
-       $('backgroundFile').value='';refreshBackground();paletteMessage('영상 배경에서 그림을 제거했습니다.');
-     }
-   }catch(error){
-     control.checked=!useArt;paletteMessage(`영상 배경 적용 실패: ${error.message}`,true);
-   }finally{control.disabled=false;}
- });
  $('paletteImageFile').addEventListener('change',()=>{
    const file=$('paletteImageFile').files?.[0];
    $('paletteImageFile').value='';
    if(file)void analyzePaletteImage(file);
+ });
+ $('paletteSetBackground').addEventListener('click',()=>{if(paletteSourceFile)void setBackground(paletteSourceFile);});
+ $('backgroundFile').addEventListener('change',()=>{
+   const file=$('backgroundFile').files?.[0];$('backgroundFile').value='';
+   if(file)void setBackground(file);
  });
  const drop=$('paletteDropZone');
  for(const eventName of ['dragenter','dragover'])drop.addEventListener(eventName,event=>{
@@ -375,7 +401,7 @@
  for(const eventName of ['dragleave','drop'])drop.addEventListener(eventName,event=>{
    event.preventDefault();drop.classList.remove('drag-over');
    if(eventName==='drop'){
-     const file=Array.from(event.dataTransfer?.files||[]).find(f=>f.type.startsWith('image/')||/\.(png|jpe?g|webp|bmp|gif)$/i.test(f.name));
+     const file=Array.from(event.dataTransfer?.files||[])[0];
      if(file)void analyzePaletteImage(file);
    }
  });
@@ -393,6 +419,22 @@
 
  $('offset').addEventListener('input',queueApply);
  $('pianoOffset').addEventListener('input',queueApply);
+ $('scoreVisible').addEventListener('change',()=>{if(!$('scoreVisible').checked)window.ScoreVisualEditor?.setEditing(false);});
+ for(const [sliderId,numberId] of [['offset','offsetNumber'],['pianoOffset','pianoOffsetNumber']]){
+   const slider=$(sliderId),field=$(numberId);
+   field.addEventListener('input',()=>{
+     const value=Number(field.value);
+     if(field.value===''||!Number.isFinite(value)||value < -5||value > 5)return;
+     slider.value=String(Math.round(value*100)/100);
+     queueApply();
+   });
+   field.addEventListener('change',()=>{
+     const value=Number(field.value);
+     slider.value=String(Math.round(Math.max(-5,Math.min(5,Number.isFinite(value)&&field.value!==''?value:Number(slider.value)))*100)/100);
+     field.value=Number(slider.value).toFixed(2);
+     queueApply();
+   });
+ }
  $('syncAdjustToggle').addEventListener('click',()=>{
    const open=$('syncAdjustPopover').hidden;
    $('syncAdjustPopover').hidden=!open;$('syncAdjustToggle').setAttribute('aria-expanded',String(open));
@@ -404,20 +446,20 @@
  document.addEventListener('keydown',event=>{
    if(event.key==='Escape'&&!$('syncAdjustPopover').hidden){$('syncAdjustPopover').hidden=true;$('syncAdjustToggle').setAttribute('aria-expanded','false');}
  });
- $('backgroundFile').addEventListener('change',async()=>{
-   const file=$('backgroundFile').files?.[0];if(!file)return;
-   void analyzePaletteImage(file);
-   if(!project){message('먼저 악보·MIDI·음원을 업로드해 주세요.',true);return;}
-   const form=new FormData();form.append('background',file);
-   try{const r=await fetch(`/api/projects/${project.id}/background`,{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'배경 업로드 실패');
-     project.background_filename=data.background_filename;project.background_version=data.background_version;refreshBackground();if(paletteSourceFile===file){paletteIsCurrentBackground=true;$('paletteUseBackground').checked=true;}message('배경 이미지를 미리보기와 출력 설정에 적용했습니다. 디자인 탭에서 추천 팔레트를 확인하세요.');
-   }catch(e){message(e.message,true);}
- });
  $('removeBackground').addEventListener('click',async()=>{
-   if(!project)return;
-   try{const r=await fetch(`/api/projects/${project.id}/background`,{method:'DELETE'});if(!r.ok)throw Error('배경 삭제 실패');
-     project.background_filename=null;project.background_version=null;$('backgroundFile').value='';paletteIsCurrentBackground=false;$('paletteUseBackground').checked=false;refreshBackground();message('배경 이미지를 제거했습니다.');
-   }catch(e){message(e.message,true);}
+   const button=$('removeBackground');button.disabled=true;++backgroundSerial;
+   const target=project;
+   try{
+     await backgroundTask;
+     if(project===target&&target?.background_filename){
+       const r=await fetch(`/api/projects/${target.id}/background`,{method:'DELETE'});
+       if(!r.ok)throw Error('배경 삭제 실패');
+       target.background_filename=null;target.background_version=null;target.background_original_name=null;
+     }
+     pendingBackgroundFile=null;
+     refreshBackground();backgroundMessage('영상 배경 이미지만 제거했습니다. 색상 추천은 유지됩니다.');
+   }catch(e){backgroundMessage(e.message,true);}
+   finally{button.disabled=false;}
  });
 
  async function rebuildPreview(reason='미리보기 재설정 중…'){
@@ -430,16 +472,41 @@
  $('resetPreviewButton').addEventListener('click',()=>void rebuildPreview());
 
  function refreshBackground(){
-   $('removeBackground').hidden=!project?.background_filename;
-   $('paletteFromBackground').hidden=!project?.background_filename;
-   $('backgroundName').textContent=project?.background_filename||'최대 20MB · PNG / JPG / WebP';
+   const hasBackground=Boolean(project?.background_filename);
+   $('removeBackground').hidden=!hasBackground&&!pendingBackgroundFile;
+   $('paletteFromBackground').hidden=!hasBackground;
+   $('backgroundName').textContent=hasBackground?`현재 영상 배경 · ${project.background_original_name||project.background_filename}`:
+     pendingBackgroundFile?`프로젝트 생성 후 적용 · ${pendingBackgroundFile.name}`:'선택된 배경 이미지 없음';
+   if(backgroundPreviewURL){URL.revokeObjectURL(backgroundPreviewURL);backgroundPreviewURL=null;}
+   if(hasBackground){
+     $('backgroundPreview').src=`/api/projects/${project.id}/background?v=${encodeURIComponent(project.background_version||project.background_filename)}`;
+     $('backgroundPreview').hidden=false;
+   }else if(pendingBackgroundFile){
+     backgroundPreviewURL=URL.createObjectURL(pendingBackgroundFile);
+     $('backgroundPreview').src=backgroundPreviewURL;$('backgroundPreview').hidden=false;
+   }else{
+     $('backgroundPreview').removeAttribute('src');$('backgroundPreview').hidden=true;
+   }
    if(stage){stage.meta.background_filename=project.background_filename;stage.meta.background_version=project.background_version;queueApply();}
  }
  async function loadProject(meta){
    stage=null;revision++;await applySerial.catch(()=>{});
-   project=meta;selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();$('projectTitle').textContent=meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   ++backgroundSerial;pendingBackgroundFile=null;
+   window.ScoreVisualEditor?.setEditing(false);
+   $('scoreEditOverlay').hidden=true;
+   project=meta;selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();
+   const hasScore=meta.has_score!==false;
+   const projectName=(hasScore?meta.score_name:meta.midi_name).replace(/\.(musicxml|xml|mxl|mid|midi)$/i,'');
+   $('projectTitle').textContent=projectName;
    const titleOverride=localStorage.getItem('scorevideo_title_override_'+meta.id);
-   $('titleText').value=titleOverride!==null?titleOverride:meta.score_name.replace(/\.(musicxml|xml|mxl)$/i,'');
+   $('titleText').value=titleOverride!==null?titleOverride:projectName;
+   const wasScoreUnavailable=$('scoreVisible').disabled;
+   $('scoreVisible').disabled=!hasScore;
+   if(!hasScore)$('scoreVisible').checked=false;
+   else if(wasScoreUnavailable)$('scoreVisible').checked=true;
+   document.querySelector('[data-editor-tab="score"]').disabled=!hasScore;
+   $('editScoreFromSidebar').disabled=!hasScore;
+   if(!hasScore)$('pianoEnabled').checked=true;
    const a=meta.score_alignment;
    const alignmentText=a?
      `악보↔MIDI 매칭 ${Math.round(a.coverage*100)}% · ${a.matched_notes}/${a.total_notes}개 음표 · ${a.status==='ok'?'실제 타건 시점 적용':'매칭되지 않은 음표 있음'}`:
@@ -448,44 +515,52 @@
    const repeatText=repeat?.mode==='unfolded'
      ?` · 되돌이표 전개 ${repeat.source_measures}→${repeat.playback_measures}마디`
      :(repeat?.warning?` · ${repeat.warning}`:'');
-   $('scoreAlignmentInfo').textContent=a?`매칭 ${Math.round(a.coverage*100)}%`:'매칭 정보 없음';
+   $('scoreAlignmentInfo').textContent=hasScore?(a?`매칭 ${Math.round(a.coverage*100)}%`:'매칭 정보 없음'):'MIDI 전용';
    $('scoreAlignmentInfo').title=alignmentText+repeatText;
-   $('scoreAlignmentInfo').classList.toggle('error',a?.status!=='ok');
-   $('metadata').textContent=`${meta.note_count.toLocaleString()}개 MIDI 음표 · ${fmt(meta.audio_duration_sec)} · 템포 변화 ${meta.tempo_map.length}개 · 악보/MIDI 음표 매칭 ${Math.round((a?.coverage||0)*100)}%`;
+   $('scoreAlignmentInfo').classList.toggle('error',hasScore&&a?.status!=='ok');
+   $('metadata').textContent=`${meta.note_count.toLocaleString()}개 MIDI 음표 · ${fmt(meta.audio_duration_sec)} · 템포 변화 ${meta.tempo_map.length}개 · ${hasScore?`악보/MIDI 음표 매칭 ${Math.round((a?.coverage||0)*100)}%`:'건반 전용'}${meta.generated_audio?' · Salamander Grand Piano':''}`;
    if(a?.status==='needs-review')message(`악보 ↔ MIDI 매칭 주의 (${Math.round(a.coverage*100)}%): ${a.message}`,true);
    audio.src=`/api/projects/${meta.id}/audio`;
    $('totalTime').textContent=fmt(meta.audio_duration_sec);$('currentTime').textContent='00:00';
    $('seek').max=meta.audio_duration_sec;$('seek').value=0;
    $('offset').value=0;$('pianoOffset').value=0;updateLabels();
    for(const id of ['playButton','previousMeasureButton','nextMeasureButton','restartButton','seek','exportButton','autoSyncButton'])$(id).disabled=false;
+   $('autoSyncButton').disabled=Boolean(meta.generated_audio);
+   $('previousMeasureButton').disabled=!hasScore;
+   $('nextMeasureButton').disabled=!hasScore;
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:config()});
-   await stage.load();stage.seek(0);renderCameraPointList();window.ScoreVisualEditor?.sync();syncInfo();
+   await stage.load();stage.seek(0);$('cameraPointAuto').disabled=!hasScore||!stage.follower?.noteTriggers?.length;
+   $('cameraAutoStatus').textContent=hasScore?'프레이즈 시작, 화성, 강세와 음역 변화를 골라 부드러운 카메라 경로를 제안합니다. 수동 포인트는 유지됩니다.':'자동 포인트는 MusicXML 악보와 MIDI가 함께 있을 때 사용할 수 있습니다.';
+   renderCameraPointList();window.ScoreVisualEditor?.sync();syncInfo();
    $('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
    if(meta.score_alignment?.status==='needs-review'){
      message(`악보/MIDI 음표 매칭 ${Math.round(meta.score_alignment.coverage*100)}% — 일치하지 않는 음표가 있어 영상 싱크를 확인해 주세요.`,true);
    }else if(meta.repeat_info?.mode==='unfolded'){
      message(`되돌이표를 MIDI 연주 순서로 전개했습니다 (${meta.repeat_info.source_measures}→${meta.repeat_info.playback_measures}마디). 미리보기·MP4에 동일 적용됩니다.`);
-   }else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
+   }else if(!hasScore)message('MIDI 건반 영상 준비 완료. Salamander 피아노 음원과 MP4 출력에 동일하게 적용됩니다.');
+   else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
  }
  async function importProjectFiles(files,{backgroundFile=null}={}){
-   $('uploadButton').disabled=true;$('demoButton').disabled=true;message('악보와 MIDI, 음원 분석 중...');
-   const form=new FormData();for(const name of inputIds){if(!files[name]){message(`${name} 파일을 선택해 주세요.`,true);$('uploadButton').disabled=false;$('demoButton').disabled=false;return;}form.append(name,files[name]);}
+   $('uploadButton').disabled=true;$('demoButton').disabled=true;message('파일 분석 및 필요한 피아노 음원 생성 중...');
+   const form=new FormData();for(const name of inputIds)if(files[name])form.append(name,files[name]);
    try{
      const r=await fetch('/api/projects',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'파일 처리 실패');
-     if(backgroundFile){
-       const bg=new FormData();bg.append('background',backgroundFile);
+     const selectedBackground=pendingBackgroundFile||backgroundFile;
+     if(selectedBackground){
+       const bg=new FormData();bg.append('background',selectedBackground);
        const response=await fetch(`/api/projects/${data.id}/background`,{method:'POST',body:bg});const image=await response.json();
        if(!response.ok)throw Error(image.detail||'예제 커버 적용 실패');
        data.background_filename=image.background_filename;data.background_version=image.background_version;
+       data.background_original_name=image.background_original_name||selectedBackground.name;
      }
      localStorage.setItem('scorevideo_last_project',data.id);await loadProject(data);
    }catch(err){message(`악보 로딩 실패: ${err.message}`,true);}finally{$('uploadButton').disabled=false;$('demoButton').disabled=false;}
  }
  $('uploadForm').addEventListener('submit',async e=>{
    e.preventDefault();const files=Object.fromEntries(inputIds.map(name=>[name,$(name).files?.[0]]));
-   if(inputIds.some(name=>!files[name])){message('MusicXML, MIDI, 음원 파일을 모두 선택해 주세요.',true);return;}
+   if(!files.midi){message('MIDI 파일은 필수입니다. MusicXML만으로는 업로드할 수 없습니다.',true);return;}
    await importProjectFiles(files);
  });
  $('demoButton').addEventListener('click',async()=>{
@@ -539,7 +614,7 @@
    seekTo(time);
  }
  async function toggle(){
-   if(!project){message('먼저 악보, MIDI, 음원을 불러오세요.');return;}
+   if(!project){message('먼저 MIDI 파일을 불러오세요.');return;}
    if(audio.paused){try{await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
    else audio.pause();
  }
@@ -619,6 +694,21 @@
    getStage:()=>stage,commit:queueApply,label:()=>updateLabels(),
  });
  $('editScoreFromSidebar').addEventListener('click',()=>window.ScoreVisualEditor?.activate());
+ $('compactScoreTopButton').addEventListener('click',()=>{
+   $('scoreMarginTop').value='4';updateLabels();queueApply();
+   message('악보 영역의 위쪽 여백을 4%로 줄였습니다.');
+ });
+ $('scorePanelColorLink').addEventListener('click',()=>{
+   if(project?.has_score===false)return;
+   window.ScoreVisualEditor?.setEditing(false);
+   window.ScoreVisualEditor?.selectTab('score');
+   const section=document.querySelector('.score-region-options');
+   section.open=true;
+   requestAnimationFrame(()=>{
+     $('scorePanelColor').scrollIntoView({behavior:'smooth',block:'center'});
+     $('scorePanelColor').focus({preventScroll:true});
+   });
+ });
  refreshVideoPresets();restoreSettings();window.addEventListener('resize',resizePreview);
  if(typeof ResizeObserver!=='undefined'){
    let lastWidth=0,lastHeight=0;

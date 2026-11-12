@@ -1,0 +1,7 @@
+Salamander Grand Piano recordings by Alexander Holm, licensed CC BY 3.0.
+Original source: https://archive.org/details/SalamanderGrandPianoV3
+Compact MP3 distribution: https://github.com/Tonejs/audio/tree/master/salamander
+License: https://creativecommons.org/licenses/by/3.0/
+
+This application bundles 28 compressed samples and repitches nearby notes.
+It does not contain the complete original 16-velocity-layer SFZ instrument.

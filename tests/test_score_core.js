@@ -41,7 +41,7 @@ for(const hex of ['#1b293f','#eed2a5','#ff5fa1','#4466aa']){
 }
 const h=new Follower({tempoMap:[{beat:0,second:0,tempo_us:500000}],scrollMode:'horizontal'});
 h.positions=[{midi:0,audio:0,x:50},{midi:1,audio:1,x:150},{midi:2,audio:2,x:350}];
-h.container={scrollWidth:1000};h.viewport={clientWidth:200,scrollLeft:0};h.index=1;
+h.container={scrollWidth:1000,style:{}};h.viewport={clientWidth:200,scrollLeft:0};h.index=1;
 h.scrollAt(1.5);
 assert.equal(h.viewport.scrollLeft,174); // cursor=250, 38% of 200 =76
 h.index=0;h.scrollAt(0);

@@ -1,0 +1,45 @@
+{
+  "description": "Pre-optimization repeated fixed segment; MIDI-only 1080x1920 scene, same 300 timestamps (0..299/30) on both runs. Existing project files were not changed.",
+  "project_id": "00d6415ee2424b80b9bd064382189a02",
+  "score": false,
+  "platform": "macOS-27.0-x86_64-i386-64bit",
+  "resolution": [1080, 1920],
+  "fps": 30,
+  "frames_per_repeat": 300,
+  "repeats": 2,
+  "pipeline": "Playwright JPEG + FFmpeg libx264",
+  "samples": [
+    {
+      "render_elapsed_sec": 17.63,
+      "frame_processing_fps": 17.02,
+      "js_time_sec": 0.075,
+      "evaluate_wall_sec": 0.445,
+      "evaluate_bridge_sec": 0.370,
+      "screenshot_time_sec": 16.894,
+      "stdin_write_time_sec": 0.209,
+      "ffmpeg_close_sec": 0.000,
+      "ffmpeg_wait_sec": 0.076,
+      "frame_bytes": 37273334
+    },
+    {
+      "render_elapsed_sec": 17.47,
+      "frame_processing_fps": 17.17,
+      "js_time_sec": 0.067,
+      "evaluate_wall_sec": 0.385,
+      "evaluate_bridge_sec": 0.318,
+      "screenshot_time_sec": 16.840,
+      "stdin_write_time_sec": 0.171,
+      "ffmpeg_close_sec": 0.000,
+      "ffmpeg_wait_sec": 0.076,
+      "frame_bytes": 37273334
+    }
+  ],
+  "mean_fps": 17.09,
+  "mean_wall_sec": 17.55,
+  "measurement_notes": [
+    "screenshot_time includes browser paint, JPEG compression and Playwright transfer; these are not separately observable from the current API.",
+    "stdin_write_time includes pipe backpressure from concurrent FFmpeg decoding and encoding; it is not pure encoder CPU time.",
+    "ffmpeg_wait_sec is post-input drain and MP4 mux finalization, not the whole overlapping encode time.",
+    "The current host reports x86_64 and is not the user's M1 MacBook Air; results are not transferable to that hardware."
+  ]
+}

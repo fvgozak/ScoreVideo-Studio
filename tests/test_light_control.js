@@ -35,7 +35,7 @@ assert.equal(follower.eventLightColor(127),'#ff0000');
 function mockContext() {
  const calls={gradient:[],radial:[],strokes:[],fills:[]};
  const ctx={calls,
-  save(){},restore(){},beginPath(){},rect(){},clip(){},clearRect(){},
+  save(){},restore(){},beginPath(){},rect(){},clip(){},clearRect(){},fillRect(){},
   moveTo(){},quadraticCurveTo(){},lineTo(){},ellipse(){},arc(){},bezierCurveTo(){},
   setTransform(){},
   createRadialGradient(){const stops=[];calls.radial.push(stops);return {addColorStop(t,v){stops.push([t,v]);}};},
@@ -73,4 +73,19 @@ for(const mode of ['bloom','glitter','trail','resonance']){
    assert.ok(ctx.calls.radial.some(stops=>stops.some(v=>String(v[1]).startsWith('#ff0000'))));
  }
 }
+const impactCtx=mockContext();
+const impactRenderer=Object.create(S.LayerRenderer.prototype);
+impactRenderer.viewport={clientWidth:100,clientHeight:100,scrollLeft:0,scrollTop:0,getBoundingClientRect:()=>({left:0,top:0,width:100,height:100})};
+impactRenderer.context=impactCtx;impactRenderer.resize=()=>({w:100,h:100});
+impactRenderer.canvas={style:{}};impactRenderer.atmosphere={style:{}};
+impactRenderer.titleBox={style:{},querySelector:dummyLabel};
+impactRenderer.scene=S.normalize({fxMode:'none',fxStrength:0,scoreImpactEnabled:true,scoreImpactStrength:2});
+const impactFollower={viewport:impactRenderer.viewport,noteTriggers:[{audio:0,velocity:110,pitch:72,noteX:30,noteY:30,endAudio:.5,el:{getBoundingClientRect:()=>rect(30,30)}}],
+  effects:{velocityReactive:true},colors:()=>({paper:'#10151f',ink:'#ffffff',glow:'#68ddfa'}),audioDuration:2};
+impactRenderer.draw(.05,impactFollower);
+assert.ok(impactCtx.calls.radial.length>0,'score impact remains visible even when other scene effects are off');
+impactRenderer.scene=S.normalize({fxMode:'none',fxStrength:0,scoreImpactEnabled:false});
+const radialCount=impactCtx.calls.radial.length;
+impactRenderer.draw(.05,impactFollower);
+assert.equal(impactCtx.calls.radial.length,radialCount,'score impact switch disables its own light');
 console.log('Independent light-color control: Aurora x Bloom/Glitter/Trail/Resonance, legacy migration and per-note colors verified');

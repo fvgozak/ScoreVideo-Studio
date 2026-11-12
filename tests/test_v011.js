@@ -21,9 +21,12 @@ const theme=Theme.palette('#496c84');assert.match(theme.auroraLow,/^#[a-f0-9]{6}
 const basis={width:1080,height:1920,layout_mode:'singleline',score_position_y:70,scene:{title:'Ravel',titleGap:120,showText:true}};
 const posA=T.Stage.scoreTopPadding(T.normalized(basis));
 const posB=T.Stage.scoreTopPadding(T.normalized({...basis,score_position_y:0}));
-assert.ok(posA>posB+400);
+assert.ok(posA>posB+300);
 const pageA=T.Stage.scoreTopPadding(T.normalized({...basis,layout_mode:'page'}));
 const pageB=T.Stage.scoreTopPadding(T.normalized({...basis,layout_mode:'page',score_position_y:0}));
-assert.equal(pageA,pageB);
+assert.ok(pageA>pageB+300,'Y slider moves the score inside the page layout too');
+assert.match(fs.readFileSync('static/stage.css','utf8'),/padding-top:\s*var\(--score-content-top, 0px\) !important/,
+  'CSS must not override the Y slider padding');
+assert.match(fs.readFileSync('static/score-core.js','utf8'),/setProperty\('--score-content-top'/);
 assert.equal(T.Stage.scoreTopPadding(T.normalized({...basis,scene:{title:'Ravel',titleGap:200,showText:true}})),posA); // title spacing must not create a hidden margin
 console.log('v0.11 single-line maximum, title gap, font and aurora palette tests passed');

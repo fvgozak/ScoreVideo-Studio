@@ -1,4 +1,4 @@
-"""Local-only score-video web server. Run: uvicorn app:app --host 127.0.0.1 --port 8765"""
+"""Local-only score-video web server. Run with run.command or .venv/bin/python."""
 from __future__ import annotations
 
 import io
@@ -6,13 +6,14 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from PIL import Image, UnidentifiedImageError
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,8 +22,10 @@ from pydantic import BaseModel, Field
 from midi_timing import read_timing
 from score_alignment import align_score_to_midi, extract_score_ties
 from score_repeats import unfold_musicxml
+from sample_audio import render_salamander
 from auto_sync import first_attack_sync
 from image_palette import propose_score_palettes
+from musical_salience import load_or_build as load_salience_features, reweight as reweight_salience
 
 BASE = Path(__file__).resolve().parent
 DATA = BASE / "data" / "projects"
@@ -44,7 +47,7 @@ class RenderRequest(BaseModel):
     render_mode: str = Field(default="auto", pattern=r"^(auto|quality|speed)$")
     width: int = Field(default=1280)
     height: int = Field(default=720)
-    zoom: float = Field(default=0.9, ge=0.5, le=1.5)
+    zoom: float = Field(default=0.9, ge=0.5, le=2.0)
     offset_sec: float = Field(default=0.0, ge=-30, le=30)
     piano_offset_sec: float = Field(default=0.0, ge=-5, le=5)
     paper_color: str = Field(default="#fffdf6", pattern=r"^#[0-9a-fA-F]{6}$")
@@ -66,24 +69,35 @@ class RenderRequest(BaseModel):
     velocity_reactive: bool = True
     note_motion: bool = True
     draw_score: bool = False
+    score_visible: bool = True
     motion_strength: float = Field(default=1.0, ge=0.0, le=2.0)
     piano_enabled: bool = True
+    piano_key_style: str = Field(default="auto", pattern=r"^(auto|dark|classic|custom)$")
+    piano_white_key_color: str = Field(default="#5a6576", pattern=r"^#[0-9a-fA-F]{6}$")
+    piano_black_key_color: str = Field(default="#141b27", pattern=r"^#[0-9a-fA-F]{6}$")
     piano_light: bool = True
     piano_light_strength: float = Field(default=1.4, ge=0.0, le=4.0)
+    piano_camera: bool = True
     layout_mode: str = Field(default="page", pattern=r"^(page|singleline|vertical|horizontal)$")
     scroll_mode: str = Field(default="vertical", pattern=r"^(vertical|horizontal|page)$")
     score_position_x: float = Field(default=38.0, ge=0, le=100)
-    score_position_y: float = Field(default=12.0, ge=0, le=100)
+    score_position_y: float = Field(default=0.0, ge=0, le=100)
     score_area_width: float = Field(default=94.0, ge=30, le=100)
     score_area_x: float = Field(default=50.0, ge=0, le=100)
     score_area_height: float = Field(default=50.0, ge=15, le=100)
-    score_margin_top: float = Field(default=12.0, ge=0, le=45)
+    score_margin_top: float = Field(default=4.0, ge=0, le=45)
     score_margin_bottom: float = Field(default=9.0, ge=0, le=45)
     score_panel_color: str = Field(default="#0c1120", pattern=r"^#[0-9a-fA-F]{6}$")
     score_panel_opacity: float = Field(default=0.0, ge=0, le=1)
     camera_points: list[dict] = Field(default_factory=list, max_length=500)
     # Shared scene graph; validated in both client/renderer by ScoreStudio.normalize.
     scene: dict = Field(default_factory=dict)
+
+
+class SalienceRequest(BaseModel):
+    weights: dict[str, float] = Field(default_factory=dict)
+    enabled: dict[str, bool] = Field(default_factory=dict)
+    density: float = Field(default=.15, ge=.01, le=1)
 
 
 def project_path(project_id: str) -> Path:
@@ -256,46 +270,60 @@ def dream_journey_example(asset: str):
 
 
 @app.post("/api/projects")
-async def create_project(score: UploadFile = File(...), midi: UploadFile = File(...),
-                         audio: UploadFile = File(...)):
-    score_ext = Path(score.filename or "").suffix.lower()
-    midi_ext = Path(midi.filename or "").suffix.lower()
-    audio_ext = Path(audio.filename or "").suffix.lower()
-    if score_ext not in {".xml", ".musicxml", ".mxl"}:
+async def create_project(score: UploadFile | None = File(None), midi: UploadFile | None = File(None),
+                         audio: UploadFile | None = File(None)):
+    if midi is None:
+        raise HTTPException(400, "MIDI file is required; MusicXML alone is not supported")
+    score_ext = Path(score.filename or "").suffix.lower() if score else ""
+    midi_ext = Path(midi.filename or "").suffix.lower() if midi else ""
+    audio_ext = Path(audio.filename or "").suffix.lower() if audio else ""
+    if score and score_ext not in {".xml", ".musicxml", ".mxl"}:
         raise HTTPException(400, "MusicXML must be .xml, .musicxml, or .mxl")
-    if midi_ext not in {".mid", ".midi"}:
+    if midi and midi_ext not in {".mid", ".midi"}:
         raise HTTPException(400, "MIDI must be .mid or .midi")
-    if audio_ext not in {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}:
+    if audio and audio_ext not in {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}:
         raise HTTPException(400, "Audio must be WAV, MP3, M4A, AAC, FLAC, or OGG")
 
     project_id = uuid.uuid4().hex
     folder = DATA / project_id
     folder.mkdir(parents=True, exist_ok=False)
-    score_raw = folder / f"source{score_ext}"
+    score_raw = folder / f"source{score_ext}" if score else None
     score_xml = folder / "score.musicxml"
     midi_file = folder / "score.mid"
-    audio_file = folder / f"audio{audio_ext}"
+    audio_file = folder / f"audio{audio_ext or '.wav'}"
     try:
-        await save_limited(score, score_raw, 50 * 1024 * 1024)
-        await save_limited(midi, midi_file, 20 * 1024 * 1024)
-        await save_limited(audio, audio_file, 250 * 1024 * 1024)
-        if score_ext == ".mxl":
-            unpack_mxl(score_raw, score_xml)
+        if score:
+            await save_limited(score, score_raw, 50 * 1024 * 1024)
+            if score_ext == ".mxl":
+                unpack_mxl(score_raw, score_xml)
+            else:
+                shutil.copyfile(score_raw, score_xml)
+            check_musicxml(score_xml)
+            document_title = musicxml_title(score_xml) or Path(score.filename or 'score.musicxml').stem
         else:
-            shutil.copyfile(score_raw, score_xml)
-        check_musicxml(score_xml)
-        document_title = musicxml_title(score_xml) or Path(score.filename or 'score.musicxml').stem
+            document_title = Path(midi.filename or "piano.mid").stem
+        await save_limited(midi, midi_file, 20 * 1024 * 1024)
         timing = read_timing(midi_file)
-        alignment, repeat_info = choose_performance_score(folder, timing)
-        selected_score = folder / ("score-playback.musicxml" if repeat_info.get("mode")=="unfolded" else "score.musicxml")
-        tie_continuations = extract_score_ties(selected_score)
-        duration = audio_duration(audio_file)
+        if audio:
+            await save_limited(audio, audio_file, 250 * 1024 * 1024)
+            duration = audio_duration(audio_file)
+        else:
+            duration = render_salamander(timing, audio_file)
+        if score:
+            alignment, repeat_info = choose_performance_score(folder, timing)
+            selected_score = folder / ("score-playback.musicxml" if repeat_info.get("mode")=="unfolded" else "score.musicxml")
+            tie_continuations = extract_score_ties(selected_score)
+        else:
+            alignment, repeat_info, tie_continuations = None, {"mode": "none", "warning": ""}, []
         meta = {
             "id": project_id,
-            "score_name": Path(score.filename or "score.musicxml").name,
+            "has_score": bool(score),
+            "generated_midi": False,
+            "generated_audio": audio is None,
+            "score_name": Path(score.filename or "").name if score else "",
             "musicxml_title": document_title,
-            "midi_name": Path(midi.filename or "score.mid").name,
-            "audio_name": Path(audio.filename or "audio.wav").name,
+            "midi_name": Path(midi.filename or "").name,
+            "audio_name": Path(audio.filename or "").name if audio else "Salamander Grand Piano",
             "audio_filename": audio_file.name,
             "audio_duration_sec": duration,
             "sync": None,
@@ -311,9 +339,9 @@ async def create_project(score: UploadFile = File(...), midi: UploadFile = File(
         shutil.rmtree(folder, ignore_errors=True)
         raise HTTPException(400, str(exc)) from exc
     finally:
-        await score.close()
-        await midi.close()
-        await audio.close()
+        for upload in (score, midi, audio):
+            if upload is not None:
+                await upload.close()
 
 
 @app.get("/api/projects/{project_id}")
@@ -321,7 +349,7 @@ def get_project(project_id: str):
     folder = project_path(project_id)
     file = folder / "meta.json"
     meta = json.loads(file.read_text(encoding="utf-8"))
-    if ("tie_continuations" not in meta or meta.get("repeat_info") is None or "musicxml_title" not in meta or
+    if meta.get("has_score", True) and ("tie_continuations" not in meta or meta.get("repeat_info") is None or "musicxml_title" not in meta or
             meta.get("score_alignment", {}).get("method") != "pitch-onset-anchors-v1"):
         # Upgrade old projects atomically, building a new repeat-aware
         # playback file without touching the original uploaded XML.
@@ -338,6 +366,29 @@ def get_project(project_id: str):
             pending.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
             pending.replace(file)
     return meta
+
+
+def _salience_cache(project_id: str):
+    folder = project_path(project_id)
+    meta = get_project(project_id)
+    score = None
+    if meta.get("has_score", True):
+        selected = "score-playback.musicxml" if meta.get("repeat_info", {}).get("mode") == "unfolded" else "score.musicxml"
+        score = folder / selected
+    with state_lock:
+        return load_salience_features(folder, score, meta)
+
+
+@app.get("/api/projects/{project_id}/salience")
+def get_salience(project_id: str, density: float = Query(default=.15, ge=.01, le=1)):
+    """Get cached note features, default salience scores, and soft highlights."""
+    return reweight_salience(_salience_cache(project_id), density=density)
+
+
+@app.post("/api/projects/{project_id}/salience/reweight")
+def recalculate_salience(project_id: str, settings: SalienceRequest):
+    """Change weights/toggles/density without parsing MusicXML or MIDI again."""
+    return reweight_salience(_salience_cache(project_id), settings.weights, settings.enabled, settings.density)
 
 
 @app.post("/api/projects/{project_id}/auto-sync")
@@ -423,11 +474,13 @@ async def upload_background(project_id: str, background: UploadFile = File(...))
         meta = json.loads(metadata.read_text(encoding="utf-8"))
         meta["background_filename"] = image_file.name
         meta["background_version"] = image_file.stat().st_mtime_ns
+        meta["background_original_name"] = Path(background.filename or image_file.name).name
         tmp = folder / "meta.pending.json"
         tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(metadata)
         return {"background_filename": image_file.name,
                 "background_version": meta["background_version"],
+                "background_original_name": meta["background_original_name"],
                 "url": f"/api/projects/{project_id}/background?version={meta['background_version']}"}
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -459,6 +512,7 @@ def delete_background(project_id: str):
         (folder / name).unlink(missing_ok=True)
     meta["background_filename"] = None
     meta["background_version"] = None
+    meta["background_original_name"] = None
     temp = folder / "meta.pending.json"
     temp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(meta_path)
@@ -469,6 +523,8 @@ def delete_background(project_id: str):
 def get_score(project_id: str):
     folder = project_path(project_id)
     meta = get_project(project_id)
+    if meta.get("has_score") is False:
+        raise HTTPException(404, "This MIDI-only project has no MusicXML score")
     selected = "score-playback.musicxml" if meta.get("repeat_info", {}).get("mode") == "unfolded" else "score.musicxml"
     if not (folder / selected).exists():
         selected = "score.musicxml"
@@ -497,10 +553,25 @@ def update_job(project_id: str, **fields):
         jobs.setdefault(project_id, {}).update(fields)
 
 
-def run_render(project_id: str, settings: RenderRequest):
+def render_python() -> str | None:
+    """Find a Playwright-capable interpreter even when the web server is global Python."""
+    candidates = [Path(sys.executable), BASE / ".venv" / "bin" / "python",
+                  BASE / ".venv" / "Scripts" / "python.exe"]
+    seen = set()
+    for candidate in candidates:
+        if not candidate.is_file() or str(candidate.resolve()) in seen:
+            continue
+        seen.add(str(candidate.resolve()))
+        result = subprocess.run([str(candidate), "-c", "import playwright.sync_api"],
+                                capture_output=True, timeout=15, check=False)
+        if result.returncode == 0:
+            return str(candidate)
+    return None
+
+
+def run_render(project_id: str, settings: RenderRequest, python: str):
     global active_project
     try:
-        from render_video import export_mp4
         folder = DATA / project_id
         meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
         # Freeze the settings as a per-export snapshot. The render-only page
@@ -510,8 +581,24 @@ def run_render(project_id: str, settings: RenderRequest):
         pending_settings.write_text(settings.model_dump_json(), encoding="utf-8")
         pending_settings.replace(settings_file)
         update_job(project_id, state="rendering", progress=0, message="Starting Chromium")
-        export_mp4(folder=folder, meta=meta, settings=settings,
-                   on_progress=lambda p, msg: update_job(project_id, progress=p, message=msg))
+        if Path(python).resolve() == Path(sys.executable).resolve():
+            from render_video import export_mp4
+            export_mp4(folder=folder, meta=meta, settings=settings,
+                       on_progress=lambda p, msg: update_job(project_id, progress=p, message=msg))
+        else:
+            process = subprocess.Popen([python, str(BASE / "render_worker.py"), project_id],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                       env=os.environ.copy())
+            assert process.stdout is not None and process.stderr is not None
+            for line in process.stdout:
+                try:
+                    event = json.loads(line)
+                    update_job(project_id, progress=event["progress"], message=event["message"])
+                except (ValueError, KeyError, TypeError):
+                    continue
+            error = process.stderr.read()
+            if process.wait():
+                raise RuntimeError(error.strip()[-1200:] or "MP4 render worker failed")
         update_job(project_id, state="done", progress=100)
     except Exception as exc:
         update_job(project_id, state="error", message=str(exc))
@@ -525,6 +612,9 @@ def run_render(project_id: str, settings: RenderRequest):
 def start_render(project_id: str, options: RenderRequest):
     global active_project
     project_path(project_id)
+    python = render_python()
+    if python is None:
+        raise HTTPException(503, "Playwright is missing. Run ./run.command to install the project environment and Chromium, then retry MP4 export.")
     if (options.width, options.height) not in {(1280, 720), (1920, 1080), (1080, 1920), (1080, 1080), (1080, 1350), (1080, 1440), (1440, 1080), (2560, 1080)}:
         raise HTTPException(400, "Unsupported video aspect ratio/resolution preset")
     if options.fps not in (12, 24, 30):
@@ -535,7 +625,7 @@ def start_render(project_id: str, options: RenderRequest):
         active_project = project_id
         jobs[project_id] = {"state": "queued", "progress": 0, "message": "Queued"}
     try:
-        threading.Thread(target=run_render, args=(project_id, options), daemon=True).start()
+        threading.Thread(target=run_render, args=(project_id, options, python), daemon=True).start()
     except Exception:
         with state_lock:
             active_project = None

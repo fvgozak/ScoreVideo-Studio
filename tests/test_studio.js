@@ -9,7 +9,7 @@ const options={width:1080,height:1920,paper_color:'#eeeedc',ink_color:'#334455',
  {time:20,color:'#421e30',glow:'#f2ade6'}]}};
 const v=Stage.normalized(options,meta);
 assert.equal(v.width,1080);assert.equal(v.height,1920);
-assert.equal(v.effects.paper,'#eeeedc');assert.equal(v.effects.backgroundUrl,'/api/projects/123/background');
+assert.equal(v.effects.paper,'#eeeedc');assert.equal(v.effects.backgroundUrl,'/api/projects/123/background?v=bg.png');
 assert.equal(v.scene.fxMode,'trail');assert.equal(v.scene.animateBackground,true);
 assert.equal(v.scrollMode,'horizontal');
 const at10=Studio.frame(v.scene,10),a=Studio.frame(v.scene,10);
