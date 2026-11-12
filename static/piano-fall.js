@@ -16,9 +16,67 @@
     const start=Number(note.audio),end=Math.max(start+.08,Number(note.endAudio)||start+.4);
     return {top:impactY-(end-time)*speed,bottom:impactY-(start-time)*speed};
   }
+  const fallSpeed=impactY=>impactY/PREVIEW_SECONDS;
   function rgba(hex,alpha){
     const color=/^#[\da-f]{6}$/i.test(hex||'')?hex:'#68ddfa';
     return `rgba(${parseInt(color.slice(1,3),16)},${parseInt(color.slice(3,5),16)},${parseInt(color.slice(5,7),16)},${clamp(alpha,0,1)})`;
+  }
+  // Adapted from the previous ScoreMotion/Lumenote-style impact light. Every
+  // value depends on MIDI time, so seeking and exported frames are identical.
+  function impactEnvelope(age,duration,velocity=1){
+    if(age<0||age>Math.max(.8,duration+.35))return 0;
+    const flash=Math.exp(-age*7.5);
+    const held=age<=duration ? .23 : .23*Math.exp(-(age-duration)*9);
+    return Math.min(1,(flash*.78+held)*(.55+velocity*.45));
+  }
+  function sparkleSeed(note,index,salt){
+    const seed=Math.sin(note.pitch*83.17+note.audio*171.31+index*54.79+salt)*43758.5453;
+    return seed-Math.floor(seed);
+  }
+  function drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black,strength,color}){
+    const age=time-note.audio,duration=Math.max(.08,note.endAudio-note.audio);
+    const energy=impactEnvelope(age,duration,note.velocity/127)*strength;
+    if(energy<=.006)return;
+    const x=box.x+box.w/2,paint=alpha=>rgba(color,alpha),unit=whiteWidth;
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const radius=unit*(2.4+2.6*Math.min(1,energy));
+    const bloom=ctx.createRadialGradient(x,impact,2,x,impact,radius);
+    bloom.addColorStop(0,paint(.48*energy));
+    bloom.addColorStop(.24,paint(.28*energy));
+    bloom.addColorStop(.65,paint(.09*energy));
+    bloom.addColorStop(1,paint(0));
+    ctx.fillStyle=bloom;ctx.fillRect(x-radius,impact-radius,radius*2,radius*2);
+    const beamHeight=Math.min(impact,unit*(3.1+2.7*energy));
+    const beam=ctx.createLinearGradient(0,impact-beamHeight,0,impact+18);
+    beam.addColorStop(0,paint(0));
+    beam.addColorStop(.72,paint(.14*energy));
+    beam.addColorStop(1,paint(.46*energy));
+    ctx.fillStyle=beam;
+    ctx.fillRect(x-box.w*.65,impact-beamHeight,box.w*1.3,beamHeight+18);
+    const reflectionHeight=keyHeight*(black?.58:.82);
+    const reflection=ctx.createLinearGradient(0,impact,0,impact+reflectionHeight);
+    reflection.addColorStop(0,paint(.5*energy));
+    reflection.addColorStop(.42,paint(.22*energy));
+    reflection.addColorStop(1,paint(0));
+    ctx.fillStyle=reflection;
+    ctx.fillRect(box.x+1,impact+3,Math.max(1,box.w-2),reflectionHeight);
+    ctx.shadowColor=color;ctx.shadowBlur=(14+33*Math.min(1,energy))*Math.min(2,strength);
+    ctx.globalAlpha=Math.min(1,.28+.63*energy);
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(box.x+1,impact-2,Math.max(1,box.w-2),3+3*Math.min(1,energy));
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+    if(age<.72){
+      const fade=(1-age/.72)**1.6*Math.min(1,strength);
+      for(let index=0;index<7;index++){
+        const drift=(sparkleSeed(note,index,0)-.5)*(box.w*3+age*38);
+        const rise=8+sparkleSeed(note,index,17)*32+age*(38+sparkleSeed(note,index,31)*70);
+        const size=.8+sparkleSeed(note,index,53)*1.5;
+        ctx.globalAlpha=fade*(.35+sparkleSeed(note,index,71)*.55);
+        ctx.fillStyle=index%3===0?'#ffffff':color;
+        ctx.beginPath();ctx.arc(x+drift,impact-rise,size,0,Math.PI*2);ctx.fill();
+      }
+    }
+    ctx.restore();
   }
   class PianoFall {
     constructor(viewport){
@@ -50,22 +108,22 @@
       const h=this.follower.stageRoot?.clientHeight||canvas.parentElement.clientHeight;
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
       const ctx=this.context;ctx.clearRect(0,0,w,h);
-      const keyTop=h*.835,keyHeight=h-keyTop,fieldTop=h*.55,impact=keyTop-2;
+      const keyTop=h*.835,keyHeight=h-keyTop,fallTop=0,shadeTop=h*.55,impact=keyTop-2;
       const left=w*.025,right=w*.975,whiteWidth=(right-left)/keyLayout.whiteCount;
-      const speed=(impact-fieldTop)/PREVIEW_SECONDS;
+      const speed=fallSpeed(impact);
       ctx.save();
-      const shade=ctx.createLinearGradient(0,fieldTop,0,keyTop);
+      const shade=ctx.createLinearGradient(0,shadeTop,0,keyTop);
       shade.addColorStop(0,'rgba(4,8,18,0)');shade.addColorStop(.23,'rgba(4,8,18,.54)');shade.addColorStop(1,'rgba(4,8,18,.9)');
-      ctx.fillStyle=shade;ctx.fillRect(0,fieldTop,w,keyTop-fieldTop);
+      ctx.fillStyle=shade;ctx.fillRect(0,shadeTop,w,keyTop-shadeTop);
       const byPitch=new Map(keyLayout.keys.map(key=>[key.pitch,key]));
       // Binary search keeps long pieces inexpensive during 30/60fps export.
       let lo=0,hi=this.notes.length;
-      while(lo<hi){const mid=(lo+hi)>>>1;if(this.notes[mid].audio<time-this.longestDuration-.5)lo=mid+1;else hi=mid;}
+      while(lo<hi){const mid=(lo+hi)>>>1;if(this.notes[mid].audio<time-this.longestDuration-.8)lo=mid+1;else hi=mid;}
       const active=[];
-      ctx.save();ctx.beginPath();ctx.rect(left,fieldTop,right-left,impact-fieldTop);ctx.clip();
+      ctx.save();ctx.beginPath();ctx.rect(left,fallTop,right-left,impact-fallTop);ctx.clip();
       for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+PREVIEW_SECONDS+.2;i++){
         const note=this.notes[i],geometry=noteGeometry(note,time,impact,speed);
-        if(geometry.bottom<fieldTop||geometry.top>impact)continue;
+        if(geometry.bottom<fallTop||geometry.top>impact)continue;
         const key=byPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
         const color=this.follower.eventLightColor(note.velocity);
         const x=box.x+box.w*(key.black?.15:.22),barWidth=box.w*(key.black?.7:.56);
@@ -86,40 +144,27 @@
         ctx.fillStyle='#151821';ctx.fillRect(box.x,keyTop,box.w,keyHeight*.67);
         ctx.fillStyle='#303441';ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*.04);
       }
-      for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+.025;i++){
-        const note=this.notes[i];if(time<note.audio-.025||time>note.endAudio+.45)continue;
+      for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time;i++){
+        const note=this.notes[i];if(time>Math.max(note.audio+.8,note.endAudio+.35))continue;
         const key=byPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
         const color=this.follower.eventLightColor(note.velocity);
-        const attack=clamp((time-note.audio)/.12,0,1);
-        const release=time>note.endAudio?Math.exp(-(time-note.endAudio)*7):1;
-        const intensity=(.42+.58*note.velocity/127)*(1-.26*attack)*release;
-        active.push({key,box,color,intensity,age:time-note.audio});
+        const duration=Math.max(.08,note.endAudio-note.audio);
+        const intensity=impactEnvelope(time-note.audio,duration,note.velocity/127);
+        if(intensity<=.006)continue;
+        active.push({note,key,box,color,intensity});
       }
       // Key fill and luminous impact are separate from the existing notehead
       // glow. Neither effect hides or switches off the other.
       for(const hit of active){
-        const {key,box,color,intensity}=hit;
+        const {note,key,box,color,intensity}=hit;
         ctx.fillStyle=rgba(color,intensity*(key.black?.8:.43));
         ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*(key.black?.67:1)-3);
         if(!this.settings.light)continue;
-        const center=box.x+box.w/2,reach=whiteWidth*(key.black?2.5:3.2);
         const strength=clamp(this.settings.strength??1,0,4);
-        const bloom=ctx.createRadialGradient(center,impact,1,center,impact,reach);
-        bloom.addColorStop(0,rgba(color,.92*intensity*Math.min(strength,1.5)));
-        bloom.addColorStop(.22,rgba(color,.38*intensity*Math.min(strength,1.8)));
-        bloom.addColorStop(1,rgba(color,0));
-        ctx.fillStyle=bloom;ctx.beginPath();ctx.ellipse(center,impact,reach,Math.max(22,h*.07),0,0,Math.PI*2);ctx.fill();
-        ctx.save();ctx.globalCompositeOperation='screen';ctx.shadowColor=color;ctx.shadowBlur=18*strength;
-        ctx.fillStyle=rgba(color,clamp(intensity*strength,0,1));
-        ctx.fillRect(box.x+box.w*.12,impact-2,box.w*.76,3);ctx.restore();
-        if(hit.age>=0&&hit.age<.3){
-          const flare=(1-hit.age/.3)*intensity*strength;
-          ctx.fillStyle=rgba(color,flare*.25);
-          ctx.beginPath();ctx.ellipse(center,impact-h*.026,whiteWidth*1.1,h*.04,0,0,Math.PI*2);ctx.fill();
-        }
+        drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color});
       }
       ctx.restore();
     }
   }
-  root.ScorePianoFall={PianoFall,keyLayout,noteGeometry};
+  root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,drawImpactLight};
 })(typeof window==='undefined'?globalThis:window);

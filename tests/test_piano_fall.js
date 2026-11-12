@@ -5,7 +5,7 @@ const context={window:{},document:{}};
 vm.createContext(context);
 for(const name of ['studio-scene.js','piano-fall.js','stage-runtime.js'])
   vm.runInContext(fs.readFileSync(`static/${name}`,'utf8'),context,{filename:name});
-const {PianoFall,keyLayout,noteGeometry}=context.window.ScorePianoFall;
+const {PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,drawImpactLight}=context.window.ScorePianoFall;
 const {Stage,normalized}=context.window.ScoreStage;
 assert.equal(keyLayout.keys.length,88);
 assert.equal(keyLayout.whiteCount,52);
@@ -14,6 +14,29 @@ assert.equal(keyLayout.keys.at(-1).pitch,108);
 const onset=noteGeometry({audio:2,endAudio:3},2,600,100);
 assert.equal(onset.bottom,600,'bar must touch the keyboard exactly on MIDI note-on');
 assert.equal(onset.top,500);
+assert.equal(noteGeometry({audio:2,endAudio:3},2-3.2,600,fallSpeed(600)).bottom,0,
+  'falling bar must enter at the absolute top of the stage');
+assert.ok(impactEnvelope(0,.5,1)>impactEnvelope(.12,.5,1));
+assert.ok(impactEnvelope(.12,.5,1)>impactEnvelope(.7,.5,1));
+assert.equal(impactEnvelope(-.01,.5,1),0);
+assert.equal(impactEnvelope(.86,.5,1),0);
+assert.ok(impactEnvelope(.05,.5,1)>impactEnvelope(.05,.5,.3));
+const calls={radial:0,linear:0,sparks:[]};
+const lightContext={
+ save(){},restore(){},beginPath(){},fill(){},fillRect(){},arc(x,y,r){calls.sparks.push([x,y,r]);},
+ createRadialGradient(){calls.radial++;return {addColorStop(){}};},
+ createLinearGradient(){calls.linear++;return {addColorStop(){}};}
+};
+drawImpactLight(lightContext,{pitch:60,audio:2,endAudio:2.5,velocity:120},
+  {x:50,w:12},2,{impact:600,keyHeight:110,whiteWidth:12,black:false,strength:1.4,color:'#68ddfa'});
+assert.equal(calls.radial,1,'impact uses Lumenote-style center bloom');
+assert.equal(calls.linear,2,'impact includes a beam and key reflection');
+assert.equal(calls.sparks.length,7,'impact includes seven deterministic sparks');
+const firstSparks=JSON.stringify(calls.sparks);
+calls.sparks=[];
+drawImpactLight(lightContext,{pitch:60,audio:2,endAudio:2.5,velocity:120},
+  {x:50,w:12},2,{impact:600,keyHeight:110,whiteWidth:12,black:false,strength:1.4,color:'#68ddfa'});
+assert.equal(JSON.stringify(calls.sparks),firstSparks,'seeking back to a note reproduces the same particles');
 const options=normalized({piano_enabled:true,piano_light:true,piano_light_strength:2.7});
 assert.equal(options.piano.enabled,true);
 assert.equal(options.piano.light,true);
