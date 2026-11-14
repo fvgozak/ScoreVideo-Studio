@@ -2,7 +2,7 @@
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>ScoreVideo Studio v0.19.31 · 작업공간</title>
-<link href="/static/style.css?v=0.19.30" rel="stylesheet"/><link href="/static/effects.css?v=0.19.12" rel="stylesheet"/><link href="/static/stage.css?v=0.19.31" rel="stylesheet"/></head>
+<link href="/static/style.css?v=0.19.41" rel="stylesheet"/><link href="/static/effects.css?v=0.19.12" rel="stylesheet"/><link href="/static/stage.css?v=0.19.31" rel="stylesheet"/></head>
 <body><div class="app">
 <header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreVideo</strong><small>STUDIO 0.19.31</small></div></div>
 <div class="top-right"><label class="language-picker"><span>언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="dot"></span> 이 컴퓨터에서만 실행 <span class="beta">v0.19.31</span></div></header>
@@ -112,6 +112,7 @@
 <div class="field"><label for="backgroundPosY">배경 세로 위치 <span id="backgroundPosYVal">50%</span></label><input id="backgroundPosY" max="100" min="0" step="1" type="range" value="50"/></div>
 </section>
 <section class="panel"><div class="panel-title"><h2>장면 · 카메라 · 빛</h2></div>
+<div class="toggle-line"><span>미니멀 모드 <small>빛과 낙하 노트 대신 색상과 명암으로 연주를 표현합니다.</small></span><input id="minimalMode" type="checkbox"/></div>
 <div class="toggle-line"><span>악보 그리기 애니메이션 <small>오선은 펼쳐지고 음표는 MIDI 타건 순서로 그려져요</small></span><input id="drawScore" type="checkbox"/></div>
 <div class="field"><label for="sceneTemplate">영상 스타일</label><select id="sceneTemplate">
 <option value="minimal">Minimal Score · 종이 질감과 절제된 빛</option>
@@ -177,7 +178,16 @@
 <div class="color-grid"><label>시작 빛색<input id="sceneStartGlow" type="color" value="#b2a1dc"/></label><label>종료 빛색<input id="sceneEndGlow" type="color" value="#91d3ff"/></label></div>
 <div class="field"><label for="transitionTime">색상 전환 종료 시점 <span id="transitionTimeVal">20초</span></label><input id="transitionTime" max="180" min="1" step="1" type="range" value="20"/></div>
 <p class="hint">모든 장면 효과는 재생 시간으로 계산하며, 미리보기와 MP4가 동일한 무대 엔진을 사용합니다.</p>
-</details></section></div><div class="editor-tab-panel" data-editor-panel="export" hidden=""><section class="panel"><div class="panel-title"><h2>영상 설정</h2></div>
+</details></section></div><div class="editor-tab-panel" data-editor-panel="export" hidden=""><section class="panel export-mode-panel"><div class="panel-title"><h2>영상 내보내기</h2></div>
+<fieldset class="export-mode-choices"><legend>출력 방식</legend>
+<label class="export-mode-card"><input type="radio" name="exportMode" value="offline" checked/><span><strong>고속 오프라인 · MP4 <em>720p 권장</em></strong><small>브라우저에서 모든 프레임을 정확한 시각에 생성합니다. 720p·30/60fps 전체 곡 검증 완료.</small></span></label>
+<label class="export-mode-card"><input type="radio" name="exportMode" value="legacy"/><span><strong>호환 렌더링 · MP4</strong><small>기존 Chromium + FFmpeg 경로입니다. 브라우저 인코더가 없거나 신규 경로가 실패할 때 사용할 수 있습니다.</small></span></label>
+</fieldset>
+<p class="hint" id="exportEstimate" aria-live="polite"></p>
+<small id="selectedEngineSummary" aria-live="polite">선택한 출력 엔진: 고속 오프라인</small>
+<small id="offlineSupportText">브라우저 인코더·저장 공간 지원 여부 확인 중</small>
+<button class="subtle-button" id="retryOfflineSupport" type="button">고속 엔진 지원 다시 확인</button>
+</section><section class="panel"><div class="panel-title"><h2>영상 설정</h2></div>
 <section class="saved-video-presets" aria-label="저장한 영상 설정">
   <div class="field"><label for="videoPresetName">설정 이름</label><input id="videoPresetName" maxlength="60" placeholder="예: A곡 · Shorts" type="text"/></div>
   <button class="secondary-button" id="saveVideoPreset" type="button" disabled>현재 설정 저장</button>
@@ -185,29 +195,34 @@
   <div class="preset-actions"><button class="secondary-button" id="loadVideoPreset" type="button" disabled>불러오기</button><button class="subtle-button" id="deleteVideoPreset" type="button" disabled>삭제</button></div>
   <small>화면비·해상도·레이아웃·색상·카메라·빛·제목을 저장합니다. 연결된 곡과 배경 이미지도 함께 불러옵니다.</small>
 </section>
-<div class="field"><label for="resolution">SNS 화면비 프리셋</label><select id="resolution">
-<option selected="" value="1920x1080">16:9 · YouTube 가로 (1920×1080)</option>
-<option value="1080x1920">9:16 · Shorts / Reels / TikTok (1080×1920)</option>
-<option value="1080x1080">1:1 · 정사각형 (1080×1080)</option>
-<option value="1080x1350">4:5 · Instagram 피드 (1080×1350)</option>
-<option value="1080x1440">3:4 · 세로 포스트 (1080×1440)</option>
-<option value="1440x1080">4:3 · 가로 포스트 (1440×1080)</option>
-<option value="2560x1080">21:9 · 시네마 와이드 (2560×1080)</option>
-<option value="1280x720">16:9 · 빠른 시험용 (1280×720)</option>
-</select><small>미리보기의 화면비도 영상과 동일하게 변경됩니다.</small></div>
-<div class="field"><label for="fps">프레임 레이트</label><select id="fps"><option value="12">12 fps — 빠른 테스트용</option><option selected="" value="24">24 fps — 권장</option><option value="30">30 fps — 부드러운 영상</option></select></div>
-</section><section class="panel export-panel"><div class="panel-title"><h2>MP4 출력</h2></div>
-<div class="field"><label for="renderMode">인코딩 최적화</label><select id="renderMode">
+<div class="field"><label for="aspectRatio">화면 비율</label><select id="aspectRatio">
+<option selected value="16:9">16:9 · YouTube 가로</option><option value="9:16">9:16 · Shorts / Reels / TikTok</option>
+<option value="1:1">1:1 · 정사각형</option><option value="4:5">4:5 · Instagram 피드</option>
+<option value="3:4">3:4 · 세로 포스트</option><option value="4:3">4:3 · 가로 포스트</option>
+<option value="21:9">21:9 · 시네마 와이드</option>
+</select></div>
+<div class="field"><label for="outputQuality">출력 해상도 · 짧은 변 기준</label><select id="outputQuality">
+<option value="720">720p · HD</option><option selected value="1080">1080p · Full HD</option>
+</select><small id="actualOutputSize" aria-live="polite">실제 출력 크기: 1920×1080</small><button class="subtle-button" hidden id="convertExactWide" type="button">정확한 21:9 · 2520×1080으로 전환</button><small>21:9는 정확히 2520×1080입니다. 이전 2560×1080은 약 2.37:1로 21:9보다 넓습니다.</small></div>
+<select id="resolution" hidden aria-hidden="true" tabindex="-1"><option value="1280x720"></option><option value="1920x1080"></option><option value="720x1280"></option><option value="1080x1920"></option><option value="720x720"></option><option value="1080x1080"></option><option value="720x900"></option><option value="1080x1350"></option><option value="720x960"></option><option value="1080x1440"></option><option value="960x720"></option><option value="1440x1080"></option><option value="1680x720"></option><option value="2520x1080"></option><option value="2560x1080"></option></select>
+<div class="field"><label for="fps">프레임 레이트</label><select id="fps"><option value="12">12 fps — 빠른 테스트용</option><option value="24">24 fps</option><option selected="" value="30">30 fps — 권장</option><option value="60">60 fps — 720p 검증</option></select></div>
+</section><section class="panel export-panel"><div class="panel-title"><h2>출력 파일</h2></div>
+<div id="mp4OnlyOptions" class="field"><label for="renderMode">MP4 인코딩 최적화</label><select id="renderMode">
 <option selected="" value="auto">Auto · 실행 PC에서 실측 후 자동 결정 (권장)</option>
 <option value="quality">고화질 · 무손실 PNG 캡처 우선</option>
 <option value="speed">속도 우선 · JPEG 96 캡처</option>
 </select><small>GPU 인코더는 실제로 작동하는지 시험합니다. 사용 가능한 인코더 중 처리 속도가 유리한 방식을 고르고, 하드웨어 실패 시 CPU로 다시 출력합니다.</small></div>
+<div class="field"><label for="downloadName">다운로드 파일명</label><input id="downloadName" maxlength="200" placeholder="비워두면 악보 원본 파일명 사용" type="text"/></div>
+<div class="field" id="webmLengthOptions" hidden><label for="webmTestSeconds">녹화 길이</label><select id="webmTestSeconds"><option value="full" selected>전체 곡</option></select></div>
 <button class="primary" disabled="" id="exportButton">MP4로 내보내기 <span>↗</span></button>
+<button class="secondary-button" disabled hidden id="webmRecordButton" type="button">WebM 녹화 실행</button>
+<a class="download" hidden id="webmDownloadLink">WebM 다시 다운로드 ↓</a>
 <div class="progress-wrap" hidden="" id="progressWrap"><div class="progress-line"><span id="statusText">대기 중</span><span id="percent">0%</span></div><div class="progress-track"><div id="progressBar"></div></div></div>
 <a class="download" hidden="" id="downloadLink">완성된 영상 다운로드 ↓</a>
-<p class="hint">영상은 프레임 단위로 제작합니다. 긴 곡은 출력 시간이 길어질 수 있습니다.</p>
+<p class="hint">화질은 출력 방식보다 해상도·비트레이트·코덱 및 실제 재생 성능의 영향을 받습니다.</p>
 </section></div></aside>
 <section class="workspace"><div class="workspace-header"><div><span class="status-dot"></span><strong id="projectTitle">악보 미리보기</strong><p id="metadata">MIDI를 선택해 주세요. MusicXML은 선택 사항입니다.</p></div><div class="tag">MUSICXML / MIDI RENDERER</div></div>
+<div class="render-status-banner" id="renderStatusBanner" hidden aria-live="polite"><strong id="renderWarningText">영상 렌더링 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.</strong><span id="renderEngineText">실행 엔진 확인 중</span><span id="renderStageText">준비 중</span><span id="renderEtaText">남은 시간 계산 중</span><span id="renderPercentText">0%</span><button class="render-cancel-button" hidden id="cancelRenderButton" type="button">렌더링 취소</button></div>
 <div aria-label="항상 보이는 미리보기 플레이어" class="player-dock" id="playerDock">
 <div class="preview-zoom-bar" role="group" aria-label="악보 확대 및 동기화 조절">
   <label for="zoom"><icon aria-hidden="true">⌕</icon> 악보 확대</label>
@@ -247,7 +262,7 @@
 <button aria-label="처음으로" disabled="" id="restartButton" title="처음으로" type="button">↺</button>
 </div>
 <div class="keyboard-hint"><kbd>Space</kbd> 재생/일시정지   <kbd>,</kbd> / <kbd>.</kbd> 이전·다음 마디   <kbd>←</kbd> / <kbd>→</kbd> 5초 이동</div>
-<div class="preview-actions"><button aria-pressed="false" class="edit-score-btn" id="editScoreAreaButton" type="button">▢ 악보 영역 편집</button><button class="subtle-button" hidden="" id="centerScoreAreaButton" type="button">가로 중앙</button><button class="subtle-button" id="compactScoreTopButton" type="button" title="악보 영역의 위쪽 여백을 4%로 줄입니다">위 여백 4%</button><button class="subtle-button score-panel-jump" id="scorePanelColorLink" type="button" title="악보 탭의 영역 배경색 설정으로 이동합니다">악보 영역 배경색 ↗</button><button id="fullscreenPreviewButton" class="fullscreen-preview-button" type="button" aria-pressed="false" aria-label="전체화면 미리보기 (F 키)" title="전체화면 미리보기 (F 키)">⛶ 전체화면</button><button class="subtle-button" id="resetPreviewButton" type="button">미리보기 재설정</button><div class="preview-info" id="previewInfo">설정은 미리보기와 MP4에 같은 값으로 적용됩니다.</div></div>
+<div class="preview-actions"><button aria-pressed="false" class="edit-score-btn" id="editScoreAreaButton" type="button">▢ 악보 영역 편집</button><button class="subtle-button" hidden="" id="centerScoreAreaButton" type="button">가로 중앙</button><button class="subtle-button" id="compactScoreTopButton" type="button" title="악보 영역의 위쪽 여백을 4%로 줄입니다">위 여백 4%</button><button class="subtle-button score-panel-jump" id="scorePanelColorLink" type="button" title="악보 탭의 영역 배경색 설정으로 이동합니다">악보 영역 배경색 ↗</button><button class="subtle-button" hidden id="cancelWebmButton" type="button">녹화 취소하고 편집하기</button><button id="fullscreenPreviewButton" class="fullscreen-preview-button" type="button" aria-pressed="false" aria-label="전체화면 미리보기 (F 키)" title="전체화면 미리보기 (F 키)">⛶ 전체화면</button><button class="subtle-button" id="resetPreviewButton" type="button">미리보기 재설정</button><div class="preview-info" id="previewInfo">설정은 미리보기와 MP4에 같은 값으로 적용됩니다.</div></div>
 </div>
 <div class="layer-visibility-controls" role="group" aria-label="영상 레이어 표시"><span>레이어 표시</span><label><input id="scoreVisible" type="checkbox" checked/><span>악보</span></label><label><input id="pianoEnabled" type="checkbox" checked/><span>건반 · 낙하 노트</span></label><small>악보는 항상 건반 위에 표시됩니다.</small></div>
 <div class="timeline-tracks"><strong>장면 타임라인</strong><div class="timeline-track"><span>음원 · 악보</span><div class="track-fill music"></div></div><div class="timeline-track"><span>카메라</span><div class="track-fill camera"></div></div><div class="timeline-track"><span>배경 전환</span><div class="track-fill background" id="backgroundTrack"></div></div><div class="timeline-track"><span>발광 효과</span><div class="track-fill lighting"></div></div></div>
@@ -260,7 +275,7 @@
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
 <script src="/static/vendor-loader.js?v=0.19.12"></script>
-<script src="/static/i18n.js?v=0.19.31"></script>
+<script src="/static/i18n.js?v=0.19.46"></script>
 <script src="/static/theme.js?v=0.19.12"></script>
 <script src="/static/image-palette.js?v=0.19.12"></script>
 <script src="/static/camera-auto.js?v=0.19.31"></script>
@@ -270,5 +285,5 @@
 <script src="/static/stage-runtime.js?v=0.19.28"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>
-<script src="/static/visual-editor.js?v=0.19.24"></script><script src="/static/app.js?v=0.19.31"></script>
+<script src="/static/visual-editor.js?v=0.19.24"></script><script src="/static/webm-recorder.js?v=0.19.39"></script><script src="/static/output-size.js?v=2"></script><script src="/static/offline-export.js?v=2"></script><script src="/static/app.js?v=0.19.46"></script>
 </body></html>

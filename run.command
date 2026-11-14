@@ -29,6 +29,9 @@ python -m pip install -r requirements.txt
 python -m playwright install chromium
 python fetch_osmd.py
 
-echo "Opening http://127.0.0.1:8765"
-(sleep 2 && open "http://127.0.0.1:8765") &
-exec python -m uvicorn app:app --host 127.0.0.1 --port 8765
+PORT=${SCOREVIDEO_PORT:-8765}
+echo "Opening http://127.0.0.1:$PORT"
+if [ "${SCOREVIDEO_NO_OPEN:-0}" != "1" ]; then
+  (sleep 2 && open "http://127.0.0.1:$PORT") &
+fi
+exec python -m uvicorn app:app --host 127.0.0.1 --port "$PORT"

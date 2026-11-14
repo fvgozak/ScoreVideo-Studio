@@ -97,7 +97,7 @@
       this.sync=sync;
       this.offsetSec=Number(offsetSec)||0;
       this.zoom=zoom;
-      this.effects={paper:'#fffdf6',ink:'#181b22',staff:'#323a43',accent:'#2ec9d3',glow:'#68ddfa',cursor:'#2ec9d3',cursorVisible:true,cursorMotion:'smooth',texture:'none',backgroundUrl:'',backgroundOpacity:.5,backgroundFit:'cover',backgroundPositionX:50,backgroundPositionY:50,scorePositionX:38,scorePositionY:0,inverted:false,glitter:false,sparkle:true,velocityReactive:true,noteMotion:true,drawScore:false,motionStrength:1,...effects};
+      this.effects={paper:'#fffdf6',ink:'#181b22',staff:'#323a43',accent:'#2ec9d3',glow:'#68ddfa',cursor:'#2ec9d3',cursorVisible:true,cursorMotion:'smooth',texture:'none',backgroundUrl:'',backgroundOpacity:.5,backgroundFit:'cover',backgroundPositionX:50,backgroundPositionY:50,scorePositionX:38,scorePositionY:0,inverted:false,glitter:false,sparkle:true,velocityReactive:true,noteMotion:true,drawScore:false,minimalMode:false,motionStrength:1,...effects};
       this.scrollMode=scrollMode;this.cameraMode='follow';
       this.osmd=null;
       this.timestamps=[]; this.beats=[]; this.audioTimestamps=[]; this.lines=[]; this.positions=[]; this.measureStarts=[];
@@ -279,6 +279,8 @@
       this.longestTie=Math.max(0,...this.tieContinuations.slice(0,10000).map(n=>n.endAudio-n.audio));
       if(this.tieContinuations.length>10000){for(const tie of this.tieContinuations.slice(10000))this.longestTie=Math.max(this.longestTie,tie.endAudio-tie.audio);}
       this.noteTriggers.sort((a,b)=>a.audio-b.audio);
+      this.longestTrigger=Math.max(.12,...this.noteTriggers.slice(0,10000).map(n=>n.endAudio-n.audio));
+      if(this.noteTriggers.length>10000){for(const note of this.noteTriggers.slice(10000))this.longestTrigger=Math.max(this.longestTrigger,note.endAudio-note.audio);}
       this.measureStarts.forEach(m=>m.audio=this.midiToAudio(m.midi));
       ScoreFollower.assignHands(this.noteTriggers);
       this.prepareCameraAccents();
@@ -418,6 +420,7 @@
       const {paper,ink,accent,glow,cursor}=this.colors();
       this.viewport.style.backgroundColor=this.stageRoot===this.viewport?paper:'transparent';
       this.stageRoot.style.backgroundColor=paper;
+      this.stageRoot.classList.toggle('score-minimal-stage',Boolean(this.effects.minimalMode));
       this.container.style.color=ink;
       this.viewport.style.setProperty('--score-accent',accent);
       this.stageRoot.style.setProperty('--score-accent',accent);
@@ -437,6 +440,7 @@
         this.photoLayer.style.opacity=String(clamp(Number(this.effects.backgroundOpacity)||0,0,1));
       }
       if(this.glitterLayer)this.glitterLayer.style.display='none';
+      if(this.overlay)this.overlay.style.display=this.effects.minimalMode?'none':'';
       // Re-loading OSMD is necessary to recolor the default black engraving;
       // caller reloads on paper/ink/inversion changes. Accent/effects are live.
       if(this.osmd?.cursor?.CursorOptions)this.osmd.cursor.CursorOptions.color=cursor;
@@ -941,7 +945,9 @@
     clearActiveNodes(){
       for(const {el,motionEl=el} of this.activeNodes){
         el.classList.remove('score-glowing');
+        el.classList.remove('score-minimal-active');
         el.style.removeProperty('--score-note-active');
+        el.style.removeProperty('--score-minimal-color');
         el.style.removeProperty('opacity');
         el.style.removeProperty('--score-glow-blur');
         motionEl.classList.remove('score-note-moving');
@@ -970,15 +976,38 @@
     }
     colorActiveNodes(){
       this.activeNodes.forEach(({el,velocity})=>{
-        el.style.setProperty('--score-note-active',this.eventLightColor(velocity));
+        if(this.effects.minimalMode)el.style.setProperty('--score-minimal-color',this.minimalColor(velocity));
+        else el.style.setProperty('--score-note-active',this.eventLightColor(velocity));
       });
+    }
+    minimalColor(velocity){
+      const colors=this.colors();
+      return window.ScoreStudio.minimalActiveColor(colors.accent,colors.ink,colors.paper,velocity,
+        this.effects.velocityScale,this.velocityRange);
     }
     updateNoteEffects(t,changed){
       const effect=this.effects;
       // The active events live on the AUDIO axis, one event per physical key
       // attack. Therefore rolled chords twinkle in played order, not all at once.
       this.clearActiveNodes();
-      if(this.overlay)this.overlay.replaceChildren();
+      if(this.overlay?.childElementCount)this.overlay.replaceChildren();
+      if(effect.minimalMode){
+        const events=this.noteTriggers,earliest=t-(this.longestTrigger||.12)-.001;
+        let lo=0,hi=events.length;
+        while(lo<hi){const m=(lo+hi)>>>1;if(events[m].audio<earliest)lo=m+1;else hi=m;}
+        const activate=entry=>{
+          const el=entry.headEl||entry.el;if(!el)return;
+          el.classList.add('score-minimal-active');
+          el.style.setProperty('--score-minimal-color',this.minimalColor(entry.velocity));
+          this.activeNodes.push({el,motionEl:entry.el,velocity:entry.velocity});
+        };
+        for(let i=lo;i<events.length&&events[i].audio<=t;i++){
+          const entry=events[i];
+          if(t<Math.max(entry.audio+.08,entry.endAudio))activate(entry);
+        }
+        for(const hold of this.activeTies(t))activate(hold);
+        return;
+      }
       if(!effect.sparkle&&!effect.noteMotion)return;
       const events=this.noteTriggers;
       let lo=0,hi=events.length;

@@ -31,6 +31,14 @@
 .video-stage .score-scroll[data-scroll-mode="horizontal"]{overflow-x:auto;overflow-y:hidden}
 .video-stage .score-scroll[data-scroll-mode="vertical"]{overflow-y:auto;overflow-x:hidden}
 
+/* The same rule is embedded in offline SVG rasters. Restrict recoloring to
+   noteheads; stems, beams, ties and staff lines retain their engraving ink. */
+.score-minimal-active,.score-minimal-active path,.score-minimal-active ellipse,.score-minimal-active circle,.score-minimal-active use{
+  fill:var(--score-minimal-color)!important;stroke:var(--score-minimal-color)!important;
+}
+.score-minimal-active [fill="none"]{fill:none!important}
+.score-minimal-stage .score-playback-cursor,.score-minimal-stage .studio-titles{text-shadow:none!important;box-shadow:none!important}
+
 /* Notation presets style the SVG glyphs without moving their musical anchors.
    They are shared by the editor and the offscreen MP4 renderer. */
 .score-window[data-notation-style="modern"] .vf-notehead path{

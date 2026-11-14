@@ -33,6 +33,25 @@
     // Equal velocities: neutral middle color, not a forced red or blue.
     return spread>0?1+126*clamp((v-range.min)/spread,0,1):64;
   }
+  const minimalColors=new Map();
+  const lightness=color=>rgb(color).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;})
+    .reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+  const contrast=(a,b)=>{const x=lightness(a),y=lightness(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  function minimalActiveColor(accent,base,paper,velocity,scale='absolute',range=null){
+    accent=validColor(accent,'#2ec9d3');base=validColor(base,'#181b22');paper=validColor(paper,'#fffdf6');
+    const level=Math.round(clamp((normalizedVelocity(velocity,scale,range)-1)/126,0,1)*15);
+    const key=[accent,base,paper,level].join('|');
+    if(minimalColors.has(key))return minimalColors.get(key);
+    let target=accent;
+    // Keep the selected hue, but make the active state legible on its paper
+    // and different from the resting note/key even for monochrome palettes.
+    const opposite=contrast(base,paper)>1.5?base:(lightness(paper)>.5?'#111820':'#f7f8f4');
+    for(let i=0;i<5&&contrast(target,paper)<3;i++)target=mix(target,opposite,.22);
+    if(contrast(target,base)<1.35)target=mix(target,paper,.38);
+    const color=mix(base,target,.62+level/15*.36);
+    if(minimalColors.size>512)minimalColors.clear();
+    minimalColors.set(key,color);return color;
+  }
   function noteLightColor(scene,velocity,solidColor,range=null){
     return scene.lightColorMode==='aurora'
       ?auroraColor(normalizedVelocity(velocity,scene.velocityScale,range),scene.auroraLow,scene.auroraHigh):solidColor;
@@ -65,7 +84,7 @@
     const auroraDefault=auroraPresets[auroraPreset]||auroraPresets.polar;
     const font=FONT_STACKS[x.font]?x.font:'sans';
     const notationStyle=['classic','modern','jazz','manuscript'].includes(x.notationStyle)?x.notationStyle:'classic';
-    return {template,cameraMode,fxMode,lightColorMode,velocityScale:x.velocityScale==='relative'?'relative':'absolute',animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,4),
+    return {template,cameraMode,fxMode,lightColorMode,velocityScale:x.velocityScale==='relative'?'relative':'absolute',minimalMode:Boolean(x.minimalMode),animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,4),
       scoreImpactEnabled:x.scoreImpactEnabled!==false,scoreImpactStrength:clamp(Number(x.scoreImpactStrength??1.4)||0,0,4),
       title:String(x.title||'').slice(0,120),artist:String(x.artist||'').slice(0,120),
       credit:String(x.credit||'').slice(0,200),showText:x.showText!==false,
@@ -188,7 +207,11 @@
       viewport.appendChild(this.atmosphere);viewport.appendChild(this.titleBox);
       this.scene=normalize({});
     }
-    setScene(value){this.scene=normalize(value);}
+    setScene(value){
+      this.scene=normalize(value);
+      this.canvas.style.display=this.scene.minimalMode?'none':'';
+      if(this.scene.minimalMode)this.context.clearRect(0,0,this.canvas.width,this.canvas.height);
+    }
     resize(){
       const w=Math.max(1,this.viewport.clientWidth),h=Math.max(1,this.viewport.clientHeight),dpr=1;
       const dw=Math.round(w*dpr),dh=Math.round(h*dpr);
@@ -198,14 +221,15 @@
     }
     draw(t,follower){
       if(!this.context)return;
-      const {w,h}=this.resize(),ctx=this.context,s=this.scene,p=frame(s,t),strength=s.fxStrength;
+      const s=this.scene,{w,h}=s.minimalMode?{w:this.viewport.clientWidth,h:this.viewport.clientHeight}:this.resize();
+      const ctx=this.context,p=frame(s,t),strength=s.fxStrength;
       if(!s.animateBackground)p.glow=follower.colors().glow;
       const sx=this.viewport.scrollLeft,sy=this.viewport.scrollTop;
       for(const elem of [this.canvas,this.titleBox,this.atmosphere])elem.style.transform=`translate(${sx}px, ${sy}px)`;
       if(follower.bgLayer){follower.bgLayer.style.transform=`translate(${sx}px, ${sy}px)`;if(s.animateBackground)follower.bgLayer.style.backgroundColor=p.color;else follower.bgLayer.style.backgroundColor=follower.colors().paper;}
       if(follower.glitterLayer)follower.glitterLayer.style.transform=`translate(${sx}px, ${sy}px)`;
-      this.atmosphere.style.background=`radial-gradient(ellipse at ${25+Math.sin(t*.09)*17}% 18%, ${p.glow}35, transparent 58%), radial-gradient(ellipse at 85% 87%, ${p.glow}22, transparent 60%)`;
-      this.atmosphere.style.opacity=s.template==='cinematic'?'.32':s.template==='illustrated'?'.1':'.035';
+      this.atmosphere.style.background=s.minimalMode?'none':`radial-gradient(ellipse at ${25+Math.sin(t*.09)*17}% 18%, ${p.glow}35, transparent 58%), radial-gradient(ellipse at 85% 87%, ${p.glow}22, transparent 60%)`;
+      this.atmosphere.style.opacity=s.minimalMode?'0':s.template==='cinematic'?'.32':s.template==='illustrated'?'.1':'.035';
       this.titleBox.style.fontFamily=FONT_STACKS[s.font];
       this.titleBox.querySelector('.studio-title').textContent=s.title;
       this.titleBox.querySelector('.studio-artist').textContent=s.artist;
@@ -217,6 +241,7 @@
       this.titleBox.querySelector('.studio-artist').style.opacity=s.showText?String(ease(intro)):0;
       this.titleBox.querySelector('.studio-credit').style.opacity=s.showText?String(ease(outro)):0;
       this.titleBox.style.color=s.animateBackground?(s.template==='cinematic'?'#fffdf7':'#303039'):follower.colors().ink;
+      if(s.minimalMode)return;
       ctx.clearRect(0,0,w,h);
       const sceneFxOn=s.fxMode!=='none'&&strength>0;
       const scoreImpactOn=s.scoreImpactEnabled&&s.scoreImpactStrength>0;
@@ -363,6 +388,6 @@
       }
     }
   }
-  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,noteLightColor,pitchLightProfile,normalize,frame,mix,random,selectHandTrails,LayerRenderer};
+  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,minimalActiveColor,noteLightColor,pitchLightProfile,normalize,frame,mix,random,selectHandTrails,LayerRenderer};
 })(typeof window!=='undefined'?window:globalThis);
 if(typeof module!=='undefined')module.exports=globalThis.ScoreStudio;

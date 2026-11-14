@@ -12,6 +12,8 @@ ScoreVideo-Studio의 기존 악보 렌더러에 MIDI 기반 88건반·낙하 노
 
 빠른 확인: macOS에서는 `./run.command`, Linux에서는 `./run_linux.sh`, Windows에서는 `run_windows.bat`으로 실행한 뒤 파일 탭의 **Dream Journey 예제 바로 체험하기**를 누르세요. 실행 스크립트가 프로젝트의 `.venv`에 Playwright와 Chromium을 설치하고 그 환경에서 서버를 시작합니다. 직접 실행할 때는 `uvicorn` 단독 명령 대신 `.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8765`를 사용하세요. 이미 다른 방식으로 띄운 서버가 있다면 먼저 종료해야 합니다.
 
+출력 탭에는 **고속 오프라인 MP4**(WebCodecs + Mediabunny)와 **호환 렌더링 MP4**(기존 Chromium + FFmpeg)가 있습니다. 720p·30/60fps는 신규 경로를 기본 선택하며, 1080p·30fps와 악보 확대 150% 이상은 전체 곡 미검증이므로 사용자가 직접 선택할 때만 신규 경로를 사용합니다. 악보 그리기 애니메이션, 1080p·60fps와 다른 화면비는 기존 경로를 이용합니다. 브라우저에 H.264/AAC WebCodecs 또는 OPFS가 없으면 기존 경로로 안내합니다. 완성된 신규 MP4의 OPFS 임시 파일은 다시 다운로드할 수 있도록 유지하다가 다음 출력 시작 시 정리합니다. macOS에서 기본 포트가 사용 중이라면 `SCOREVIDEO_PORT=8767 ./run.command`처럼 다른 포트를 지정할 수 있습니다.
+
 MIDI 업로드는 필수입니다. MusicXML을 함께 올리면 실제 MIDI 연주에 맞춰 악보와 건반을 보여주고, MIDI만 올리면 악보 레이어·편집 오버레이를 완전히 숨긴 건반 전용 영상을 만듭니다. MusicXML 단독 업로드는 지원하지 않습니다. 음원을 올리지 않으면 번들된 Salamander Grand Piano 경량 샘플로 MIDI 오디오를 합성하고, 오디오를 올리면 그 음원을 사용합니다. 세로 영상에서는 앞 5초에 재생될 음의 최저·최고 피치를 계산해 양쪽 3건반의 여유를 둔 구도를 부드럽게 따라갑니다. 카메라가 가까워지면 건반 폭·높이와 낙하 노트 폭·길이가 함께 커지고 보이는 노트 수가 줄어듭니다. 멀어지면 반대로 작아지고 더 많은 음이 보입니다. 가로 영상은 기존 88건반을 유지합니다. 피아노 샘플은 전체 SFZ가 아닌 28개 압축 샘플의 피치 변환 버전이며, 저작자·라이선스는 `static/audio/salamander/NOTICE.txt`에 표기했습니다.
 
 Playwright가 웹 서버의 Python에 없더라도 프로젝트 `.venv`에 있으면 MP4 작업을 해당 환경으로 위임합니다. `.venv` 자체가 없다면 실행 스크립트로 설치하세요. 실제 MIDI 단독 10초 MP4(H.264/AAC) 출력과 XML·MIDI 단독 브라우저 미리보기를 검증했습니다.

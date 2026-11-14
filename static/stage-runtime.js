@@ -13,7 +13,7 @@
      stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,
      noteEvents:meta.note_events||[],noteTriggers:[],tieContinuations:[],timestamps:[0,meta.audio_duration_sec||0],measureStarts:[],
      tempoMap:meta.tempo_map||[{beat:0,second:0,tempo_us:500000}],audioDuration:meta.audio_duration_sec,
-     offsetSec:settings.offsetSec,sync:meta.sync,effects:settings.effects,scene:settings.scene,velocityRange:range,
+     offsetSec:settings.offsetSec,sync:meta.sync,effects:{...settings.effects,velocityScale:settings.scene.velocityScale},scene:settings.scene,velocityRange:range,
      colors(){const e=this.effects;return {paper:e.inverted?e.ink:e.paper,ink:e.inverted?e.paper:e.ink,accent:e.accent,glow:e.glow};},
      eventLightColor(velocity){return root.ScoreStudio.noteLightColor(this.scene,velocity,this.colors().accent,this.velocityRange);},
      beatToSeconds(beat){const map=this.tempoMap;let lo=0,hi=map.length-1;
@@ -26,6 +26,7 @@
        const a=anchors[Math.min(lo,anchors.length-2)],b=anchors[Math.min(lo+1,anchors.length-1)];
        return a.audio+(b.audio-a.audio)*(second-a.midi)/Math.max(.000001,b.midi-a.midi)+this.offsetSec;},
      setEffects(effects){this.effects={...this.effects,...effects};const e=this.effects;
+       viewport.classList.toggle('score-minimal-stage',Boolean(e.minimalMode));
        viewport.style.backgroundColor=this.colors().paper;bg.style.backgroundColor=this.colors().paper;
        const url=String(e.backgroundUrl||'');photo.style.backgroundImage=url.startsWith('/api/projects/')?'url('+JSON.stringify(url)+')':'none';
        photo.style.backgroundSize=e.backgroundFit==='contain'?'contain':'cover';
@@ -44,7 +45,7 @@
      backgroundUrl:meta.background_filename?`/api/projects/${meta.id}/background?v=${encodeURIComponent(meta.background_version||meta.background_filename)}`: '',
      backgroundOpacity:clamp(number(s.background_opacity,.5),0,1),backgroundFit:s.background_fit||'cover',
      backgroundPositionX:clamp(number(s.background_position_x,50),0,100),backgroundPositionY:clamp(number(s.background_position_y,50),0,100),
-     glitter:Boolean(s.glitter),sparkle:s.sparkle!==false,drawScore:Boolean(s.draw_score),
+     glitter:Boolean(s.glitter),sparkle:s.sparkle!==false,drawScore:Boolean(s.draw_score),minimalMode:Boolean(s.minimal_mode),
      velocityReactive:s.velocity_reactive!==false,noteMotion:s.note_motion!==false,
      motionStrength:clamp(number(s.motion_strength,1),0,2),
      scorePositionX:clamp(number(s.score_position_x,38),0,100),scorePositionY:clamp(number(s.score_position_y,0),0,100),
@@ -67,8 +68,8 @@
        key:String(p?.key||'').slice(0,80),zoom:clamp(number(p?.zoom,1.3),1.05,1.6),
        duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1),timing:clamp(number(p?.timing,-.6),-2,1.5)
      })).filter(p=>p.key),
-     effects:effect,scene:root.ScoreStudio.normalize(s.scene||{}),
-     piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,
+     effects:effect,scene:root.ScoreStudio.normalize({...s.scene,minimalMode:Boolean(s.minimal_mode)}),
+     piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,minimalMode:Boolean(s.minimal_mode),
        camera:s.piano_camera!==false,portrait:height>width,
        keyStyle:['auto','dark','classic','custom'].includes(s.piano_key_style)?s.piano_key_style:'auto',
        whiteKeyColor:hex(s.piano_white_key_color,'#5a6576'),blackKeyColor:hex(s.piano_black_key_color,'#141b27'),

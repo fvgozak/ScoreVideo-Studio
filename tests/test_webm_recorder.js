@@ -1,0 +1,20 @@
+const fs=require('node:fs');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+
+let stops=0,tracks=0;
+const context={window:{},navigator:{storage:{}},cancelAnimationFrame:()=>{},MediaRecorder:{isTypeSupported:type=>type==='video/webm;codecs=vp8'||type==='video/webm;codecs=vp8,opus'}};
+vm.createContext(context);
+vm.runInContext(fs.readFileSync('static/webm-recorder.js','utf8'),context);
+const {Recorder,supportedType}=context.window.ScoreWebmRecorder;
+assert.equal(supportedType(),'video/webm;codecs=vp8');
+assert.equal(supportedType(true),'video/webm;codecs=vp8,opus');
+const recorder=new Recorder({},{});
+recorder.media={state:'recording',stop(){stops++;}};
+recorder.stream={getTracks:()=>[{stop(){tracks++;}}]};
+recorder.cancel();recorder.cancel();
+assert.equal(stops,1);
+assert.equal(recorder.cancelled,true);
+recorder.cleanup();
+assert.equal(tracks,1);
+assert.equal(recorder.stream,null);

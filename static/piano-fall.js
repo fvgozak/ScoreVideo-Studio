@@ -189,20 +189,24 @@
       if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
       const ctx=this.context;ctx.clearRect(0,0,w,h);
       const keys=keyPalette(this.settings,this.follower.colors?.().paper);
+      const minimal=Boolean(this.settings.minimalMode);
       const camera=this.cameraAt(time),cinematic=Boolean(this.settings?.portrait&&this.settings.camera!==false);
       const {keyTop,keyHeight,shadeTop,impact,left,right,whiteWidth,speed,visibleSeconds}=
         pianoProjection(camera,w,h,cinematic);
       const fallTop=0;
       ctx.save();
-      const shade=ctx.createLinearGradient(0,shadeTop,0,keyTop);
-      shade.addColorStop(0,'rgba(4,8,18,0)');shade.addColorStop(.23,'rgba(4,8,18,.54)');shade.addColorStop(1,'rgba(4,8,18,.9)');
-      ctx.fillStyle=shade;ctx.fillRect(0,shadeTop,w,keyTop-shadeTop);
+      if(!minimal){
+        const shade=ctx.createLinearGradient(0,shadeTop,0,keyTop);
+        shade.addColorStop(0,'rgba(4,8,18,0)');shade.addColorStop(.23,'rgba(4,8,18,.54)');shade.addColorStop(1,'rgba(4,8,18,.9)');
+        ctx.fillStyle=shade;ctx.fillRect(0,shadeTop,w,keyTop-shadeTop);
+      }
       // Binary search keeps long pieces inexpensive during 30/60fps export.
       let lo=0,hi=this.notes.length;
       while(lo<hi){const mid=(lo+hi)>>>1;if(this.notes[mid].audio<time-this.longestDuration-.8)lo=mid+1;else hi=mid;}
       const active=[];
-      ctx.save();ctx.beginPath();ctx.rect(left,fallTop,right-left,impact-fallTop);ctx.clip();
-      for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+visibleSeconds+.2;i++){
+      if(!minimal){
+        ctx.save();ctx.beginPath();ctx.rect(left,fallTop,right-left,impact-fallTop);ctx.clip();
+        for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+visibleSeconds+.2;i++){
         const note=this.notes[i],geometry=noteGeometry(note,time,impact,speed);
         if(geometry.bottom<fallTop||geometry.top>impact)continue;
         const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
@@ -213,7 +217,8 @@
         ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=clamp(this.settings.strength??1,0,4)*11;
         ctx.beginPath();ctx.roundRect(x,top,barWidth,height,Math.min(5,barWidth*.35));ctx.fill();ctx.shadowBlur=0;
       }
-      ctx.restore();
+        ctx.restore();
+      }
       ctx.fillStyle=keys.bed;ctx.fillRect(left,keyTop,right-left,keyHeight);
       for(const key of keyLayout.keys.filter(item=>!item.black)){
         const box=this.keyBox(key,left,whiteWidth);
@@ -227,10 +232,13 @@
       }
       for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time;i++){
         const note=this.notes[i];if(time>Math.max(note.audio+.8,note.endAudio+.35))continue;
+        if(minimal&&time>=Math.max(note.audio+.08,note.endAudio))continue;
         const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
-        const color=this.follower.eventLightColor(note.velocity);
+        const color=minimal?root.ScoreStudio.minimalActiveColor(this.follower.colors().accent,
+          key.black?keys.black:keys.white,this.follower.colors().paper,note.velocity,
+          this.follower.effects?.velocityScale,this.follower.velocityRange):this.follower.eventLightColor(note.velocity);
         const duration=Math.max(.08,note.endAudio-note.audio);
-        const intensity=impactEnvelope(time-note.audio,duration,note.velocity/127);
+        const intensity=minimal?1:impactEnvelope(time-note.audio,duration,note.velocity/127);
         if(intensity<=.006)continue;
         active.push({note,key,box,color,intensity});
       }
@@ -238,9 +246,9 @@
       // glow. Neither effect hides or switches off the other.
       for(const hit of active){
         const {note,key,box,color,intensity}=hit;
-        ctx.fillStyle=rgba(color,intensity*(key.black?.8:.43));
+        ctx.fillStyle=minimal?color:rgba(color,intensity*(key.black?.8:.43));
         ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*(key.black?.67:1)-3);
-        if(!this.settings.light)continue;
+        if(minimal||!this.settings.light)continue;
         const strength=clamp(this.settings.strength??1,0,4);
         drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color});
       }

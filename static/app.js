@@ -4,11 +4,103 @@
  const $=id=>document.getElementById(id),audio=$('audioPlayer'),transport=window.ScoreTransport;
  window.ScoreHexControls?.setup();
  const inputIds=['score','midi','audio'],labelIds=['scoreName','midiName','audioName'];
- const persistent=['paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
+ const persistent=['minimalMode','paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','aspectRatio','outputQuality','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
  'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor'];
  const storeKey='scorevideo_studio_v05_settings';
- let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0;
+ const exportModeKey='scorevideo_mp4_engine_v1';
+ let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0,cancelReturnTime=null,activeDownloadJob=null;
+ const attemptedDownloads=new Set();
+ let renderUiActive=false,renderUiJob=null,renderPollEpoch=0,lastPreviewFrame=0,webmRecorder=null,webmPosition=0,webmDownloadUrl=null,webmRelease=null;
+ let legacyStartPending=false,legacyCancelPending=false;
+ let mp4MeasuredFps=0;
+ let offlineSupport=null,offlineActive=false,offlineCancelPending=false,offlineEpoch=0,offlineDownloadUrl=null,offlineReturnTime=0,experimentalOptIn=false;
+ let exportChoiceExplicit=['offline','legacy'].includes(localStorage.getItem(exportModeKey)),lastExportProfile='';
+ const webmType=window.ScoreWebmRecorder?.supportedType(true)||'';
+ function webmUnavailableReason(){
+   if(!webmType)return 'MediaRecorder에서 오디오 포함 WebM 코덱을 지원하지 않습니다.';
+   if(typeof MediaStream==='undefined'||typeof AudioContext==='undefined')return '오디오·영상 스트림을 만들 Web Audio API를 지원하지 않습니다.';
+   if(typeof HTMLCanvasElement==='undefined'||!HTMLCanvasElement.prototype.captureStream)return 'Canvas 화면 녹화를 지원하지 않습니다.';
+   try{if(!document.createElement('canvas').getContext('2d'))return 'Canvas 2D 화면 합성을 지원하지 않습니다.';}catch(_){return 'Canvas 화면 합성을 사용할 수 없습니다.';}
+   return '';
+ }
+ const webmUnavailable=webmUnavailableReason();
+ let preserveLegacyWide=false;
+ function syncOutputSize(){
+   const canonical=window.ScoreOutputSize.size($('aspectRatio').value,$('outputQuality').value);
+   const {width,height}=preserveLegacyWide&&$('aspectRatio').value==='21:9'&&$('outputQuality').value==='1080'
+     ?{width:2560,height:1080}:canonical;
+   $('resolution').value=`${width}x${height}`;
+   $('actualOutputSize').textContent=`실제 출력 크기: ${width}×${height} · 짧은 변 ${Math.min(width,height)}p${preserveLegacyWide?' · 이전 2560×1080 유지 (비율 또는 해상도를 변경하면 정확한 21:9로 전환)':''}`;
+   $('convertExactWide').hidden=!preserveLegacyWide;
+ }
+ function migrateOutputSize(settings){
+   if(!settings?.aspectRatio||!settings?.outputQuality){
+     const legacy=window.ScoreOutputSize.migrate(settings?.resolution||'1920x1080');
+     $('aspectRatio').value=legacy.aspect;$('outputQuality').value=String(legacy.quality);
+   }
+   preserveLegacyWide=settings?.resolution==='2560x1080'&&$('aspectRatio').value==='21:9'&&$('outputQuality').value==='1080';
+   syncOutputSize();
+ }
+ function selectedExportMode(){return document.querySelector('input[name="exportMode"]:checked')?.value||'legacy';}
+ function updateExportUi(){
+   const resolution=$('resolution').value,[width,height]=resolution.split('x').map(Number),fps=Number($('fps').value);
+   const highZoom=Number($('zoom').value)>=1.5,drawScore=$('drawScore').checked;
+   const shortEdge=Math.min(width,height),base720=resolution==='1280x720'&&(fps===30||fps===60);
+   const verified=base720&&!highZoom&&!drawScore;
+   const experimental=!drawScore&&((shortEdge===720&&(fps===30||fps===60))||(shortEdge===1080&&fps===30))&&!verified;
+   const profile=`${resolution}|${fps}|${highZoom}|${drawScore}`;
+   if(!renderUiActive&&profile!==lastExportProfile){
+     lastExportProfile=profile;
+     if(!exportChoiceExplicit)document.querySelector(`input[name="exportMode"][value="${verified?'offline':'legacy'}"]`).checked=true;
+   }
+   const reason=!offlineSupport?'브라우저 인코더·모듈 확인 중':!offlineSupport.supported?offlineSupport.reason:
+     !project?.audio_filename?'원본 오디오가 없는 프로젝트는 기존 FFmpeg 경로를 사용합니다.':
+     drawScore?'악보 그리기 애니메이션(drawScore)은 신규 엔진의 전체 곡 검증이 끝나지 않아 호환 렌더링만 지원합니다.':
+     !verified&&!experimental?'이 실제 출력 크기·FPS 조합은 신규 엔진 지원 범위 밖입니다.':'';
+   const unavailable=Boolean(reason);
+   const hardUnavailable=Boolean(offlineSupport&&!offlineSupport.supported||project&&!project.audio_filename||drawScore||!verified&&!experimental);
+   document.querySelector('input[name="exportMode"][value="offline"]').disabled=hardUnavailable;
+   if(hardUnavailable&&selectedExportMode()==='offline')document.querySelector('input[name="exportMode"][value="legacy"]').checked=true;
+   const offline=selectedExportMode()==='offline',seconds=Number(project?.audio_duration_sec)||0;
+   $('mp4OnlyOptions').hidden=offline;$('webmLengthOptions').hidden=true;
+   $('offlineSupportText').textContent=reason?`${offlineSupport===null?'확인 중':'고속 오프라인 MP4 사용 불가'}: ${reason}`:
+     experimental?`${width}×${height} · ${fps}fps${highZoom?' · 150% 이상 악보 확대':''} 전체 곡은 미검증입니다. 실패하거나 메모리가 부족하면 호환 렌더링을 선택하세요.`:
+     'WebCodecs H.264/AAC · OPFS 사용 가능 · 720p 전체 곡 검증 완료';
+   $('exportButton').innerHTML=`${offline?'고속 오프라인':'호환 렌더링'} MP4 시작 <span>↗</span>`;
+   $('selectedEngineSummary').textContent=`출력 예정: ${$('aspectRatio').value} · ${width}×${height} · ${fps}fps · ${offline?'고속 오프라인 (WebCodecs)':'호환 렌더링 (FFmpeg)'}`;
+   $('exportButton').disabled=!project||renderUiActive||(offline&&unavailable);
+   $('exportEstimate').textContent=offline?
+     `${fmt(seconds)} 분량을 실제 재생 없이 프레임별로 생성합니다. 출력 시간은 컴퓨터 성능에 따라 달라집니다.`:
+     `예상 시간: ${mp4MeasuredFps&&seconds?fmt(Math.ceil(seconds*fps/mp4MeasuredFps)):'첫 FFmpeg 출력 후 측정 가능'}${mp4MeasuredFps?` (이전 출력 평균 ${mp4MeasuredFps.toFixed(1)}프레임/초 기준)`:''} · 기존 Chromium + FFmpeg 경로`;
+ }
+ const renderEditTargets=()=>[document.querySelector('.sidebar'),document.querySelector('.preview-zoom-bar'),document.querySelector('.layer-visibility-controls'),...document.querySelectorAll('.preview-actions > :not(#cancelRenderButton):not(#cancelWebmButton):not(.preview-info)')].filter(Boolean);
+ function setRenderUi(active,status={}){
+   if(active!==renderUiActive){
+     renderUiActive=active;
+     document.body.classList.toggle('render-ui-active',active);
+     for(const element of renderEditTargets())element.inert=active;
+     if(active){window.ScoreVisualEditor?.setEditing(false);$('scoreEditOverlay').hidden=true;}
+   }
+   $('renderStatusBanner').hidden=!active;
+   $('cancelRenderButton').hidden=!active||Boolean(status.webm);
+   if(!active)return;
+   const state=status.state||'queued',detail=status.message||'';
+   $('renderEngineText').textContent=`실행 엔진: ${status.engine==='webcodecs'||offlineActive?'고속 WebCodecs':'호환 FFmpeg'}`;
+   $('renderWarningText').textContent=status.webm?'영상 녹화 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.':'영상 렌더링 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.';
+   $('renderStageText').textContent=state==='cancelling'?'렌더링 취소 중...':state==='queued'?'렌더링 준비 중':detail.split('|')[0].trim()||'영상 렌더링 중';
+   $('renderEtaText').textContent=detail.match(/남은 시간[^|]*/)?.[0].trim()||'남은 시간 계산 중';
+   $('renderPercentText').textContent=`${Math.max(0,Math.min(100,Number(status.progress)||0))}%`;
+ }
+ window.addEventListener('beforeunload',event=>{if(!renderUiActive)return;event.preventDefault();event.returnValue='';});
  const fmt=(s)=>{const t=Math.max(0,Math.floor(Number(s)||0));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
+ function exportFileName(extension){
+   let name=String($('downloadName').value||project?.score_name||project?.musicxml_title||project?.midi_name||'ScoreVideo').replace(/\\/g,'/').split('/').pop();
+   name=name.replace(/\.(musicxml|xml|mxl|mid|midi|mp4|webm)$/i,'').replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g,'_').trim().replace(/^[. ]+|[. ]+$/g,'');
+   if(!name||/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(name))name='ScoreVideo';
+   if(extension!=='mp4')return `${name.slice(0,180)}.${extension}`;
+   const {width,height,fps}=config(),ratio=$('aspectRatio').value.replace(':','x');
+   return `${name.slice(0,150)}_${ratio}_${width}x${height}_${fps}fps.mp4`;
+ }
  function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
  const offset=()=>Number($('offset').value),pianoOffset=()=>Number($('pianoOffset').value),zoom=()=>Number($('zoom').value);
  function cameraPointStoreKey(){return project?`scorevideo_camera_points_${project.id}`:'';}
@@ -25,7 +117,7 @@
    stage?.follower?.setCameraPointPicking(cameraPointPicking);
  }
  function syncCameraPointControls(){const p=readCameraPoints().find(x=>x.key===selectedCameraPoint);if(!p)return;for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake'],['cameraPointTiming','timing']])$(id).value=String(p[key]??({zoom:1.3,duration:1.6,shake:0,timing:-.6}[key]));$('cameraPointZoomVal').textContent=`${Math.round(Number(p.zoom||1.3)*100)}%`;$('cameraPointDurationVal').textContent=`${Number(p.duration||1.6).toFixed(1)}초`;$('cameraPointShakeVal').textContent=`${Math.round(Number(p.shake||0)*100)}%`;const timing=Number.isFinite(Number(p.timing))?Number(p.timing):-.6;$('cameraPointTimingVal').textContent=timing<0?`${Math.abs(timing).toFixed(2)}초 먼저`:`${timing.toFixed(2)}초 뒤`;}
- window.ScoreCameraPointEditor={active:()=>cameraPointPicking,add(data){const points=readCameraPoints();let point=points.find(p=>p.key===data.key);if(!point){point={key:data.key,measure:data.measure,pitch:data.pitch,beat:data.beat,zoom:1.3,duration:1.6,shake:0,timing:-.6};points.push(point);}selectedCameraPoint=point.key;writeCameraPoints(points);if($('cameraMode').value!=='points'){$('cameraMode').value='points';if(stage?.follower)stage.follower.cameraMode='points';queueApply();}syncCameraPointControls();if(Number.isFinite(data.time))seekTo(data.time);}};
+ window.ScoreCameraPointEditor={active:()=>cameraPointPicking&&!renderUiActive,add(data){if(renderUiActive)return;const points=readCameraPoints();let point=points.find(p=>p.key===data.key);if(!point){point={key:data.key,measure:data.measure,pitch:data.pitch,beat:data.beat,zoom:1.3,duration:1.6,shake:0,timing:-.6};points.push(point);}selectedCameraPoint=point.key;writeCameraPoints(points);if($('cameraMode').value!=='points'){$('cameraMode').value='points';if(stage?.follower)stage.follower.cameraMode='points';queueApply();}syncCameraPointControls();if(Number.isFinite(data.time))seekTo(data.time);}};
  $('cameraPointModeToggle').addEventListener('click',()=>{cameraPointPicking=!cameraPointPicking;if(cameraPointPicking&&$('cameraMode').value!=='points'){$('cameraMode').value='points';queueApply();}renderCameraPointList();});
  $('cameraPointAuto').addEventListener('click',()=>{
    const notes=stage?.follower?.noteTriggers||[];
@@ -55,11 +147,11 @@
  };}
  function config(){
    const [width,height]=$('resolution').value.split('x').map(Number);
-   return {width,height,fps:Number($('fps').value),render_mode:$('renderMode').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
+   return {width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
       paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
       glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
       texture:$('texture').value,background_opacity:Number($('backgroundOpacity').value),background_fit:$('backgroundFit').value,background_position_x:Number($('backgroundPosX').value),background_position_y:Number($('backgroundPosY').value),
-      inverted:$('inverted').checked,glitter:$('glitter').checked,sparkle:$('sparkle').checked,draw_score:$('drawScore').checked,
+      inverted:$('inverted').checked,glitter:$('glitter').checked,sparkle:$('sparkle').checked,draw_score:$('drawScore').checked,minimal_mode:$('minimalMode').checked,
       velocity_reactive:$('velocityReactive').checked,note_motion:$('noteMotion').checked,motion_strength:Number($('motionStrength').value),
       score_visible:$('scoreVisible').checked,piano_enabled:$('pianoEnabled').checked,piano_camera:$('pianoCamera').checked,piano_key_style:$('pianoKeyStyle').value,piano_white_key_color:$('pianoWhiteKeyColor').value,piano_black_key_color:$('pianoBlackKeyColor').value,piano_light:$('pianoLight').checked,piano_light_strength:Number($('pianoLightStrength').value),
       layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
@@ -69,7 +161,8 @@
    const data=JSON.parse(localStorage.getItem(storeKey)||'{}');
    if(data.fxMode==='aurora'&&!data.lightColorMode){data.fxMode='bloom';data.lightColorMode='aurora';}
    for(const id of persistent){const node=$(id);if(data[id]===undefined)continue;if(node.type==='checkbox')node.checked=!!data[id];else node.value=data[id];}
- }catch(e){}updateLabels();resizePreview();}
+   migrateOutputSize(data);
+ }catch(e){syncOutputSize();}updateLabels();resizePreview();}
  const videoPresetStoreKey='scorevideo_named_video_presets_v1';
  function readVideoPresets(){try{const items=JSON.parse(localStorage.getItem(videoPresetStoreKey)||'[]');return Array.isArray(items)?items.filter(x=>x&&x.id&&x.name&&x.projectId&&x.settings):[];}catch(_){return[];}}
  function refreshVideoPresets(selectedId=''){
@@ -120,6 +213,8 @@
        const node=$(id),value=preset.settings[id];if(value===undefined)continue;
        if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
      }
+     if(preset.settings.minimalMode===undefined)$('minimalMode').checked=false;
+     migrateOutputSize(preset.settings);
      $('offset').value=String(preset.settings.offset??0);
      $('pianoOffset').value=String(preset.settings.pianoOffset??0);
      if(Array.isArray(preset.settings.cameraPoints))writeCameraPoints(preset.settings.cameraPoints);
@@ -214,7 +309,7 @@
  }
  for(let i=0;i<inputIds.length;i++)$(inputIds[i]).addEventListener('change',()=>{$(labelIds[i]).textContent=$(inputIds[i]).files?.[0]?.name||'파일 선택';});
  for(const id of persistent){
-   if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom','scorePosX','scorePosY'].includes(id))continue;
+   if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom','scorePosX','scorePosY','aspectRatio','outputQuality','resolution'].includes(id))continue;
    $(id).addEventListener('input',queueApply);
    $(id).addEventListener('change',queueApply);
  }
@@ -490,11 +585,16 @@
    if(stage){stage.meta.background_filename=project.background_filename;stage.meta.background_version=project.background_version;queueApply();}
  }
  async function loadProject(meta){
+   if(renderUiActive&&project&&meta.id!==project.id)return;
+   ++renderPollEpoch;
    stage=null;revision++;await applySerial.catch(()=>{});
    ++backgroundSerial;pendingBackgroundFile=null;
    window.ScoreVisualEditor?.setEditing(false);
    $('scoreEditOverlay').hidden=true;
-   project=meta;selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();
+   project=meta;mp4MeasuredFps=0;experimentalOptIn=false;$('downloadName').value='';selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();
+   $('downloadLink').hidden=true;
+   if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;void window.ScoreOfflineExport.release();}
+   if(webmDownloadUrl){URL.revokeObjectURL(webmDownloadUrl);void webmRelease?.();webmDownloadUrl=null;webmRelease=null;$('webmDownloadLink').hidden=true;}
    const hasScore=meta.has_score!==false;
    const projectName=(hasScore?meta.score_name:meta.midi_name).replace(/\.(musicxml|xml|mxl|mid|midi)$/i,'');
    $('projectTitle').textContent=projectName;
@@ -525,6 +625,7 @@
    $('seek').max=meta.audio_duration_sec;$('seek').value=0;
    $('offset').value=0;$('pianoOffset').value=0;updateLabels();
    for(const id of ['playButton','previousMeasureButton','nextMeasureButton','restartButton','seek','exportButton','autoSyncButton'])$(id).disabled=false;
+   $('webmRecordButton').disabled=true;
    $('autoSyncButton').disabled=Boolean(meta.generated_audio);
    $('previousMeasureButton').disabled=!hasScore;
    $('nextMeasureButton').disabled=!hasScore;
@@ -532,6 +633,8 @@
    refreshBackground();resizePreview();
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:config()});
    await stage.load();stage.seek(0);$('cameraPointAuto').disabled=!hasScore||!stage.follower?.noteTriggers?.length;
+   $('webmRecordButton').disabled=Boolean(webmUnavailable);updateExportUi();
+   void fetch(`/api/projects/${meta.id}/render-diagnostics`).then(r=>r.ok?r.json():null).then(report=>{if(project?.id===meta.id&&Number(report?.frame_processing_fps)>0){mp4MeasuredFps=Number(report.frame_processing_fps);updateExportUi();}}).catch(()=>{});
    $('cameraAutoStatus').textContent=hasScore?'프레이즈 시작, 화성, 강세와 음역 변화를 골라 부드러운 카메라 경로를 제안합니다. 수동 포인트는 유지됩니다.':'자동 포인트는 MusicXML 악보와 MIDI가 함께 있을 때 사용할 수 있습니다.';
    renderCameraPointList();window.ScoreVisualEditor?.sync();syncInfo();
    $('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
@@ -600,7 +703,7 @@
    $('measureInfo').textContent=current.total?`마디 ${current.index}/${current.total}`:'마디 —';
    stage?.seek(t);
  }
- function tick(){if(!project)return;updateTimeline();if(!audio.paused)raf=requestAnimationFrame(tick);}
+ function tick(now){if(!project||webmRecorder)return;const current=now||performance.now();if(!renderUiActive||audio.paused||current-lastPreviewFrame>=67){updateTimeline();lastPreviewFrame=current;}if(!audio.paused)raf=requestAnimationFrame(tick);}
  function seekTo(time){
    if(!project)return;
    const target=transport.seekSeconds(0,Number(time)||0,duration());
@@ -646,7 +749,7 @@
  window.addEventListener('keydown',e=>{
    // Range inputs need their own arrow keys for 0.01-second sync tuning.
    if(e.target?.closest?.('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
-   if((e.key==='f'||e.key==='F')&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!transport.isTextEditing(e.target)&&!e.repeat){
+   if((e.key==='f'||e.key==='F')&&!renderUiActive&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!transport.isTextEditing(e.target)&&!e.repeat){
      e.preventDefault();e.stopImmediatePropagation();void toggleFullscreen();return;
    }
    const command=transport.shortcut(e);
@@ -666,24 +769,164 @@
  });
  $('seek').addEventListener('input',()=>seekTo(Number($('seek').value)));
  $('restartButton').addEventListener('click',()=>seekTo(0));
- async function pollStatus(){if(!project)return;try{
-   const r=await fetch(`/api/projects/${project.id}/status`);if(!r.ok)return;
-   const s=await r.json();$('progressWrap').hidden=false;$('statusText').textContent=s.message||s.state;
+ async function pollStatus(){if(!project)return;const projectId=project.id,epoch=renderPollEpoch,job=renderUiJob;try{
+   const r=await fetch(`/api/projects/${projectId}/status`);if(!r.ok)return;
+   const s=await r.json();if(project?.id!==projectId||epoch!==renderPollEpoch||(job&&s.job_id&&job!==s.job_id))return;
+   if(['queued','rendering','cancelling'].includes(s.state))setRenderUi(true,s);
+   $('progressWrap').hidden=false;$('statusText').textContent=s.message||s.state;
    $('percent').textContent=`${s.progress||0}%`;$('progressBar').style.width=`${s.progress||0}%`;
-   if(['done','error'].includes(s.state)){
-     clearInterval(polling);polling=null;$('exportButton').disabled=false;
-     if(s.state==='done'){$('downloadLink').hidden=false;$('downloadLink').href=`/api/projects/${project.id}/download`;message('MP4 영상 출력 완료. 미리보기와 동일한 장면 엔진을 사용했습니다.');}
-     else message('MP4 출력 실패: '+s.message,true);
+   $('cancelRenderButton').hidden=!['queued','rendering','cancelling'].includes(s.state);
+   $('cancelRenderButton').disabled=s.state==='cancelling';
+   $('cancelRenderButton').textContent=s.state==='cancelling'?'취소 중…':'렌더링 취소';
+   if(['done','error','cancelled'].includes(s.state)){
+     ++renderPollEpoch;
+     legacyStartPending=false;legacyCancelPending=false;
+     clearInterval(polling);polling=null;
+     if(s.state==='done'){
+       $('downloadLink').hidden=false;
+       $('downloadLink').href=`/api/projects/${projectId}/download${s.job_id?'?job_id='+encodeURIComponent(s.job_id):''}`;
+       if(s.job_id&&activeDownloadJob===s.job_id&&!attemptedDownloads.has(s.job_id)){
+         attemptedDownloads.add(s.job_id);
+         $('downloadLink').click();
+         message('자동 다운로드를 요청했습니다. 시작되지 않았다면 출력 탭의 다운로드 버튼을 누르세요.');
+       }else message('MP4 영상 출력 완료. 출력 탭에서 다운로드할 수 있습니다.');
+       activeDownloadJob=null;
+       void fetch(`/api/projects/${projectId}/render-diagnostics`).then(r=>r.ok?r.json():null).then(report=>{if(project?.id===projectId&&Number(report?.frame_processing_fps)>0){mp4MeasuredFps=Number(report.frame_processing_fps);updateExportUi();}}).catch(()=>{});
+       setRenderUi(false);
+       window.ScoreVisualEditor?.selectTab(project.has_score===false?'design':'score');
+     }
+     else if(s.state==='cancelled'){
+       activeDownloadJob=null;$('downloadLink').hidden=true;
+       setRenderUi(false);
+       if(cancelReturnTime!==null){seekTo(cancelReturnTime);cancelReturnTime=null;}
+       window.ScoreVisualEditor?.selectTab(project.has_score===false?'design':'score');
+       message('렌더링을 취소했습니다. 편집을 계속할 수 있습니다.');
+     }else{activeDownloadJob=null;$('downloadLink').hidden=true;setRenderUi(false);message('MP4 출력 실패: '+s.message,true);}
+     renderUiJob=null;updateExportUi();
    }
  }catch(e){}}
+ async function startOfflineRender(){
+   if(!project||renderUiActive||offlineSupport?.supported!==true)return;
+   const projectId=project.id,token=++offlineEpoch,fps=Number($('fps').value),started=performance.now();
+   offlineActive=true;offlineCancelPending=false;offlineReturnTime=Number(audio.currentTime)||0;audio.pause();
+   if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;}
+   $('downloadLink').hidden=true;$('cancelRenderButton').hidden=false;$('cancelRenderButton').disabled=false;
+   setRenderUi(true,{state:'queued',message:'WebCodecs MP4 준비 중',progress:0});
+   $('progressWrap').hidden=false;$('progressBar').style.width='0%';$('percent').textContent='0%';
+   try{
+     await applySerial;
+     if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
+     const [width,height]=$('resolution').value.split('x').map(Number);
+     const supported=await window.ScoreOfflineExport.probe(width,height,fps);
+     if(offlineCancelPending)throw Error('Cancelled');
+     if(!supported.supported)throw Error(supported.reason);
+     const {file,metrics}=await window.ScoreOfflineExport.run({fps,onProgress({completed,frameCount}){
+       if(token!==offlineEpoch||!offlineActive)return;
+       const progress=Math.min(99,Math.floor(completed/frameCount*100));
+       const elapsed=(performance.now()-started)/1000;
+       const remaining=completed>0?Math.ceil((frameCount-completed)*elapsed/completed):null;
+       const detail=`WebCodecs H.264/AAC · ${completed}/${frameCount}프레임 | 남은 시간 ${remaining===null?'계산 중':`약 ${remaining}초`}`;
+       setRenderUi(true,{state:'rendering',message:detail,progress});
+       $('statusText').textContent=detail;$('percent').textContent=`${progress}%`;$('progressBar').style.width=`${progress}%`;
+     }});
+     if(token!==offlineEpoch||project?.id!==projectId){await window.ScoreOfflineExport.release();return;}
+     offlineDownloadUrl=URL.createObjectURL(file);
+     const link=$('downloadLink');link.href=offlineDownloadUrl;link.download=exportFileName('mp4');link.hidden=false;
+     const jobId=`offline-${crypto.randomUUID()}`;
+     if(!attemptedDownloads.has(jobId)){attemptedDownloads.add(jobId);link.click();}
+     $('statusText').textContent=`완료 · WebCodecs H.264/AAC · ${metrics.frames}프레임`;
+     $('percent').textContent='100%';$('progressBar').style.width='100%';
+     message('고속 MP4 자동 다운로드를 요청했습니다. 저장이 시작되지 않았다면 출력 탭의 다운로드 버튼을 누르세요.');
+     const diagnostics={...metrics,engine:'webcodecs',job_id:jobId,project_id:projectId};
+     void fetch(`/api/projects/${projectId}/render-diagnostics`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(diagnostics)}).catch(()=>{});
+   }catch(error){
+     if(token!==offlineEpoch)return;
+     if(error.message==='Cancelled')message('렌더링을 취소했습니다. 편집을 계속할 수 있습니다.');
+     else{
+       message(`고속 MP4 출력 실패: ${error.message} · 호환 렌더링을 선택해 다시 시도할 수 있습니다.`,true);
+       document.querySelector('input[name="exportMode"][value="legacy"]').checked=true;
+     }
+     await window.ScoreOfflineExport.release();
+   }finally{
+     if(token===offlineEpoch){offlineActive=false;offlineCancelPending=false;$('cancelRenderButton').hidden=true;
+       $('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';
+       setRenderUi(false);updateExportUi();seekTo(offlineReturnTime);
+       window.ScoreVisualEditor?.selectTab(project?.has_score===false?'design':'score');}
+   }
+ }
  $('exportButton').addEventListener('click',async()=>{
-   if(!project)return;$('exportButton').disabled=true;$('downloadLink').hidden=true;
+   if(selectedExportMode()==='offline'){void startOfflineRender();return;}
+   if(!project||renderUiActive)return;const projectId=project.id,epoch=++renderPollEpoch;cancelReturnTime=null;activeDownloadJob=null;renderUiJob=null;legacyStartPending=true;legacyCancelPending=false;$('exportButton').disabled=true;$('downloadLink').hidden=true;
+   if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;await window.ScoreOfflineExport.release();}
+   setRenderUi(true,{state:'queued',message:'영상 설정 저장 중',progress:0});
    $('progressWrap').hidden=false;$('statusText').textContent='영상 설정 저장 중';$('progressBar').style.width='0%';
-   try{await applySerial;const payload=config();
-     const r=await fetch(`/api/projects/${project.id}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-     const result=await r.json();if(!r.ok)throw Error(result.detail||'출력 실패');
+   try{await applySerial;if(legacyCancelPending)throw Error('Cancelled');const payload=config();
+     const r=await fetch(`/api/projects/${projectId}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+     const result=await r.json();if(project?.id!==projectId||epoch!==renderPollEpoch)return;legacyStartPending=false;if(!r.ok)throw Error(result.detail||'출력 실패');
+     activeDownloadJob=result.job_id;renderUiJob=result.job_id;
+     if(legacyCancelPending){await fetch(`/api/projects/${projectId}/render/cancel`,{method:'POST'});}
      clearInterval(polling);polling=setInterval(pollStatus,750);pollStatus();message('미리보기와 같은 설정으로 프레임별 영상 출력 중입니다.');
-   }catch(e){message(e.message,true);$('exportButton').disabled=false;}
+   }catch(e){if(epoch!==renderPollEpoch)return;legacyStartPending=false;legacyCancelPending=false;setRenderUi(false);message(e.message==='Cancelled'?'렌더링을 취소했습니다. 편집을 계속할 수 있습니다.':e.message,e.message!=='Cancelled');updateExportUi();$('cancelRenderButton').hidden=true;$('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';}
+ });
+ $('webmRecordButton').addEventListener('click',async()=>{
+   if(!project||renderUiActive||webmUnavailable)return;
+   const selection=$('webmTestSeconds').value,seconds=selection==='full'?duration():Math.min(duration(),Number(selection)),projectId=project.id;
+   if(!Number.isFinite(seconds)||seconds<=0){message('오디오 길이를 확인할 수 없습니다.',true);return;}
+   webmPosition=0;
+   audio.pause();$('webmRecordButton').disabled=true;$('exportButton').disabled=true;$('cancelWebmButton').hidden=false;
+   setRenderUi(true,{webm:true,state:'queued',message:'녹화 장면 준비 중',progress:0});
+   try{
+     const recorder=webmRecorder=new window.ScoreWebmRecorder.Recorder(stage,{
+       seconds,fps:Number($('fps').value),audio,onFrame(time){webmPosition=time;$('currentTime').textContent=fmt(time);$('seek').value=time;},
+       onProgress({elapsed,total,progress,frames,dropped,stalls,hiddenSeconds}){
+         setRenderUi(true,{webm:true,state:'recording',message:`녹화 중 ${fmt(elapsed)} / ${fmt(total)} · 화면 갱신 ${frames}회 · 건너뜀 ${dropped}회${stalls?` · 화면 지연 ${stalls}회`:''}`,progress});
+         $('renderEtaText').textContent=`남은 시간 약 ${Math.ceil(total-elapsed)}초`;
+         if(hiddenSeconds>=1)$('renderStageText').textContent+=' · 탭 전환으로 프레임이 누락될 수 있습니다';
+       }
+     });
+     recorder.prepareAudio();
+     await applySerial;
+     if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
+     const result=await recorder.start();
+     if(result&&!recorder.cancelled){
+       if(webmDownloadUrl){URL.revokeObjectURL(webmDownloadUrl);void webmRelease?.();}
+       webmDownloadUrl=URL.createObjectURL(result.blob);webmRelease=result.release;
+       const link=$('webmDownloadLink');link.href=webmDownloadUrl;link.download=exportFileName('webm');link.hidden=false;link.click();
+       message(`오디오 포함 WebM 다운로드 요청 · ${result.elapsed.toFixed(1)}초 · 화면 갱신 ${result.frames}회 · 건너뜀 ${result.dropped}회 · 화면 지연 ${result.stalls}회 · 탭 비활성 ${result.hiddenSeconds.toFixed(1)}초 · ${result.storage.toUpperCase()} 임시 저장 (실제 인코딩 프레임 수는 다를 수 있음)`);
+     }else message('WebM 녹화를 취소했습니다. 편집을 계속할 수 있습니다.');
+   }catch(error){if(webmRecorder?.error||!webmRecorder?.cancelled)message('WebM 녹화 실패: '+error.message,true);else message('WebM 녹화를 취소했습니다. 편집을 계속할 수 있습니다.');}
+   finally{
+     if(webmRecorder&&!webmRecorder.finished){webmRecorder.cancel();webmRecorder.cleanup();}
+     const cancelled=webmRecorder?.cancelled;webmRecorder=null;$('cancelWebmButton').hidden=true;$('cancelWebmButton').disabled=false;$('cancelWebmButton').textContent='녹화 취소하고 편집하기';
+     $('webmRecordButton').disabled=Boolean(webmUnavailable);setRenderUi(false);updateExportUi();
+     seekTo(webmPosition);
+   }
+ });
+ $('cancelWebmButton').addEventListener('click',()=>{
+   if(!webmRecorder||$('cancelWebmButton').disabled)return;
+   $('cancelWebmButton').disabled=true;$('cancelWebmButton').textContent='녹화 취소 중...';
+   webmRecorder.cancel();
+ });
+ $('cancelRenderButton').addEventListener('click',async()=>{
+   if(!project||$('cancelRenderButton').disabled)return;
+   if(offlineActive){
+     offlineCancelPending=true;
+     const progress=window.__offlineProgress;
+     offlineReturnTime=progress?.completed&&progress?.frameCount?Math.min(duration(),progress.completed/Number($('fps').value)):offlineReturnTime;
+     $('cancelRenderButton').disabled=true;$('cancelRenderButton').textContent='취소 중…';
+     setRenderUi(true,{state:'cancelling',progress:Number($('percent').textContent.replace('%',''))||0});
+     window.ScoreOfflineExport.cancel();
+     return;
+   }
+   cancelReturnTime=audio.currentTime;audio.pause();
+   $('cancelRenderButton').disabled=true;$('cancelRenderButton').textContent='취소 중…';
+   setRenderUi(true,{state:'cancelling',progress:Number($('percent').textContent.replace('%',''))||0});
+   if(legacyStartPending){legacyCancelPending=true;return;}
+   try{
+     const r=await fetch(`/api/projects/${project.id}/render/cancel`,{method:'POST'});
+     if(!r.ok)throw Error('렌더링 취소 요청에 실패했습니다');
+     await pollStatus();
+   }catch(e){message(e.message,true);$('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';}
  });
  window.ScoreVisualEditor=window.createScoreVisualEditor({
    frame:$('stageFrame'),overlay:$('scoreEditOverlay'),box:$('scoreEditBox'),
@@ -709,7 +952,28 @@
      $('scorePanelColor').focus({preventScroll:true});
    });
  });
- refreshVideoPresets();restoreSettings();window.addEventListener('resize',resizePreview);
+ for(const radio of document.querySelectorAll('input[name="exportMode"]'))radio.addEventListener('change',()=>{
+   if(!radio.checked||renderUiActive)return;
+   experimentalOptIn=radio.value==='offline';
+   exportChoiceExplicit=true;
+   localStorage.setItem(exportModeKey,radio.value);updateExportUi();
+ });
+ const savedExportMode=localStorage.getItem(exportModeKey);
+ document.querySelector(`input[name="exportMode"][value="${savedExportMode==='offline'?'offline':'legacy'}"]`).checked=true;
+ let offlineProbeEpoch=0;
+ async function refreshOfflineSupport(){
+   const epoch=++offlineProbeEpoch,[width,height]=$('resolution').value.split('x').map(Number),fps=Number($('fps').value);
+   offlineSupport=null;updateExportUi();
+   const result=await window.ScoreOfflineExport.probe(width,height,fps);
+   if(epoch===offlineProbeEpoch){offlineSupport=result;updateExportUi();}
+ }
+ $('retryOfflineSupport').addEventListener('click',()=>{if(!renderUiActive)void refreshOfflineSupport();});
+ for(const id of ['aspectRatio','outputQuality'])$(id).addEventListener('change',()=>{preserveLegacyWide=false;syncOutputSize();experimentalOptIn=false;queueApply();void refreshOfflineSupport();});
+ $('convertExactWide').addEventListener('click',()=>{preserveLegacyWide=false;syncOutputSize();queueApply();void refreshOfflineSupport();});
+ $('resolution').addEventListener('change',()=>{migrateOutputSize({resolution:$('resolution').value});experimentalOptIn=false;queueApply();void refreshOfflineSupport();});
+ $('fps').addEventListener('change',()=>{experimentalOptIn=false;void refreshOfflineSupport();});
+ for(const id of ['drawScore','zoom'])$(id).addEventListener('change',()=>{experimentalOptIn=false;updateExportUi();});
+ refreshVideoPresets();restoreSettings();void refreshOfflineSupport();window.addEventListener('resize',resizePreview);
  if(typeof ResizeObserver!=='undefined'){
    let lastWidth=0,lastHeight=0;
    new ResizeObserver(entries=>{
@@ -722,8 +986,11 @@
    const id=localStorage.getItem('scorevideo_last_project');if(!id)return;
    try{const r=await fetch(`/api/projects/${id}`);if(!r.ok)return;await loadProject(await r.json());
      const s=await fetch(`/api/projects/${id}/status`).then(r=>r.json());
-     if(['queued','rendering'].includes(s.state)){polling=setInterval(pollStatus,750);pollStatus();}
-     else if(s.state==='done'){$('downloadLink').hidden=false;$('downloadLink').href=`/api/projects/${id}/download`;}
+     if(['queued','rendering','cancelling'].includes(s.state)){activeDownloadJob=s.job_id||null;renderUiJob=s.job_id||null;polling=setInterval(pollStatus,750);pollStatus();}
+     else if(s.state==='done'){
+       const diagnostics=await fetch(`/api/projects/${id}/render-diagnostics`).then(r=>r.ok?r.json():null).catch(()=>null);
+       if(diagnostics?.engine!=='webcodecs'){$('downloadLink').hidden=false;$('downloadLink').href=`/api/projects/${id}/download${s.job_id?'?job_id='+encodeURIComponent(s.job_id):''}`;}
+     }
    }catch(e){message('이전 프로젝트 복원 실패: '+e.message,true);}
  })();
  // A narrow debug hook to verify preview/export settings parity in browser tests.

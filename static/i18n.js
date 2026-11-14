@@ -3,6 +3,8 @@
 (function(root){
  'use strict';
  const english={
+  '미니멀 모드':'Minimal mode',
+  '빛과 낙하 노트 대신 색상과 명암으로 연주를 표현합니다.':'Show the performance through color and contrast instead of glow and falling notes.',
   '언어':'Language','언어 선택':'Choose language','작업 설정':'Workspace settings','악보 확대 및 동기화 조절':'Score zoom and sync controls','악보 확대 비율':'Score zoom level','악보 축소':'Zoom out score','악보 확대':'Score zoom','악보 확대를 100%로 초기화':'Reset score zoom to 100%','MIDI의 첫 타건과 음원의 첫 소리를 자동으로 맞춥니다':'Automatically align the first MIDI attack with the first audio sound','이 컴퓨터에서만 실행':'Runs on this computer only',
   '첫 소리 자동 싱크 적용. 악보와 건반은 미세 조정에서 각각 보정할 수 있습니다.':'First-sound sync applied. Fine-tune the score and piano separately.',
   '연주를 따라 움직이는':'Make','악보 영상':'an animated score video','을 만들어보세요.':'that follows the performance.',
@@ -30,6 +32,13 @@
   '테마와 어울리는 오선·음표·배경·발광 및 오른손/왼손 궤적 2색을 자동 설정했습니다.':'Theme-matched staff, notes, paper, glow, and right/left hand trail colors applied.','테마 기준색에 맞춰 오른손과 왼손 궤적색을 자동 설정했습니다.':'Right and left hand trail colors matched to the theme.','이미지는 20MB 이하로 선택해 주세요.':'Choose an image up to 20 MB.','이미지의 색상을 분석하고 있습니다…':'Analyzing image colors…','현재 영상 배경 이미지를 읽고 있습니다…':'Loading the current background image…','선택한 그림을 미리보기와 영상 배경에 적용했습니다. 디자인 탭에서 투명도와 위치를 조절할 수 있어요.':'Image applied to preview and video background. Adjust opacity and position in Design.','먼저 영상 배경으로 사용할 이미지를 선택해 주세요.':'Choose an image to use as the video background first.','영상 배경에서 그림을 제거했습니다.':'Removed the image from the video background.','먼저 악보·MIDI·음원을 업로드해 주세요.':'Load the score, MIDI, and audio first.','배경 이미지를 미리보기와 출력 설정에 적용했습니다. 디자인 탭에서 추천 팔레트를 확인하세요.':'Background applied to preview and export. Find palette suggestions in Design.','배경 이미지를 제거했습니다.':'Removed the background image.','악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.':'Score/MIDI performance timing matched. The same timing is used in preview and MP4.','MusicXML, MIDI, 음원 파일을 모두 선택해 주세요.':'Choose MusicXML, MIDI, and audio files.','Dream Journey 예제 파일을 준비하고 있습니다...':'Preparing Dream Journey demo files...','싱크 초기화됨.':'Sync reset.','마디 위치를 읽지 못했습니다. 악보 로딩 상태를 확인해 주세요.':'Could not read measure position. Check that the score loaded.','먼저 악보, MIDI, 음원을 불러오세요.':'Load the score, MIDI, and audio first.','오디오 재생 실패: ':'Audio playback failed: ','전체화면 전환 실패: ':'Could not enter fullscreen: ','미리보기와 같은 설정으로 프레임별 영상 출력 중입니다.':'Exporting video frame by frame with preview settings.','이전 프로젝트 복원 실패: ':'Could not restore previous project: '
  };
  Object.assign(english,{
+  '화면 비율':'Aspect ratio','출력 해상도 · 짧은 변 기준':'Output resolution · shorter edge',
+  '16:9 · YouTube 가로':'16:9 · YouTube landscape','9:16 · Shorts / Reels / TikTok':'9:16 · Shorts / Reels / TikTok',
+  '1:1 · 정사각형':'1:1 · Square','4:5 · Instagram 피드':'4:5 · Instagram feed',
+  '3:4 · 세로 포스트':'3:4 · Portrait post','4:3 · 가로 포스트':'4:3 · Landscape post',
+  '21:9 · 시네마 와이드':'21:9 · Cinematic wide','720p · HD':'720p · HD','1080p · Full HD':'1080p · Full HD',
+  '정확한 21:9 · 2520×1080으로 전환':'Switch to exact 21:9 · 2520×1080',
+  '21:9는 정확히 2520×1080입니다. 이전 2560×1080은 약 2.37:1로 21:9보다 넓습니다.':'Exact 21:9 is 2520×1080. The old 2560×1080 preset is about 2.37:1 and wider than 21:9.',
   '✦ 인터랙티브 뷰 · 자동 포인트 생성':'✦ Interactive View · generate camera points',
   'Interactive View · 자동/수동 음표 포인트':'Interactive View · automatic/manual note points',
   'Interactive View는 자동 제안과 수동 포인트를 하나의 부드러운 카메라 경로로 연결합니다.':'Interactive View joins automatic suggestions and manual points into one smooth camera path.',

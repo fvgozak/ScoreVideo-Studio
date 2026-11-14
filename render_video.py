@@ -18,6 +18,7 @@ from io import BytesIO
 from PIL import Image
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from render_cancel import RenderCancelled
 
 from render_adaptive import (
     Pipeline, ffmpeg_device_args, ffmpeg_input_args, ffmpeg_video_args,
@@ -33,8 +34,15 @@ def ffmpeg_command(p: Pipeline, settings, audio: Path, seconds: float, output: P
             + ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output)])
 
 
+def check_cancel(cancel_check):
+    if cancel_check and cancel_check():
+        raise RenderCancelled()
+
+
 def stream_frames(page, stage, p: Pipeline, settings, audio: Path,
-                  seconds: float, pending: Path, callback, profile_seconds: float = 0.) -> dict:
+                  seconds: float, pending: Path, callback, profile_seconds: float = 0.,
+                  cancel_check=None, on_process=None) -> dict:
+    check_cancel(cancel_check)
     total = math.ceil(seconds * settings.fps)
     cmd = ffmpeg_command(p, settings, audio, seconds, pending)
     ffmpeg_cpu_start = os.times()
@@ -50,16 +58,21 @@ def stream_frames(page, stage, p: Pipeline, settings, audio: Path,
     start = time.perf_counter()
     ffmpeg_started = start
     try:
+        if on_process:
+            on_process(process)
         for i in range(total):
+            check_cancel(cancel_check)
             frame_t = i / settings.fps
             a = time.perf_counter()
             js_ms = page.evaluate('(t) => { const start = performance.now(); window.renderAt(t); return performance.now() - start; }', frame_t)
             b = time.perf_counter()
+            check_cancel(cancel_check)
             options = {'type': p.capture, 'animations': 'disabled',
                        'caret': 'hide', 'timeout': 60000}
             if p.capture == 'jpeg':
                 options['quality'] = p.quality
             frame = page.screenshot(**options)
+            check_cancel(cancel_check)
             c = time.perf_counter()
             evaluate_total += b - a
             if isinstance(js_ms, (int, float)) and math.isfinite(js_ms):
@@ -68,6 +81,7 @@ def stream_frames(page, stage, p: Pipeline, settings, audio: Path,
             try:
                 process.stdin.write(frame)
             except (BrokenPipeError, OSError) as exc:
+                check_cancel(cancel_check)
                 details = process.stderr.read().decode('utf-8', errors='replace')[-1400:]
                 raise RuntimeError(f'FFmpeg encoder {p.encoder} stopped: {details}') from exc
             write_total += time.perf_counter() - c
@@ -79,6 +93,7 @@ def stream_frames(page, stage, p: Pipeline, settings, audio: Path,
                 callback(min(99, int(99 * (i + 1) / total)),
                          f'{p.encoder} · {p.capture.upper()} | {speed:.1f} fps · 남은 시간 약 {int(remaining // 60)}분 {int(remaining % 60)}초')
         finalize_started = time.perf_counter()
+        check_cancel(cancel_check)
         process.stdin.close()
         close_total = time.perf_counter() - finalize_started
         wait_started = time.perf_counter()
@@ -87,8 +102,10 @@ def stream_frames(page, stage, p: Pipeline, settings, audio: Path,
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError('FFmpeg did not finish writing the video') from exc
         if code:
+            check_cancel(cancel_check)
             details = process.stderr.read().decode('utf-8', errors='replace')[-1400:]
             raise RuntimeError(f'FFmpeg encoder {p.encoder} failed (exit {code}): {details}')
+        check_cancel(cancel_check)
         wait_total = time.perf_counter() - wait_started
         ffmpeg_cpu_end = os.times()
         wall = time.perf_counter() - start
@@ -120,13 +137,15 @@ def stream_frames(page, stage, p: Pipeline, settings, audio: Path,
 
 
 def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
-                             seconds: float, pending: Path, callback, profile_seconds: float = 0.) -> dict:
+                             seconds: float, pending: Path, callback, profile_seconds: float = 0.,
+                             cancel_check=None, on_process=None) -> dict:
     """Capture the existing DOM/SVG/canvas stage via CDP paint events.
 
     Holding each screencast frame unacknowledged while seeking the next exact
     timestamp ensures one painted frame per renderAt(t), with no page.screenshot
     call in the frame loop. The browser still JPEG-encodes the painted scene.
     """
+    check_cancel(cancel_check)
     total = math.ceil(seconds * settings.fps)
     capture_pipeline = Pipeline('jpeg', p.encoder, p.bitrate, p.quality)
     session = page.context.new_cdp_session(page)
@@ -147,7 +166,10 @@ def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
     screencast_started = False
     held = None
     try:
+        if on_process:
+            on_process(process)
         page.evaluate('(t) => window.renderAt(t)', 0)
+        check_cancel(cancel_check)
         first_reference = page.screenshot(type='png', animations='disabled', caret='hide')
         session.send('Page.startScreencast', {'format': 'jpeg', 'quality': p.quality,
                                              'maxWidth': settings.width, 'maxHeight': settings.height,
@@ -155,22 +177,26 @@ def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
         screencast_started = True
         deadline = time.perf_counter() + 10
         while not received and time.perf_counter() < deadline:
+            check_cancel(cancel_check)
             page.wait_for_timeout(5)
         if not received:
             raise RuntimeError('Chromium screencast did not provide an initial frame')
         held = received.pop(0)
         for i in range(total):
+            check_cancel(cancel_check)
             if received:
                 raise RuntimeError(f'Chromium screencast queued an unsolicited frame before timestamp {i/settings.fps}')
             before = time.perf_counter()
             js_ms = page.evaluate('(t) => { const start = performance.now(); window.renderAt(t); return performance.now() - start; }', i / settings.fps)
             evaluate_total += time.perf_counter() - before
+            check_cancel(cancel_check)
             if isinstance(js_ms, (int, float)) and math.isfinite(js_ms):
                 js_total += max(0, js_ms) / 1000
             session.send('Page.screencastFrameAck', {'sessionId': held['sessionId']})
             wait_started = time.perf_counter()
             deadline = wait_started + 10
             while not received and time.perf_counter() < deadline:
+                check_cancel(cancel_check)
                 page.wait_for_timeout(2)
             event_wait_total += time.perf_counter() - wait_started
             if not received:
@@ -193,6 +219,7 @@ def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
             try:
                 process.stdin.write(frame)
             except (BrokenPipeError, OSError) as exc:
+                check_cancel(cancel_check)
                 details = process.stderr.read().decode('utf-8', errors='replace')[-1400:]
                 raise RuntimeError(f'FFmpeg encoder {p.encoder} stopped: {details}') from exc
             write_total += time.perf_counter() - write_started
@@ -204,6 +231,7 @@ def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
                 callback(min(99, int(99 * (i + 1) / total)),
                          f'{p.encoder} · CDP JPEG | {speed:.1f} fps · 남은 시간 약 {int(remaining // 60)}분 {int(remaining % 60)}초')
         close_started = time.perf_counter()
+        check_cancel(cancel_check)
         process.stdin.close()
         close_total = time.perf_counter() - close_started
         wait_started = time.perf_counter()
@@ -214,8 +242,10 @@ def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
         wait_total = time.perf_counter() - wait_started
         ffmpeg_cpu_end = os.times()
         if code:
+            check_cancel(cancel_check)
             details = process.stderr.read().decode('utf-8', errors='replace')[-1400:]
             raise RuntimeError(f'FFmpeg encoder {p.encoder} failed (exit {code}): {details}')
+        check_cancel(cancel_check)
         wall = time.perf_counter() - started
         return {'encoder': p.encoder, 'capture': 'cdp-screencast-jpeg', 'frames': total,
                 'render_elapsed_sec': round(wall, 2), 'frame_processing_fps': round(total / max(.001, wall), 2),
@@ -252,7 +282,8 @@ def stream_screencast_frames(page, p: Pipeline, settings, audio: Path,
             process.stderr.close()
 
 
-def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, str], None]):
+def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, str], None],
+               cancel_check=None, on_process=None):
     audio_path = folder / meta['audio_filename']
     seconds = float(meta['audio_duration_sec'])
     output = folder / 'output.mp4'
@@ -263,6 +294,7 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
            + '/render/' + meta['id'])
     report = {}
     try:
+        check_cancel(cancel_check)
         with sync_playwright() as p:
             chromium_executable = os.environ.get('SCOREVIDEO_CHROMIUM_PATH')
             launch_options = {'headless': True}
@@ -273,17 +305,28 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
                 page = browser.new_page(viewport={'width': settings.width, 'height': settings.height},
                                         device_scale_factor=1, reduced_motion='reduce')
                 page.goto(url, wait_until='domcontentloaded', timeout=30_000)
-                try:
-                    page.wait_for_function('window.__ready === true || !!window.__renderError', timeout=90_000)
-                except PlaywrightTimeoutError as exc:
-                    raise RuntimeError('Score renderer did not load (OSMD or local browser resources)') from exc
+                deadline = time.perf_counter() + 90
+                while True:
+                    check_cancel(cancel_check)
+                    try:
+                        page.wait_for_function('window.__ready === true || !!window.__renderError', timeout=500)
+                        break
+                    except PlaywrightTimeoutError as exc:
+                        if time.perf_counter() >= deadline:
+                            raise RuntimeError('Score renderer did not load (OSMD or local browser resources)') from exc
                 problem = page.evaluate('window.__renderError || null')
                 if problem:
                     raise RuntimeError(f'Score renderer failed: {problem}')
 
+                check_cancel(cancel_check)
+
                 stage = page.locator('#scoreViewport')
                 started = time.perf_counter()
-                choice, diagnostic = profile_pipeline(page, stage, seconds, settings, on_progress)
+                def progress(value, message):
+                    check_cancel(cancel_check)
+                    on_progress(value, message)
+                choice, diagnostic = profile_pipeline(page, stage, seconds, settings, progress)
+                check_cancel(cancel_check)
                 benchmark_time = time.perf_counter() - started
                 on_progress(0, f'자동 선택: {choice.encoder} + {choice.capture.upper()} · 프레임 처리 시작')
                 capture_preference = os.environ.get('SCOREVIDEO_CAPTURE', 'auto').lower()
@@ -295,8 +338,12 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
                     if use_screencast:
                         try:
                             return stream_screencast_frames(page, pipeline, settings, audio_path,
-                                                            seconds, pending, on_progress, benchmark_time)
+                                                            seconds, pending, progress, benchmark_time,
+                                                            cancel_check, on_process)
+                        except RenderCancelled:
+                            raise
                         except Exception as exc:
+                            check_cancel(cancel_check)
                             # A failed or visually mismatched CDP stream is never
                             # published; regenerate every timestamp via the
                             # original screenshot path instead.
@@ -305,13 +352,15 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
                             pending.unlink(missing_ok=True)
                             on_progress(0, 'CDP 캡처 불일치/실패 → 기존 스크린샷 경로로 전체 재시도')
                     return stream_frames(page, stage, pipeline, settings, audio_path,
-                                         seconds, pending, on_progress, benchmark_time)
+                                         seconds, pending, progress, benchmark_time,
+                                         cancel_check, on_process)
 
                 # A runtime HW failure must not leave a broken MP4. Repeat the
                 # deterministic frame generation using a working CPU fallback.
                 try:
                     stats = capture_with_fallback(choice)
                 except RuntimeError as exc:
+                    check_cancel(cancel_check)
                     if choice.encoder in ('libx264', 'mpeg4'):
                         raise
                     fallback = 'libx264' if 'libx264' in diagnostic['encoder_benchmarks_sec'] else 'mpeg4'
@@ -328,7 +377,9 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
 
         if not pending.exists() or pending.stat().st_size < 4096:
             raise RuntimeError('FFmpeg did not create a valid MP4')
+        check_cancel(cancel_check)
         pending.replace(output)
+        report['engine'] = 'ffmpeg'
         (folder / 'render-diagnostics.json').write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding='utf-8')
         on_progress(100, f"완료: {stats['encoder']} / {stats['capture'].upper()} · 평균 {stats['frame_processing_fps']:.1f} fps")
     finally:

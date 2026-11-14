@@ -4,10 +4,12 @@ from __future__ import annotations
 import io
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
 import threading
+import re
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
@@ -26,6 +28,7 @@ from sample_audio import render_salamander
 from auto_sync import first_attack_sync
 from image_palette import propose_score_palettes
 from musical_salience import load_or_build as load_salience_features, reweight as reweight_salience
+from render_cancel import RenderCancelled
 
 BASE = Path(__file__).resolve().parent
 DATA = BASE / "data" / "projects"
@@ -40,10 +43,14 @@ render_lock = threading.Lock()
 state_lock = threading.Lock()
 active_project: str | None = None
 jobs: dict[str, dict] = {}
+cancel_events: dict[str, threading.Event] = {}
+render_processes: dict[str, tuple[subprocess.Popen, bool]] = {}
 
 
 class RenderRequest(BaseModel):
     fps: int = Field(default=24)
+    download_name: str = Field(default="", max_length=200)
+    aspect_ratio: str | None = Field(default=None, pattern=r"^(16:9|9:16|1:1|4:5|3:4|4:3|21:9)$")
     render_mode: str = Field(default="auto", pattern=r"^(auto|quality|speed)$")
     width: int = Field(default=1280)
     height: int = Field(default=720)
@@ -66,6 +73,7 @@ class RenderRequest(BaseModel):
     inverted: bool = False
     glitter: bool = False
     sparkle: bool = True
+    minimal_mode: bool = False
     velocity_reactive: bool = True
     note_motion: bool = True
     draw_score: bool = False
@@ -550,7 +558,44 @@ def render_page(project_id: str):
 
 def update_job(project_id: str, **fields):
     with state_lock:
+        if jobs.get(project_id, {}).get("state") in ("cancelling", "cancelled") and fields.get("state") != "cancelled":
+            return
         jobs.setdefault(project_id, {}).update(fields)
+
+
+def stop_render_process(process: subprocess.Popen, tree: bool = False):
+    if process.poll() is not None:
+        return
+    try:
+        if tree and os.name != "nt":
+            os.killpg(process.pid, signal.SIGTERM)
+        elif tree and os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                           capture_output=True, timeout=5, check=False)
+        else:
+            process.terminate()
+    except (ProcessLookupError, OSError):
+        return
+    def force_stop():
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            try:
+                if tree and os.name != "nt":
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:
+                    process.kill()
+            except (ProcessLookupError, OSError):
+                pass
+    threading.Thread(target=force_stop, daemon=True).start()
+
+
+def track_render_process(project_id: str, process: subprocess.Popen, tree: bool = False):
+    with state_lock:
+        render_processes[project_id] = (process, tree)
+        cancelled = cancel_events[project_id].is_set()
+    if cancelled:
+        stop_render_process(process, tree)
 
 
 def render_python() -> str | None:
@@ -569,8 +614,9 @@ def render_python() -> str | None:
     return None
 
 
-def run_render(project_id: str, settings: RenderRequest, python: str):
+def run_render(project_id: str, settings: RenderRequest, python: str, cancel_event: threading.Event):
     global active_project
+    outcome = ("done", "완료")
     try:
         folder = DATA / project_id
         meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
@@ -580,15 +626,21 @@ def run_render(project_id: str, settings: RenderRequest, python: str):
         pending_settings = folder / "render-config.pending.json"
         pending_settings.write_text(settings.model_dump_json(), encoding="utf-8")
         pending_settings.replace(settings_file)
+        if cancel_event.is_set():
+            raise RenderCancelled()
         update_job(project_id, state="rendering", progress=0, message="Starting Chromium")
         if Path(python).resolve() == Path(sys.executable).resolve():
             from render_video import export_mp4
             export_mp4(folder=folder, meta=meta, settings=settings,
-                       on_progress=lambda p, msg: update_job(project_id, progress=p, message=msg))
+                       on_progress=lambda p, msg: update_job(project_id, progress=p, message=msg),
+                       cancel_check=cancel_event.is_set,
+                       on_process=lambda process: track_render_process(project_id, process))
         else:
             process = subprocess.Popen([python, str(BASE / "render_worker.py"), project_id],
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                       env=os.environ.copy())
+                                       env=os.environ.copy(), start_new_session=os.name != "nt",
+                                       creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
+            track_render_process(project_id, process, tree=True)
             assert process.stdout is not None and process.stderr is not None
             for line in process.stdout:
                 try:
@@ -598,14 +650,26 @@ def run_render(project_id: str, settings: RenderRequest, python: str):
                     continue
             error = process.stderr.read()
             if process.wait():
+                if cancel_event.is_set():
+                    raise RenderCancelled()
                 raise RuntimeError(error.strip()[-1200:] or "MP4 render worker failed")
-        update_job(project_id, state="done", progress=100)
+        if cancel_event.is_set():
+            raise RenderCancelled()
+    except RenderCancelled:
+        outcome = ("cancelled", "렌더링을 취소했습니다")
     except Exception as exc:
-        update_job(project_id, state="error", message=str(exc))
+        outcome = ("cancelled", "렌더링을 취소했습니다") if cancel_event.is_set() else ("error", str(exc))
     finally:
+        if cancel_event.is_set():
+            (DATA / project_id / "output.pending.mp4").unlink(missing_ok=True)
         with state_lock:
+            render_processes.pop(project_id, None)
+            cancel_events.pop(project_id, None)
             active_project = None
-        render_lock.release()
+            render_lock.release()
+            state, message = ("cancelled", "렌더링을 취소했습니다") if cancel_event.is_set() else outcome
+            jobs[project_id].update(state=state, message=message,
+                                    progress=100 if state == "done" else jobs[project_id].get("progress", 0))
 
 
 @app.post("/api/projects/{project_id}/render")
@@ -615,23 +679,47 @@ def start_render(project_id: str, options: RenderRequest):
     python = render_python()
     if python is None:
         raise HTTPException(503, "Playwright is missing. Run ./run.command to install the project environment and Chromium, then retry MP4 export.")
-    if (options.width, options.height) not in {(1280, 720), (1920, 1080), (1080, 1920), (1080, 1080), (1080, 1350), (1080, 1440), (1440, 1080), (2560, 1080)}:
+    if (options.width, options.height) not in {
+        (1280, 720), (1920, 1080), (720, 1280), (1080, 1920),
+        (720, 720), (1080, 1080), (720, 900), (1080, 1350),
+        (720, 960), (1080, 1440), (960, 720), (1440, 1080),
+        (1680, 720), (2520, 1080), (2560, 1080),
+    }:
         raise HTTPException(400, "Unsupported video aspect ratio/resolution preset")
-    if options.fps not in (12, 24, 30):
-        raise HTTPException(400, "FPS must be 12, 24, or 30")
+    if options.fps not in (12, 24, 30, 60):
+        raise HTTPException(400, "FPS must be 12, 24, 30, or 60")
     if not render_lock.acquire(blocking=False):
         raise HTTPException(409, f"Another export is running: {active_project}")
     with state_lock:
         active_project = project_id
-        jobs[project_id] = {"state": "queued", "progress": 0, "message": "Queued"}
+        cancel_event = threading.Event()
+        cancel_events[project_id] = cancel_event
+        jobs[project_id] = {"job_id": uuid.uuid4().hex, "state": "queued", "progress": 0, "message": "Queued"}
     try:
-        threading.Thread(target=run_render, args=(project_id, options, python), daemon=True).start()
+        threading.Thread(target=run_render, args=(project_id, options, python, cancel_event), daemon=True).start()
     except Exception:
         with state_lock:
+            cancel_events.pop(project_id, None)
             active_project = None
         render_lock.release()
         raise
     return jobs[project_id]
+
+
+@app.post("/api/projects/{project_id}/render/cancel")
+def cancel_render(project_id: str):
+    project_path(project_id)
+    with state_lock:
+        job = jobs.get(project_id, {})
+        if active_project != project_id or job.get("state") not in ("queued", "rendering", "cancelling"):
+            return dict(job or {"state": "idle", "progress": 0, "message": ""})
+        cancel_events[project_id].set()
+        job.update(state="cancelling", message="렌더링 취소 중...")
+        running = render_processes.get(project_id)
+        snapshot = dict(job)
+    if running:
+        stop_render_process(*running)
+    return snapshot
 
 
 @app.get("/api/projects/{project_id}/render-config")
@@ -658,9 +746,53 @@ def render_diagnostics(project_id: str):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@app.post("/api/projects/{project_id}/render-diagnostics")
+def save_offline_render_diagnostics(project_id: str, report: dict):
+    folder = project_path(project_id)
+    if report.get("engine") != "webcodecs" or len(json.dumps(report)) > 100_000:
+        raise HTTPException(400, "Invalid offline render diagnostics")
+    (folder / "render-diagnostics.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return {"saved": True}
+
+
+def export_filename(meta: dict, settings: dict, extension: str) -> str:
+    name = settings.get("download_name") or meta.get("score_name") or meta.get("musicxml_title") or meta.get("midi_name") or "ScoreVideo"
+    name = str(name).replace("\\", "/").split("/")[-1]
+    name = re.sub(r"(?i)\.(musicxml|xml|mxl|mid|midi|mp4|webm)$", "", name)
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', "_", name).strip(" .")
+    if not name or name.upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
+        name = "ScoreVideo"
+    extension = extension.lstrip(".")
+    if extension != "mp4":
+        return name[:180] + "." + extension
+    width, height = int(settings.get("width") or 1280), int(settings.get("height") or 720)
+    fps = int(settings.get("fps") or 30)
+    ratios = {
+        (1280, 720): "16:9", (1920, 1080): "16:9",
+        (720, 1280): "9:16", (1080, 1920): "9:16",
+        (720, 720): "1:1", (1080, 1080): "1:1",
+        (720, 900): "4:5", (1080, 1350): "4:5",
+        (720, 960): "3:4", (1080, 1440): "3:4",
+        (960, 720): "4:3", (1440, 1080): "4:3",
+        (1680, 720): "21:9", (2520, 1080): "21:9", (2560, 1080): "21:9",
+    }
+    ratio = ratios.get((width, height), "16:9").replace(":", "x")
+    return f"{name[:150]}_{ratio}_{width}x{height}_{fps}fps.mp4"
+
+
 @app.get("/api/projects/{project_id}/download")
-def download(project_id: str):
-    path = project_path(project_id) / "output.mp4"
+def download(project_id: str, job_id: str | None = None):
+    folder = project_path(project_id)
+    with state_lock:
+        job = jobs.get(project_id)
+        if job and (job.get("state") != "done" or (job_id and job.get("job_id") != job_id)):
+            raise HTTPException(409, "This render is not the completed current job")
+    path = folder / "output.mp4"
     if not path.exists():
         raise HTTPException(404, "Export is not ready")
-    return FileResponse(path, media_type="video/mp4", filename="scorevideo.mp4")
+    meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
+    config_path = folder / "render-config.json"
+    settings = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+    return FileResponse(path, media_type="video/mp4", filename=export_filename(meta, settings, "mp4"))

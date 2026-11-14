@@ -4,3 +4,4 @@ data/
 static/vendor/*.js
 *.pyc
 .DS_Store
+experiments/mp4-prototype/node_modules/

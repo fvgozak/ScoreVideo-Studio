@@ -19,4 +19,17 @@ const middle=Stage.normalized({...options,scene:{template:'minimal',fxStrength:0
 assert.equal(middle.scene.fxStrength,0);
 const pure=Stage.normalized({...options,scene:{template:'minimal'}},{id:'a'});
 assert.equal(pure.effects.backgroundUrl,'');
+const minimal=Stage.normalized({minimal_mode:true,scene:{fxMode:'trail',fxStrength:1.7},
+  sparkle:true,piano_light:true});
+assert.equal(minimal.effects.minimalMode,true);
+assert.equal(minimal.piano.minimalMode,true);
+assert.equal(minimal.scene.minimalMode,true);
+assert.equal(minimal.effects.sparkle,true,'normal glow settings must be retained');
+assert.equal(minimal.scene.fxMode,'trail','normal scene settings must be retained');
+assert.equal(Stage.normalized({}).effects.minimalMode,false,'old settings default to OFF');
+const weak=Studio.minimalActiveColor('#2ec9d3','#181b22','#fffdf6',25);
+const strong=Studio.minimalActiveColor('#2ec9d3','#181b22','#fffdf6',115);
+assert.notEqual(weak,strong,'velocity changes fill color');
+assert.equal(strong,Studio.minimalActiveColor('#2ec9d3','#181b22','#fffdf6',115),
+  'cached color is deterministic');
 console.log('Shared studio scene configuration and deterministic frame tests passed');

@@ -249,3 +249,32 @@ main{max-width:1540px;padding-top:20px}
 .palette-scheme-meta strong{font-size:12px}.palette-scheme-meta small{font-size:10px;color:#92aab7;line-height:1.3}
 .palette-scheme-strip{display:flex;gap:3px;margin-top:5px}.palette-scheme-strip i{height:9px;flex:1;border-radius:2px}
 .language-picker{display:flex;align-items:center;gap:5px;color:#8fa5b4;font-size:10px}.language-picker select{background:#152330;color:#d6e9ef;border:1px solid #354b5b;border-radius:6px;padding:5px 7px;font-size:10px;cursor:pointer}
+body.render-ui-active .sidebar{position:relative;isolation:isolate}
+body.render-ui-active .sidebar::after{content:"";position:absolute;inset:0;z-index:30;background:rgba(8,16,27,.46);pointer-events:auto}
+body.render-ui-active .preview-zoom-bar,body.render-ui-active .layer-visibility-controls{opacity:.55}
+body.render-ui-active .preview-actions>:not(#cancelRenderButton):not(#cancelWebmButton):not(.preview-info){opacity:.55}
+
+/* One export choice; the scene and output settings remain shared. */
+.export-mode-choices{border:0;padding:0;margin:0 0 10px;min-width:0}
+.export-mode-choices legend{font-size:12px;font-weight:700;margin-bottom:8px}
+.export-mode-card{display:flex;align-items:flex-start;gap:10px;padding:12px;margin:0 0 8px;border:1px solid #3a4d5a;border-radius:9px;background:#14212b;cursor:pointer}
+.export-mode-card:has(input:checked){border-color:var(--aqua);background:#18313b}
+.export-mode-card:has(input:disabled){opacity:.48;cursor:not-allowed}
+.export-mode-card input{margin:2px 0 0;accent-color:var(--aqua)}
+.export-mode-card strong,.export-mode-card small{display:block}
+.export-mode-card strong{font-size:12px}.export-mode-card small{font-size:10px;line-height:1.5;color:#aab9c8;margin-top:5px}
+.export-mode-card em{font-style:normal;color:#69dba5;font-size:10px;margin-left:4px}
+#exportEstimate{margin:7px 0 13px;color:#b6cbd3}
+#webmSupportText{display:block;color:#95aab9;font-size:10px;line-height:1.5;margin-bottom:13px}
+.export-panel #downloadName{width:100%;min-width:0;padding:11px;background:#202b37;border:1px solid #344356;border-radius:7px;color:#edf3f8;outline:none}
+.export-panel #downloadName::placeholder{color:#8295a5}
+.render-status-banner{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 16px;background:#17313b;color:#d8f5f7;font-size:11px;border-bottom:1px solid #397381}
+.render-status-banner strong{flex-basis:100%;font-size:12px}
+.render-status-banner #renderPercentText{margin-left:auto;font-weight:750;color:#72e0ee}
+.render-status-banner #renderEngineText{font-weight:750;color:#9be5ef}
+.render-cancel-button{min-height:42px;padding:9px 16px;border:1px solid #ffc0ae;border-radius:8px;background:#ac3c35;color:#fff;font-size:12px;font-weight:800;cursor:pointer;box-shadow:0 2px 10px #0005}
+.render-cancel-button:hover:not(:disabled){background:#c74c41}
+.render-cancel-button:disabled{opacity:.7;cursor:wait}
+#selectedEngineSummary{display:block;margin:0 0 5px;color:#d0eaf0;font-weight:700}
+#offlineSupportText{display:block;margin-bottom:7px;line-height:1.5}
+#retryOfflineSupport{margin-bottom:5px}
