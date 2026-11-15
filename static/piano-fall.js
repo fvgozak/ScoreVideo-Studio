@@ -92,7 +92,7 @@
     const seed=Math.sin(note.pitch*83.17+note.audio*171.31+index*54.79+salt)*43758.5453;
     return seed-Math.floor(seed);
   }
-  function drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black,strength,color}){
+  function drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black,strength,color,shadowCache}){
     const age=time-note.audio,duration=Math.max(.08,note.endAudio-note.audio);
     const energy=impactEnvelope(age,duration,note.velocity/127)*strength;
     if(energy<=.006)return;
@@ -123,7 +123,9 @@
     ctx.shadowColor=color;ctx.shadowBlur=(14+33*Math.min(1,energy))*Math.min(2,strength)*spread;
     ctx.globalAlpha=Math.min(1,(.28+.63*energy)*focus);
     ctx.fillStyle='#ffffff';
-    ctx.fillRect(box.x+1,impact-2,Math.max(1,box.w-2),3+3*Math.min(1,energy));
+    const core=[box.x+1,impact-2,Math.max(1,box.w-2),3+3*Math.min(1,energy)];
+    if(shadowCache)shadowCache.draw(ctx,...core);
+    else ctx.fillRect(...core);
     ctx.shadowBlur=0;ctx.globalAlpha=1;
     if(age<.72){
       const fade=(1-age/.72)**1.6*Math.min(1,strength);
@@ -143,9 +145,18 @@
       this.canvas=document.createElement('canvas');this.canvas.className='piano-fall-canvas';
       this.canvas.setAttribute('aria-hidden','true');viewport.appendChild(this.canvas);
       this.context=this.canvas.getContext('2d');this.notes=[];this.follower=null;this.settings={enabled:true,light:true};
+      const Cache=root.ScorePianoShadowSprite?.ShadowSpriteCache;
+      this.shadowCache=Cache?new Cache():null;
     }
-    setSettings(settings){this.settings=settings||{enabled:true,light:true};this.canvas.style.display=this.settings.enabled?'':'none';}
+    setSettings(settings){
+      const next=settings||{enabled:true,light:true},old=this.settings||{};
+      for(const key of ['enabled','light','minimalMode','keyStyle','whiteKeyColor','blackKeyColor','strength','camera','portrait']){
+        if(old[key]!==next[key]){this.shadowCache?.clear();break;}
+      }
+      this.settings=next;this.canvas.style.display=this.settings.enabled?'':'none';
+    }
     setFollower(follower){
+      if(this.follower&&this.follower!==follower)this.shadowCache?.clear();
       this.follower=follower;
       // Use every physical MIDI attack, including notes without an engraved
       // counterpart. The same midiToAudio mapping drives score-note lights.
@@ -186,7 +197,9 @@
       if(!this.settings.enabled||!this.context||!this.follower)return;
       const canvas=this.canvas,w=this.follower.stageRoot?.clientWidth||canvas.parentElement.clientWidth;
       const h=this.follower.stageRoot?.clientHeight||canvas.parentElement.clientHeight;
-      if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+      const measuring=typeof this.onDrawMeasured==='function',started=measuring?performance.now():0;
+      const resized=canvas.width!==w||canvas.height!==h;
+      if(resized){canvas.width=w;canvas.height=h;this.shadowCache?.clear();}
       const ctx=this.context;ctx.clearRect(0,0,w,h);
       const keys=keyPalette(this.settings,this.follower.colors?.().paper);
       const minimal=Boolean(this.settings.minimalMode);
@@ -250,10 +263,12 @@
         ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*(key.black?.67:1)-3);
         if(minimal||!this.settings.light)continue;
         const strength=clamp(this.settings.strength??1,0,4);
-        drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color});
+        drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color,shadowCache:this.shadowCache});
       }
       ctx.restore();
+      if(measuring)this.onDrawMeasured(performance.now()-started,resized);
     }
+    dispose(){this.shadowCache?.clear();this.canvas.remove();this.follower=null;this.notes=[];}
   }
   root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,sparkleSeed,drawImpactLight,keyPalette,luminance,noteRange,cameraTarget,pianoProjection};
 })(typeof window==='undefined'?globalThis:window);

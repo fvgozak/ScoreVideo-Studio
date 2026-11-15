@@ -44,7 +44,7 @@
 
   async function engine(){
     if(!modulePromise){
-      const path=`/static/offline/offline.js?v=2${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
+      const path=`/static/offline/offline.js?v=3${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
       modulePromise=import(path).catch(async error=>{modulePromise=null;moduleAttempt++;throw await moduleFailure(error,path);});
     }
     await modulePromise;

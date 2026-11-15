@@ -29,49 +29,22 @@ window.ScoreOfflinePrototype={
   let audioEncodeError=null,audioEncodeStats=null,audioEncodeMs=0,audioWaitMs=0;
   let pianoCalls=0,pianoDrawInfo=null,pianoResizes=0,pianoCopiedPixels=0;
   const piano=mode==='simple'?null:stage?.piano,domPianoCanvas=piano?.canvas;
-  const originalPianoDraw=piano?.draw,originalDrawImage=composer?.canvas.getContext('2d').drawImage;
+  const originalDrawImage=composer?.canvas.getContext('2d').drawImage;
   const compositeContext=composer?.canvas.getContext('2d');
   const originalFillText=compositeContext?.fillText;
   const hadOwnFillText=Boolean(compositeContext&&Object.hasOwn(compositeContext,'fillText'));
   let titleDrawIndex=0,titleDrawCalls=0,titleSkipped=0;
   const deferredTitles=[];
-  const hadOwnPianoDraw=Boolean(piano&&Object.hasOwn(piano,'draw'));
   const hadOwnCompositeDrawImage=Boolean(compositeContext&&Object.hasOwn(compositeContext,'drawImage'));
-  let spriteContext=null,originalFillRect=null,hadOwnSpriteFillRect=false;
-  const spriteCache=new Map();let spriteCreates=0,spriteHits=0,spriteBuildMs=0,spriteBytes=0,peakSpriteBytes=0;
-  const pianoOptimizationApplied=Boolean(pianoMode==='shadow-sprite'&&piano&&typeof OffscreenCanvas!=='undefined');
-  if(pianoOptimizationApplied){
-    spriteContext=piano.context;originalFillRect=spriteContext.fillRect;
-    hadOwnSpriteFillRect=Object.hasOwn(spriteContext,'fillRect');
-    spriteContext.fillRect=function(x,y,w,h){
-      if(this.shadowBlur<=0||this.fillStyle!=='#ffffff')return originalFillRect.call(this,x,y,w,h);
-      const blur=this.shadowBlur,color=this.shadowColor,alpha=this.globalAlpha;
-      const originX=Math.floor(x),originY=Math.floor(y),fractionX=x-originX,fractionY=y-originY;
-      const key=[color,blur.toFixed(2),w.toFixed(2),h.toFixed(2),fractionX.toFixed(4),fractionY.toFixed(4),alpha.toFixed(4)].join('|');
-      let sprite=spriteCache.get(key);
-      if(sprite){spriteHits++;}else{
-        const buildStart=performance.now(),pad=Math.ceil(blur*2+4);
-        sprite=new OffscreenCanvas(Math.ceil(w+pad*2),Math.ceil(h+pad*2));
-        const spriteCtx=sprite.getContext('2d');
-        spriteCtx.globalCompositeOperation='lighter';spriteCtx.globalAlpha=alpha;spriteCtx.shadowColor=color;spriteCtx.shadowBlur=blur;
-        spriteCtx.fillStyle='#ffffff';spriteCtx.fillRect(pad+fractionX,pad+fractionY,w,h);
-        sprite.pad=pad;spriteCache.set(key,sprite);spriteCreates++;
-        spriteBytes+=sprite.width*sprite.height*4;
-        if(spriteCache.size>64){const oldest=spriteCache.keys().next().value;const evicted=spriteCache.get(oldest);
-          spriteBytes-=evicted.width*evicted.height*4;spriteCache.delete(oldest);}
-        peakSpriteBytes=Math.max(peakSpriteBytes,spriteBytes);
-        spriteBuildMs+=performance.now()-buildStart;
-      }
-      this.shadowBlur=0;
-      try{this.globalAlpha=1;this.drawImage(sprite,originX-sprite.pad,originY-sprite.pad);}
-      finally{this.globalAlpha=alpha;this.shadowBlur=blur;}
-    };
-  }
+  const Cache=window.ScorePianoShadowSprite?.ShadowSpriteCache;
+  const originalPianoCache=piano?.shadowCache,originalOnDrawMeasured=piano?.onDrawMeasured;
+  const pianoOptimizationApplied=Boolean(pianoMode==='shadow-sprite'&&piano&&Cache&&typeof OffscreenCanvas!=='undefined');
+  const exportCache=pianoOptimizationApplied?new Cache():null;
   if(piano){
-    piano.draw=function(time){
-      const width=this.canvas.width,height=this.canvas.height,start=performance.now();
-      try{return originalPianoDraw.call(this,time);}finally{times.pianoPaint.push(performance.now()-start);if(this.canvas.width!==width||this.canvas.height!==height)pianoResizes++;}
-    };
+    // The export uses its own cache. Preview cache contents and hit counters
+    // remain untouched, and no Canvas methods are replaced.
+    piano.shadowCache=exportCache;
+    piano.onDrawMeasured=(ms,resized)=>{times.pianoPaint.push(ms);if(resized)pianoResizes++;};
   }
   if(compositeContext){
     compositeContext.drawImage=function(...args){
@@ -178,21 +151,21 @@ window.ScoreOfflinePrototype={
     if(capturePixels&&composer)window.__offlinePixels=compositeContext.getImageData(0,0,width,height).data.slice();
     if(output){window.__offlineResult=resultFile||new Blob([output.target.buffer],{type:'video/mp4'});
       if(opfs){const {directory,name}=opfs;releaseResult=()=>directory.removeEntry(name);}}
+    const spriteStats=exportCache?.stats();
     return {mode,pianoMode,pianoOptimizationApplied,scoreGlow,startSeconds,width,height,fps,seconds,frames:completed,bytes,
       audioMode,storage:opfs?'opfs':'memory',audioInputBytes:audioInfo?.inputBytes||0,
       audioFetchMs:+(audioInfo?.fetchMs||0).toFixed(2),audioDecodeMs:+(audioInfo?.decodeMs||0).toFixed(2),
       audioEncodeMs:+audioEncodeMs.toFixed(2),audioWaitMs:+audioWaitMs.toFixed(2),
       audioEncodedPackets:audioTrack?.packetCount||0,audio:audioEncodeStats,
-      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:scoreOverlay?.stats()||null,staticHeads:staticHeads?.stats()||null,titleDrawCalls,titleSkipped,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls,pianoResizes,pianoCopiedPixels,pianoDrawInfo,spriteCreates,spriteHits,spriteBuildMs:+spriteBuildMs.toFixed(2),peakSpriteBytes,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
+      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:scoreOverlay?.stats()||null,staticHeads:staticHeads?.stats()||null,titleDrawCalls,titleSkipped,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls,pianoResizes,pianoCopiedPixels,pianoDrawInfo,spriteCreates:spriteStats?.creates||0,spriteHits:spriteStats?.hits||0,spriteBuildMs:spriteStats?.buildMs||0,peakSpriteBytes:spriteStats?.peakBytes||0,spriteEvictions:spriteStats?.evictions||0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
   }catch(error){cancelRequested=true;if(output&&!finalized)try{await output.cancel();}catch(_){}
     if(audioTask)await audioTask;
     if(opfs)try{await opfs.directory.removeEntry(opfs.name);}catch(_){}
     throw error;}
   finally{
     activeAbort=null;audioInfo=null;
-    if(spriteContext){if(hadOwnSpriteFillRect)spriteContext.fillRect=originalFillRect;else delete spriteContext.fillRect;}
-    spriteCache.clear();
-    if(piano){if(hadOwnPianoDraw)piano.draw=originalPianoDraw;else delete piano.draw;}
+    if(piano){piano.shadowCache=originalPianoCache;piano.onDrawMeasured=originalOnDrawMeasured;}
+    exportCache?.clear();
     if(compositeContext){if(hadOwnCompositeDrawImage)compositeContext.drawImage=originalDrawImage;else delete compositeContext.drawImage;
       if(hadOwnFillText)compositeContext.fillText=originalFillText;else delete compositeContext.fillText;}
     staticHeads?.close();scoreOverlay?.close();composer?.close();window.__offlineProgress=null;

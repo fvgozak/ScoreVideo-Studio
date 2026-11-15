@@ -216,6 +216,10 @@
      this.applyScoreVisibility();
      this.follower.setEffects({...next.effects,lightColorMode:next.scene.lightColorMode,
        auroraLow:next.scene.auroraLow,auroraHigh:next.scene.auroraHigh,velocityScale:next.scene.velocityScale});
+     if(prev.effects.glow!==next.effects.glow||prev.effects.accent!==next.effects.accent||
+       prev.effects.paper!==next.effects.paper||prev.scene.lightColorMode!==next.scene.lightColorMode||
+       prev.scene.auroraLow!==next.scene.auroraLow||prev.scene.auroraHigh!==next.scene.auroraHigh||
+       prev.scene.velocityScale!==next.scene.velocityScale)this.piano?.shadowCache?.clear();
      if(this.meta.has_score===false)this.follower.scene=next.scene;
      this.follower.setOffset(next.offsetSec);
      this.piano?.setSettings(next.piano);

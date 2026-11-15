@@ -587,7 +587,8 @@
  async function loadProject(meta){
    if(renderUiActive&&project&&meta.id!==project.id)return;
    ++renderPollEpoch;
-   stage=null;revision++;await applySerial.catch(()=>{});
+   const previousStage=stage;stage=null;revision++;await applySerial.catch(()=>{});
+   previousStage?.piano?.dispose();
    ++backgroundSerial;pendingBackgroundFile=null;
    window.ScoreVisualEditor?.setEditing(false);
    $('scoreEditOverlay').hidden=true;
