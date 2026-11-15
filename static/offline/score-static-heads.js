@@ -90,7 +90,9 @@ export async function createStaticScoreHeads(stage,canvas){
         if(!entries.has(el.ownerSVGElement))continue;
         eraseRestingHead(el,motionEl,sx,sy,region);
       }
-      output.drawImage(scratch,(region.left-base.left)*sx,(region.top-base.top)*sy);
+      const crop=region.height*stage.settings.scoreRegion.cropTopPercent/100;
+      output.save();output.beginPath();output.rect((region.left-base.left)*sx,(region.top+crop-base.top)*sy,region.width*sx,(region.height-crop)*sy);output.clip();
+      output.drawImage(scratch,(region.left-base.left)*sx,(region.top-base.top)*sy);output.restore();
       drawMs+=performance.now()-started;frames++;
     },
     stats(){return {rasterMs:+rasterMs.toFixed(2),drawMs:+drawMs.toFixed(2),frames,removedHeads,

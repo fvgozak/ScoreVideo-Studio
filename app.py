@@ -93,6 +93,7 @@ class RenderRequest(BaseModel):
     score_area_width: float = Field(default=94.0, ge=30, le=100)
     score_area_x: float = Field(default=50.0, ge=0, le=100)
     score_area_height: float = Field(default=50.0, ge=15, le=100)
+    score_crop_top: float = Field(default=0.0, ge=0, le=50)
     score_margin_top: float = Field(default=4.0, ge=0, le=45)
     score_margin_bottom: float = Field(default=9.0, ge=0, le=45)
     score_panel_color: str = Field(default="#0c1120", pattern=r"^#[0-9a-fA-F]{6}$")

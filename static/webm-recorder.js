@@ -67,7 +67,8 @@
    for(const canvas of canvases){
      const r=canvas.getBoundingClientRect();ctx.save();
      const scoreWindow=canvas.closest('.score-window');
-     if(scoreWindow){const clip=scoreWindow.getBoundingClientRect();ctx.beginPath();ctx.rect((clip.left-base.left)*sx,(clip.top-base.top)*sy,clip.width*sx,clip.height*sy);ctx.clip();}
+     if(scoreWindow){const clip=scoreWindow.getBoundingClientRect(),crop=clip.height*stage.settings.scoreRegion.cropTopPercent/100;
+       ctx.beginPath();ctx.rect((clip.left-base.left)*sx,(clip.top+crop-base.top)*sy,clip.width*sx,(clip.height-crop)*sy);ctx.clip();}
      ctx.drawImage(canvas,(r.left-base.left)*sx,(r.top-base.top)*sy,r.width*sx,r.height*sy);ctx.restore();
    }
  }
@@ -106,7 +107,8 @@
    if(!stage.settings.scoreVisible||stage.meta.has_score===false)return;
    const base=stage.viewport.getBoundingClientRect(),region=stage.scoreWindow.getBoundingClientRect();
    const sx=stage.settings.width/base.width,sy=stage.settings.height/base.height;
-   ctx.save();ctx.beginPath();ctx.rect((region.left-base.left)*sx,(region.top-base.top)*sy,region.width*sx,region.height*sy);ctx.clip();
+   const crop=region.height*stage.settings.scoreRegion.cropTopPercent/100;
+   ctx.save();ctx.beginPath();ctx.rect((region.left-base.left)*sx,(region.top+crop-base.top)*sy,region.width*sx,(region.height-crop)*sy);ctx.clip();
    ctx.globalAlpha=stage.settings.scoreRegion.panelOpacity;ctx.fillStyle=stage.settings.scoreRegion.panelColor;
    ctx.fillRect((region.left-base.left)*sx,(region.top-base.top)*sy,region.width*sx,region.height*sy);ctx.globalAlpha=1;
    const notation=stage.settings.scene.notationStyle;

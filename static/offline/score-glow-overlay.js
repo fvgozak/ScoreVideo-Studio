@@ -104,7 +104,8 @@ export function createScoreGlowOverlay(stage,canvas){
       if(!base.width||!base.height||!region.width||!region.height)return {heads:0,particles:0};
       const sx=stage.settings.width/base.width,sy=stage.settings.height/base.height;
       const beforeHeads=activeHeads,beforeParticles=particleCount;
-      ctx.save();ctx.beginPath();ctx.rect(...place(region,base,sx,sy));ctx.clip();
+      const crop=region.height*stage.settings.scoreRegion.cropTopPercent/100;
+      ctx.save();ctx.beginPath();ctx.rect((region.left-base.left)*sx,(region.top+crop-base.top)*sy,region.width*sx,(region.height-crop)*sy);ctx.clip();
       const seen=new Set();
       for(const {el,motionEl=el} of follower.activeNodes){
         if(seen.has(el))continue;seen.add(el);

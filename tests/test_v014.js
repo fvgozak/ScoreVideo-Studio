@@ -20,6 +20,11 @@ assert.equal(geometry.height,1344);
 assert.equal(Stage.Stage.scoreGeometry(Stage.normalized({...base,score_margin_top:10})).top,192);
 assert.equal(Stage.Stage.scoreGeometry(Stage.normalized({...base,score_area_height:100,score_margin_bottom:0})).height,1920);
 assert.equal(Stage.Stage.scoreGeometry(Stage.normalized({...base,score_margin_top:15,score_margin_bottom:20,score_area_height:100})).height,1248);
+assert.equal(Stage.normalized({}).scoreRegion.cropTopPercent,0);
+assert.equal(Stage.normalized({score_crop_top:65}).scoreRegion.cropTopPercent,50);
+assert.equal(Stage.normalized({score_crop_top:-4}).scoreRegion.cropTopPercent,0);
+assert.deepEqual(Stage.Stage.scoreGeometry(Stage.normalized({...base,score_crop_top:40})),geometry,
+  'top crop must not change score position or dimensions');
 assert.equal(Hex.normalizeHex('#abc'),'#AABBCC');
 assert.equal(Hex.normalizeHex('abcdef'),'#ABCDEF');
 assert.equal(Hex.normalizeHex('aBcDeF'),'#ABCDEF');

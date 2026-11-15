@@ -5,7 +5,7 @@
  window.ScoreHexControls?.setup();
  const inputIds=['score','midi','audio'],labelIds=['scoreName','midiName','audioName'];
  const persistent=['minimalMode','paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','aspectRatio','outputQuality','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
- 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor'];
+ 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreCropTop','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor'];
  const storeKey='scorevideo_studio_v05_settings';
  const exportModeKey='scorevideo_mp4_engine_v1';
  let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0,cancelReturnTime=null,activeDownloadJob=null;
@@ -154,7 +154,7 @@
       inverted:$('inverted').checked,glitter:$('glitter').checked,sparkle:$('sparkle').checked,draw_score:$('drawScore').checked,minimal_mode:$('minimalMode').checked,
       velocity_reactive:$('velocityReactive').checked,note_motion:$('noteMotion').checked,motion_strength:Number($('motionStrength').value),
       score_visible:$('scoreVisible').checked,piano_enabled:$('pianoEnabled').checked,piano_camera:$('pianoCamera').checked,piano_key_style:$('pianoKeyStyle').value,piano_white_key_color:$('pianoWhiteKeyColor').value,piano_black_key_color:$('pianoBlackKeyColor').value,piano_light:$('pianoLight').checked,piano_light_strength:Number($('pianoLightStrength').value),
-      layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
+      layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_crop_top:Number($('scoreCropTop').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
  }
  function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));}
  function restoreSettings(){try{
@@ -248,7 +248,8 @@
    $('scorePosXVal').textContent=`${$('scorePosX').value}%`;
    $('scorePosYVal').textContent=`${$('scorePosY').value}%`;
    $('titleGapVal').textContent=`${$('titleGap').value}px`;
-   for(const key of ['scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreMarginTop','scoreMarginBottom','scorePanelOpacity'])$(key+'Val').textContent=`${$(key).value}%`;
+   for(const key of ['scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreCropTop','scoreMarginTop','scoreMarginBottom','scorePanelOpacity'])$(key+'Val').textContent=`${$(key).value}%`;
+   if(document.activeElement!==$('scoreCropTopNumber'))$('scoreCropTopNumber').value=$('scoreCropTop').value;
    $('auroraOptions').hidden=$('lightColorMode').value!=='aurora';
    const velocities=project?.note_events?.map(n=>Number(n.velocity)).filter(Number.isFinite)||[];
    const uniformWarning=$('velocityUniformWarning');uniformWarning.hidden=true;
@@ -313,6 +314,15 @@
    $(id).addEventListener('input',queueApply);
    $(id).addEventListener('change',queueApply);
  }
+ $('scoreCropTopNumber').addEventListener('input',()=>{
+   const value=Number($('scoreCropTopNumber').value);
+   if(!Number.isFinite(value))return;
+   $('scoreCropTop').value=String(Math.max(0,Math.min(50,value)));
+   queueApply();
+ });
+ $('scoreCropTopNumber').addEventListener('change',()=>{
+   $('scoreCropTopNumber').value=$('scoreCropTop').value;updateLabels();
+ });
  $('drawScore').addEventListener('change',()=>{
    if($('drawScore').checked&&$('paperColor').value.toLowerCase()==='#fffdf6'&&$('staffColor').value.toLowerCase()==='#323a43'&&$('inkColor').value.toLowerCase()==='#181b22'){
      $('paperColor').value='#07101f';$('staffColor').value='#edf1f5';$('inkColor').value='#fffdf6';

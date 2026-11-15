@@ -1,8 +1,8 @@
 /* Shared deterministic MP4 engine; experiment and production call this module. */
 import {Output, Mp4OutputFormat, BufferTarget, StreamTarget, CanvasSource, Quality} from './mediabunny.min.mjs';
 import {decodeProjectAudio,createAacSource,encodeAudioSamples} from './offline-audio.js';
-import {createScoreGlowOverlay} from './score-glow-overlay.js';
-import {createStaticScoreHeads} from './score-static-heads.js';
+import {createScoreGlowOverlay} from './score-glow-overlay.js?v=top-crop-1';
+import {createStaticScoreHeads} from './score-static-heads.js?v=top-crop-1';
 
 const average=items=>items.reduce((sum,item)=>sum+item,0)/Math.max(1,items.length);
 function summary(items){const sorted=[...items].sort((a,b)=>a-b);return {totalMs:Math.round(items.reduce((sum,item)=>sum+item,0)),avgMs:+average(items).toFixed(3),p95Ms:+(sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.95)-1)]||0).toFixed(3)};}

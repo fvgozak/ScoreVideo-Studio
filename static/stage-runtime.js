@@ -61,6 +61,7 @@
      scoreRegion:{widthPercent:clamp(number(s.score_area_width,94),30,100),
        xPercent:clamp(number(s.score_area_x,50),0,100),
        heightPercent:clamp(number(s.score_area_height,s.piano_enabled===false?70:50),15,100),
+       cropTopPercent:clamp(number(s.score_crop_top,0),0,50),
        marginTopPercent:clamp(number(s.score_margin_top,4),0,45),
        marginBottomPercent:clamp(number(s.score_margin_bottom,9),0,45),
        panelColor:hex(s.score_panel_color,'#0c1120'),panelOpacity:clamp(number(s.score_panel_opacity,0),0,1)},
@@ -125,6 +126,7 @@
      el.style.setProperty('--notation-staff',s.effects.staff);
      el.style.left=`${g.left}px`;el.style.top=`${g.top}px`;
      el.style.width=`${g.width}px`;el.style.height=`${g.height}px`;
+     el.style.clipPath=`inset(${s.scoreRegion.cropTopPercent}% 0 0 0)`;
      this.scorePanel.style.backgroundColor=s.scoreRegion.panelColor;
      this.scorePanel.style.opacity=this.meta.has_score===false?'0':String(s.scoreRegion.panelOpacity);
      el.hidden=this.meta.has_score===false;
