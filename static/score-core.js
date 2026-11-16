@@ -421,6 +421,7 @@
       this.viewport.style.backgroundColor=this.stageRoot===this.viewport?paper:'transparent';
       this.stageRoot.style.backgroundColor=paper;
       this.stageRoot.classList.toggle('score-minimal-stage',Boolean(this.effects.minimalMode));
+      this.stageRoot.style.setProperty('--minimal-note-base',this.effects.minimalPalette?.note||accent);
       this.container.style.color=ink;
       this.viewport.style.setProperty('--score-accent',accent);
       this.stageRoot.style.setProperty('--score-accent',accent);
@@ -463,17 +464,60 @@
       rules.NewPageAtXMLNewPageAttribute=false;
       rules.NewPartAndSystemAfterFinalBarline=false;
     }
+    static engravingVerticalOffset(viewportHeight,bounds,{centerOverflow=false}={}){
+      if(!(viewportHeight>0)||!bounds||!Number.isFinite(bounds.top)||!Number.isFinite(bounds.bottom)
+        ||bounds.bottom<=bounds.top)return 0;
+      const contentHeight=bounds.bottom-bounds.top;
+      const margin=Math.min(18,Math.max(8,viewportHeight*.025));
+      // A tall single system is cropped symmetrically; a scrolling page is not.
+      if(!centerOverflow&&contentHeight>viewportHeight-2*margin)
+        return Math.round(margin-bounds.top);
+      return Math.round(viewportHeight*.5-(bounds.top+bounds.bottom)*.5);
+    }
+    measureEngravingBounds(){
+      const svg=this.container?.querySelector?.('svg');
+      if(!svg||!this.viewport)return null;
+      try{
+        const box=svg.getBBox(),matrix=svg.getScreenCTM(),view=this.viewport.getBoundingClientRect();
+        if(!matrix||!Number.isFinite(box.y)||!Number.isFinite(box.height)||box.height<=0)return null;
+        const top=matrix.b*box.x+matrix.d*box.y+matrix.f;
+        const bottom=top+matrix.d*box.height;
+        const scale=view.height/(this.viewport.clientHeight||view.height||1);
+        return {top:(Math.min(top,bottom)-view.top)/scale,
+          bottom:(Math.max(top,bottom)-view.top)/scale};
+      }catch(_){return null;}
+    }
+    centerEngraving(){
+      // Page view retains its CSS top padding and vertical scrolling.
+      if(this.scrollMode!=='horizontal'){
+        this.container.style.marginTop='0px';
+        this.scoreVerticalLayout=null;
+        return;
+      }
+      // Undo the previous offset before measuring; repeated loads must not drift.
+      this.container.style.marginTop='0px';
+      const bounds=this.measureEngravingBounds();
+      const userOffset=Number.isFinite(Number(this.effects.scoreTopPadding))
+        ?Math.max(0,Number(this.effects.scoreTopPadding)):0;
+      const autoOffset=ScoreFollower.engravingVerticalOffset(this.viewport.clientHeight,bounds,
+        {centerOverflow:true});
+      const offset=autoOffset+userOffset;
+      this.container.style.marginTop=`${offset}px`;
+      this.scoreVerticalLayout={bounds,autoOffset,userOffset,offset};
+    }
     async load(url){
       this.container.style.removeProperty('transform');this.cameraScale=1;
+      this.container.style.marginTop='0px';this.scoreVerticalLayout=null;
       if(this.cameraSpacer){this.cameraSpacer.style.width='0px';this.cameraSpacer.style.height='0px';}
       await window.loadOSMD();
       if(!window.opensheetmusicdisplay?.OpenSheetMusicDisplay)throw Error('OSMD 라이브러리를 불러오지 못했습니다.');
       const c=this.colors();
       const scorePosX=clamp(Number(this.effects.scorePositionX??38),0,100);
       const leftPad=16+Math.round((this.viewport.clientWidth||1080)*0.22*(scorePosX/100));
-      const topPad=Number.isFinite(this.effects.scoreTopPadding)?Math.max(0,this.effects.scoreTopPadding):0;
       this.container.style.paddingLeft=`${leftPad}px`;
-      this.container.style.setProperty('--score-content-top',`${topPad}px`);
+      const topPad=Number.isFinite(this.effects.scoreTopPadding)?Math.max(0,this.effects.scoreTopPadding):0;
+      this.container.style.setProperty('--score-content-top',
+        this.scrollMode==='horizontal'?'0px':`${topPad}px`);
       this.container.style.paddingRight='24px';
       this.container.style.paddingBottom='0px';
       // The engraving rules, not a giant HTML container width, control wrapping.
@@ -511,6 +555,8 @@
       if(this.scrollMode==='horizontal'&&systems.length>1){
         throw Error(`싱글라인 렌더링이 ${systems.length}개 행으로 분할됐습니다. MusicXML 강제 개행/OSMD 렌더링 제한을 확인해야 합니다.`);
       }
+      // Measure the rendered notation before capturing noteheads and cursor geometry.
+      if(this.scrollMode==='horizontal')this.centerEngraving();
       const cursor=this.osmd.cursor;
       cursor.reset();cursor.show();
       this.timestamps=[];this.beats=[];this.lines=[];this.positions=[];this.noteTriggers=[];this.tieContinuations=[];this.measureStarts=[];
@@ -982,7 +1028,10 @@
     }
     minimalColor(velocity){
       const colors=this.colors();
-      return window.ScoreStudio.minimalActiveColor(colors.accent,colors.ink,colors.paper,velocity,
+      const palette=this.effects.minimalPalette;
+      const accent=window.ScoreStudio.minimalNoteAccent(palette,velocity,
+        this.effects.velocityScale,this.velocityRange,this.effects.auroraLow,this.effects.auroraHigh)||colors.accent;
+      return window.ScoreStudio.minimalActiveColor(accent,colors.ink,colors.paper,velocity,
         this.effects.velocityScale,this.velocityRange);
     }
     updateNoteEffects(t,changed){
@@ -1022,7 +1071,7 @@
           el.style.setProperty('--score-note-active',this.eventLightColor(hold.velocity));
           const spread=window.ScoreStudio?.pitchLightProfile(hold.pitch)?.spread||1;
           el.style.setProperty('--score-glow-blur',`${((1.8+1.4*remaining)*spread).toFixed(2)}px`);
-          this.activeNodes.push({el,motionEl,velocity:hold.velocity});
+          this.activeNodes.push({el,motionEl,velocity:hold.velocity,age:1,seed:hold.pitch+hold.audio});
         }
       }
       const box=this.container.getBoundingClientRect();
@@ -1032,7 +1081,7 @@
         if(!dyn.alive)continue;
         const motionEl=entry.el,el=entry.headEl||motionEl;
         const noteLightColor=this.eventLightColor(entry.velocity);
-        this.activeNodes.push({el,motionEl,velocity:entry.velocity});
+        this.activeNodes.push({el,motionEl,velocity:entry.velocity,age:elapsed,seed:entry.pitch+entry.audio});
         el.classList.toggle('score-glowing',Boolean(effect.sparkle));
         motionEl.classList.toggle('score-note-moving',Boolean(effect.noteMotion));
         if(effect.noteMotion){
@@ -1046,9 +1095,10 @@
           extra.el.classList.toggle('score-glowing',Boolean(effect.sparkle));
           extra.el.style.setProperty('--score-note-active',noteLightColor);
           extra.el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread).toFixed(2)}px`);
-          this.activeNodes.push({el:extra.el,velocity:entry.velocity});
+          this.activeNodes.push({el:extra.el,velocity:entry.velocity,age:elapsed,seed:entry.pitch+entry.audio});
         }
         if(!effect.sparkle||!this.overlay)continue;
+        if(this.gpuParticles)continue;
         // Recompute only when a note was not available at layout prepass.
         let cx=entry.noteX,cy=entry.noteY;
         if(!Number.isFinite(cx)||!Number.isFinite(cy)){

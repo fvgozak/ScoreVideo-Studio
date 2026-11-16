@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import os
 import signal
 import shutil
@@ -49,8 +50,11 @@ render_processes: dict[str, tuple[subprocess.Popen, bool]] = {}
 
 class RenderRequest(BaseModel):
     fps: int = Field(default=24)
+    fx_renderer: str = Field(default="canvas", pattern=r"^(canvas|auto|pixi)$")
+    gpu_effects: dict = Field(default_factory=dict)
+    minimal_palette: dict = Field(default_factory=dict)
     download_name: str = Field(default="", max_length=200)
-    aspect_ratio: str | None = Field(default=None, pattern=r"^(16:9|9:16|1:1|4:5|3:4|4:3|21:9)$")
+    aspect_ratio: str | None = Field(default=None, pattern=r"^(16:9|9:16|1:1|4:5|3:4|4:3|21:9|custom)$")
     render_mode: str = Field(default="auto", pattern=r"^(auto|quality|speed)$")
     width: int = Field(default=1280)
     height: int = Field(default=720)
@@ -680,13 +684,9 @@ def start_render(project_id: str, options: RenderRequest):
     python = render_python()
     if python is None:
         raise HTTPException(503, "Playwright is missing. Run ./run.command to install the project environment and Chromium, then retry MP4 export.")
-    if (options.width, options.height) not in {
-        (1280, 720), (1920, 1080), (720, 1280), (1080, 1920),
-        (720, 720), (1080, 1080), (720, 900), (1080, 1350),
-        (720, 960), (1080, 1440), (960, 720), (1440, 1080),
-        (1680, 720), (2520, 1080), (2560, 1080),
-    }:
-        raise HTTPException(400, "Unsupported video aspect ratio/resolution preset")
+    if not (200 <= options.width <= 8192 and 200 <= options.height <= 8192
+            and options.width % 2 == 0 and options.height % 2 == 0):
+        raise HTTPException(400, "Video dimensions must be even pixels between 200 and 8192")
     if options.fps not in (12, 24, 30, 60):
         raise HTTPException(400, "FPS must be 12, 24, 30, or 60")
     if not render_lock.acquire(blocking=False):
@@ -779,7 +779,11 @@ def export_filename(meta: dict, settings: dict, extension: str) -> str:
         (960, 720): "4:3", (1440, 1080): "4:3",
         (1680, 720): "21:9", (2520, 1080): "21:9", (2560, 1080): "21:9",
     }
-    ratio = ratios.get((width, height), "16:9").replace(":", "x")
+    ratio = settings.get("aspect_ratio") or ratios.get((width, height))
+    if not ratio or ratio == "custom":
+        divisor = math.gcd(width, height)
+        ratio = f"{width // divisor}:{height // divisor}"
+    ratio = ratio.replace(":", "x")
     return f"{name[:150]}_{ratio}_{width}x{height}_{fps}fps.mp4"
 
 

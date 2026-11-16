@@ -190,6 +190,10 @@ main{max-width:1540px;padding-top:20px}
 .preview-zoom-bar output{min-width:45px;text-align:right;color:#c5f2f5;font-size:12px;font-weight:750;font-variant-numeric:tabular-nums}
 .preview-zoom-bar button.zoom-reset{width:auto;padding:0 9px;font-size:10px;color:#a4c4d4;white-space:nowrap}
 .preview-zoom-bar button:hover{background:#315469}
+.preview-aspect-control{display:flex;align-items:center;gap:6px;min-width:0;margin-right:10px}
+.preview-aspect-control select{max-width:165px;background:#223849;border:1px solid #395569;border-radius:7px;color:#d8f4f6;padding:6px;font-size:11px}
+#customAspectControls{display:inline-flex;align-items:center;gap:3px}
+#customAspectControls input{width:43px;background:#223849;border:1px solid #395569;border-radius:5px;color:#d8f4f6;padding:4px;font-size:11px}
 #playerDock:fullscreen .preview-zoom-bar{background:#0d1724;width:100%}
 .sync-quick-controls{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0}
 .sync-compact{max-width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#a8bfca;font-size:10px;font-variant-numeric:tabular-nums}

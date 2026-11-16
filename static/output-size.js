@@ -3,15 +3,16 @@
   'use strict';
   const ratios={'16:9':[16,9],'9:16':[9,16],'1:1':[1,1],'4:5':[4,5],'3:4':[3,4],'4:3':[4,3],'21:9':[21,9]};
   const even=n=>2*Math.round(n/2);
-  function size(aspect='16:9',quality=1080){
-    const [a,b]=ratios[aspect]||ratios['16:9'];
-    const short=Number(quality)===720?720:1080;
+  function size(aspect='16:9',quality=1080,custom=[16,9]){
+    const [a,b]=aspect==='custom'?custom:(ratios[aspect]||ratios['16:9']);
+    const short=[720,1080,1440,2160].includes(Number(quality))?Number(quality):1080;
     return a>=b?{width:even(short*a/b),height:short}:{width:short,height:even(short*b/a)};
   }
   function migrate(resolution){
     const [width,height]=String(resolution||'').split('x').map(Number);
     if(!width||!height)return {aspect:'16:9',quality:1080};
-    const quality=Math.min(width,height)<900?720:1080;
+    const edge=Math.min(width,height);
+    const quality=[720,1080,1440,2160].reduce((best,item)=>Math.abs(item-edge)<Math.abs(best-edge)?item:best,720);
     const legacy={'1280x720':'16:9','1920x1080':'16:9','720x1280':'9:16','1080x1920':'9:16',
       '720x720':'1:1','1080x1080':'1:1','720x900':'4:5','1080x1350':'4:5',
       '720x960':'3:4','1080x1440':'3:4','960x720':'4:3','1440x1080':'4:3',

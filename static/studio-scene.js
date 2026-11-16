@@ -52,6 +52,29 @@
     if(minimalColors.size>512)minimalColors.clear();
     minimalColors.set(key,color);return color;
   }
+  function recommendMinimalPalette(mode,colors){
+    const paper=validColor(colors.paper,'#fffdf6'),ink=validColor(colors.ink,'#181b22');
+    const accent=validColor(colors.accent,'#2ec9d3'),glow=validColor(colors.glow,accent);
+    const white=validColor(colors.white,'#f1f1f5'),black=validColor(colors.black,'#151821');
+    if(mode==='harmony')return {note:mix(accent,glow,.32),white:mix(white,accent,.16),black:mix(black,glow,.22),pedal:mix(accent,glow,.55)};
+    if(mode==='contrast'){
+      const strong=lightness(paper)>.5?mix(ink,accent,.28):mix('#ffffff',accent,.35);
+      return {note:strong,white:mix(white,strong,.18),black:mix(black,strong,.32),pedal:strong};
+    }
+    if(mode==='velocity')return {note:accent,white,black,pedal:glow};
+    return {note:accent,white,black,pedal:accent};
+  }
+  function minimalPalette(value={},fallback={}){
+    const mode=['single','harmony','contrast','velocity'].includes(value?.mode)?value.mode:'single';
+    const recommended=recommendMinimalPalette(mode,fallback);
+    return {mode,...Object.fromEntries(['note','white','black','pedal'].map(name=>
+      [name,validColor(value?.[name],recommended[name])]))};
+  }
+  function minimalNoteAccent(palette,velocity,scale,range,low,high){
+    return palette?.mode==='velocity'
+      ?auroraColor(normalizedVelocity(velocity,scale,range),low,high)
+      :palette?.note;
+  }
   function noteLightColor(scene,velocity,solidColor,range=null){
     return scene.lightColorMode==='aurora'
       ?auroraColor(normalizedVelocity(velocity,scene.velocityScale,range),scene.auroraLow,scene.auroraHigh):solidColor;
@@ -91,6 +114,10 @@
       font,notationStyle,titleGap:clamp(Number(x.titleGap??65),0,320),
       auroraPreset,auroraLow:validColor(x.auroraLow,auroraDefault.low),auroraHigh:validColor(x.auroraHigh,auroraDefault.high),
       trailUpper:validColor(x.trailUpper, '#7ed8ff'), trailLower:validColor(x.trailLower, '#f2d16f'),
+      trailLength:clamp(Number(x.trailLength??8),2,16),
+      trailBrightness:clamp(Number(x.trailBrightness??1),0,2),
+      trailThickness:clamp(Number(x.trailThickness??1),.5,3),
+      trailDuration:clamp(Number(x.trailDuration??1.3),.3,3),
       keyframes};
   }
   function frame(scene,t){
@@ -108,6 +135,16 @@
     let x=(Math.imul(noteIndex+17,1664525)^Math.imul(particleIndex+51,1013904223))|0;
     x^=x>>>16;x=Math.imul(x,2246822519);x^=x>>>13;x=Math.imul(x,3266489917);x^=x>>>16;
     return (x>>>0)/4294967296;
+  }
+  // Read the final screen-space notehead position after scrolling, zoom and
+  // CSS camera transforms, then convert to a target canvas's logical pixels.
+  function gpuScorePoint(element,target){
+    if(!element?.getBoundingClientRect||!target)return null;
+    const note=element.getBoundingClientRect(),box=target.getBoundingClientRect();
+    if(!note.width&&!note.height)return null;
+    if(!box.width||!box.height||!target.clientWidth||!target.clientHeight)return null;
+    return {x:(note.left+note.width*.5-box.left)*target.clientWidth/box.width,
+      y:(note.top+note.height*.5-box.top)*target.clientHeight/box.height};
   }
   // A trail follows only the current graphical system for each hand.
   // Never connect the final note of one printed row to the first of the next.
@@ -164,7 +201,7 @@
   // In Aurora mode, individual MIDI attacks carry their own colors. The
   // continuous light trail blends from one note's color into the next without
   // joining separate hands/systems (handled by selectHandTrails).
-  function drawTrailChain(ctx,items,solidColor,gradientMode=false){
+  function drawTrailChain(ctx,items,solidColor,gradientMode=false,brightness=1,thickness=1){
     if(items.length<2)return;
     ctx.save();
     ctx.lineCap='round';ctx.lineJoin='round';
@@ -177,8 +214,8 @@
           const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-(6+Math.min(22,Math.abs(a.y-b.y)*.18));
           ctx.quadraticCurveTo(mx,my,b.x,b.y);
         }
-        ctx.lineWidth=pass.width;ctx.shadowBlur=pass.blur;ctx.strokeStyle=solidColor;ctx.shadowColor=solidColor;
-        ctx.globalAlpha=clamp(power*pass.alpha,0,1);ctx.stroke();
+        ctx.lineWidth=pass.width*thickness;ctx.shadowBlur=pass.blur*thickness;ctx.strokeStyle=solidColor;ctx.shadowColor=solidColor;
+        ctx.globalAlpha=clamp(power*pass.alpha*brightness,0,1);ctx.stroke();
       }
     }else{
       for(let i=1;i<items.length;i++){
@@ -188,8 +225,8 @@
         gradient.addColorStop(0,a.color);gradient.addColorStop(1,b.color);
         for(const pass of [{width:3.6,blur:9,alpha:.16},{width:1.25,blur:2.5,alpha:.78}]){
           ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.quadraticCurveTo(mx,my,b.x,b.y);
-          ctx.lineWidth=pass.width;ctx.shadowBlur=pass.blur;ctx.strokeStyle=gradient;ctx.shadowColor=b.color;
-          ctx.globalAlpha=clamp(Math.max(a.decay*a.power,b.decay*b.power)*pass.alpha,0,1);ctx.stroke();
+          ctx.lineWidth=pass.width*thickness;ctx.shadowBlur=pass.blur*thickness;ctx.strokeStyle=gradient;ctx.shadowColor=b.color;
+          ctx.globalAlpha=clamp(Math.max(a.decay*a.power,b.decay*b.power)*pass.alpha*brightness,0,1);ctx.stroke();
         }
       }
     }
@@ -241,11 +278,14 @@
       this.titleBox.querySelector('.studio-artist').style.opacity=s.showText?String(ease(intro)):0;
       this.titleBox.querySelector('.studio-credit').style.opacity=s.showText?String(ease(outro)):0;
       this.titleBox.style.color=s.animateBackground?(s.template==='cinematic'?'#fffdf7':'#303039'):follower.colors().ink;
-      if(s.minimalMode)return;
+      this.gpuCommands=[];
       ctx.clearRect(0,0,w,h);
+      if(s.minimalMode)return;
+      const gpuFx=Boolean(this.gpuLayer);
+      const gpuTrails=gpuFx&&this.gpuEffects?.trails?.on;
       const sceneFxOn=s.fxMode!=='none'&&strength>0;
       const scoreImpactOn=s.scoreImpactEnabled&&s.scoreImpactStrength>0;
-      if(!sceneFxOn&&!scoreImpactOn)return;
+      if(!sceneFxOn&&!scoreImpactOn&&!gpuTrails)return;
       // Light and particles belong to the score window, not to the entire video.
       // The clipping rectangle is in unscaled stage coordinates.
       const target=follower.viewport.getBoundingClientRect();
@@ -257,16 +297,26 @@
       ctx.save();ctx.beginPath();ctx.rect(cropX,cropY,cropW,cropH);ctx.clip();
       const events=follower.noteTriggers||[];
       let low=0,high=events.length;
-      while(low<high){const mid=(low+high)>>>1;if(events[mid].audio<t-1.8)low=mid+1;else high=mid;}
+      const trailDuration=gpuTrails?this.gpuEffects.trails.duration:s.trailDuration;
+      const history=(s.fxMode==='trail'||gpuTrails)?Math.max(1.8,trailDuration):1.8;
+      while(low<high){const mid=(low+high)>>>1;if(events[mid].audio<t-history)low=mid+1;else high=mid;}
       const visible=[],view=this.viewport.getBoundingClientRect(),scale=view.width/this.viewport.clientWidth||1;
       const containerBox=follower.container?.getBoundingClientRect?.()||null;
       const containerX=containerBox?(containerBox.left-view.left)/scale:NaN;
       const containerY=containerBox?(containerBox.top-view.top)/scale:NaN;
       const cameraScale=Number(follower.cameraScale)||1;
+      const accents=follower.cameraAccents||[];
+      let accentIndex=0;
+      while(accentIndex<accents.length&&accents[accentIndex].time<(events[low]?.audio??t)-.075)accentIndex++;
       for(let i=low;i<events.length&&events[i].audio<=t+.015;i++){
         const e=events[i],age=t-e.audio;
-        if(age<0||age>1.8)continue;
-        let x=containerX+e.noteX*cameraScale,y=containerY+e.noteY*cameraScale;
+        if(age<0||age>history)continue;
+        while(accentIndex<accents.length&&accents[accentIndex].time<e.audio-.075)accentIndex++;
+        const emphasis=Math.abs((accents[accentIndex]?.time??Infinity)-e.audio)<=.075?
+          accents[accentIndex].intensity:0;
+        const gpuPoint=gpuFx?gpuScorePoint(e.headEl||e.el,this.viewport):null;
+        let x=gpuPoint?.x??containerX+e.noteX*cameraScale,
+          y=gpuPoint?.y??containerY+e.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)){
           const rect=e.el.getBoundingClientRect();if(!rect.width||!rect.height)continue;
           x=(rect.left+rect.width/2-view.left)/scale;
@@ -275,46 +325,96 @@
         if(x<-70||x>w+70||y<-70||y>h+70)continue;
         const velocity=(follower.effects.velocityReactive===false?78:e.velocity)/127;
         const power=clamp((.24+.76*velocity**1.25)*strength,0,4);
-        const decay=Math.exp(-age*(s.fxMode==='trail'?1.9:3.4));
-        const solidColor=s.fxMode==='trail'?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
+        const decay=Math.exp(-age*((s.fxMode==='trail'||gpuTrails)?1.9:3.4));
+        const solidColor=(s.fxMode==='trail'||gpuTrails)?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
         const pitchLight=pitchLightProfile(e.pitch);
         const duration=Math.max(.08,(Number(e.endAudio)||e.audio+.4)-e.audio);
         const impact=root.ScorePianoFall?.impactEnvelope(age,duration,velocity)
           ??Math.exp(-age*7.5)*velocity;
-        visible.push({x,y,age,power,decay,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
-        if(sceneFxOn&&s.fxMode!=='trail')this.drawBloom(ctx,x,y,Math.max(decay,impact)*power*pitchLight.focus,lightColor,(14+power*23)*pitchLight.spread);
-        if(scoreImpactOn)this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
-        for(const extra of e.fallbackHeads||[]){
-          const extraX=containerX+extra.noteX*cameraScale,extraY=containerY+extra.noteY*cameraScale;
-          if(!Number.isFinite(extraX)||!Number.isFinite(extraY))continue;
-          if(sceneFxOn&&s.fxMode!=='trail')this.drawBloom(ctx,extraX,extraY,Math.max(decay,impact)*power*pitchLight.focus,lightColor,(14+power*23)*pitchLight.spread);
-          if(scoreImpactOn)this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+        visible.push({x,y,age,power,decay,velocity,emphasis,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
+        if(sceneFxOn&&s.fxMode!=='trail'){
+          const energy=Math.max(decay,impact)*power*pitchLight.focus,size=(14+power*23)*pitchLight.spread;
+          if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x,y,radius:size*.82,energy:clamp(energy*.4,0,.9),color:lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+          else this.drawBloom(ctx,x,y,energy,lightColor,size);
         }
-        if(sceneFxOn&&s.fxMode==='resonance')this.drawRing(ctx,x,y,age,power,lightColor);
-        if(sceneFxOn&&s.fxMode==='glitter')this.drawGlitter(ctx,x,y,age,power,lightColor,i);
+        if(scoreImpactOn){
+          if(gpuFx)this.gpuCommands.push({kind:'piano',space:'stage',x,y,unit:10,keyWidth:10,keyHeight:24,
+            energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+          else this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+        }
+        for(const extra of e.fallbackHeads||[]){
+          const extraPoint=gpuFx?gpuScorePoint(extra.el,this.viewport):null;
+          const extraX=extraPoint?.x??containerX+extra.noteX*cameraScale,
+            extraY=extraPoint?.y??containerY+extra.noteY*cameraScale;
+          if(!Number.isFinite(extraX)||!Number.isFinite(extraY))continue;
+          if(sceneFxOn&&s.fxMode!=='trail'){
+            const energy=Math.max(decay,impact)*power*pitchLight.focus,size=(14+power*23)*pitchLight.spread;
+            if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x:extraX,y:extraY,radius:size*.82,energy:clamp(energy*.4,0,.9),color:lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+            else this.drawBloom(ctx,extraX,extraY,energy,lightColor,size);
+          }
+          if(scoreImpactOn){
+            if(gpuFx)this.gpuCommands.push({kind:'piano',space:'stage',x:extraX,y:extraY,unit:10,keyWidth:10,keyHeight:24,
+              energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+            else this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+          }
+        }
+        if(sceneFxOn&&s.fxMode==='resonance'){
+          if(gpuFx)this.gpuCommands.push({kind:'ring',space:'stage',x,y,width:14+age*116,height:10+age*88,
+            energy:clamp(Math.exp(-age*2.5)*power*.65,0,1),color:lightColor});
+          else this.drawRing(ctx,x,y,age,power,lightColor);
+        }
+        if(sceneFxOn&&s.fxMode==='glitter'){
+          if(gpuFx)this.gpuCommands.push({kind:'burst',space:'stage',x,y,age,
+            velocity:e.velocity/127,energy:clamp(power,0,1),color:lightColor,
+            seed:e.pitch+e.audio,force:true});
+          else this.drawGlitter(ctx,x,y,age,power,lightColor,i);
+        }
       }
       // A tie continuation is not a new attack: inherit its preceding note's
       // velocity color with gentle sustained illumination only (no particles).
       for(const hold of (sceneFxOn?(follower.activeTies?.(t)||follower.tieContinuations||[]):[])){
         if(t<hold.audio||t>hold.endAudio)continue;
-        let x=containerX+hold.noteX*cameraScale,y=containerY+hold.noteY*cameraScale;
+        const holdPoint=gpuFx?gpuScorePoint(hold.headEl||hold.el,this.viewport):null;
+        let x=holdPoint?.x??containerX+hold.noteX*cameraScale,
+          y=holdPoint?.y??containerY+hold.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)||x<-60||x>w+60||y<-60||y>h+60)continue;
         const color=noteLightColor(s,hold.velocity,p.glow,follower.velocityRange);
         const remain=clamp((hold.endAudio-t)/.28,0,1);
-        this.drawBloom(ctx,x,y,Math.min(.48,.21+hold.velocity/127*.22)*remain*strength,color,12+hold.velocity/127*12);
+        const energy=Math.min(.48,.21+hold.velocity/127*.22)*remain*strength,size=12+hold.velocity/127*12;
+        if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x,y,radius:size*.82,energy:clamp(energy*.4,0,.9),color,age:1,velocity:hold.velocity/127,seed:hold.pitch+hold.audio});
+        else this.drawBloom(ctx,x,y,energy,color,size);
       }
-      if(sceneFxOn&&s.fxMode==='trail'){
-        const trails=selectHandTrails(visible,t,{windowSec:1.3,maxGapSec:.85,maxDistance:Math.max(160,Math.min(w*.38,480))});
+      if((sceneFxOn&&s.fxMode==='trail')||gpuTrails){
+        const trailLength=gpuTrails?this.gpuEffects.trails.length:s.trailLength;
+        const trailBrightness=gpuTrails?this.gpuEffects.trails.strength:s.trailBrightness;
+        const trails=selectHandTrails(visible,t,{windowSec:trailDuration,maxGapSec:.85,maxDistance:Math.max(160,Math.min(w*.38,480))});
         const colorGradient=s.lightColorMode==='aurora';
-        drawTrailChain(ctx,trails.upper,s.trailUpper,colorGradient);
-        drawTrailChain(ctx,trails.lower,s.trailLower,colorGradient);
-        for(const path of [trails.upper,trails.lower]){
+        for(const [hand,fullPath] of [['upper',trails.upper],['lower',trails.lower]]){
+          const path=fullPath.slice(-Math.round(trailLength));
+          if(gpuFx){
+            for(let i=1;i<path.length;i++){
+              const a=path[i-1],b=path[i],solid=hand==='upper'?s.trailUpper:s.trailLower;
+              this.gpuCommands.push({kind:'trailRibbon',space:'stage',
+                a:{x:a.x,y:a.y,color:colorGradient?a.color:solid,energy:a.decay*a.power,age:a.age,velocity:a.velocity,emphasis:a.emphasis},
+                b:{x:b.x,y:b.y,color:colorGradient?b.color:solid,energy:b.decay*b.power,age:b.age,velocity:b.velocity,emphasis:b.emphasis},
+                brightness:trailBrightness,thickness:s.trailThickness});
+            }
+          }else drawTrailChain(ctx,path,hand==='upper'?s.trailUpper:s.trailLower,
+            colorGradient,trailBrightness,s.trailThickness);
           const tip=path.at(-1);if(!tip)continue;
           // Keep the light attached to the highest sounding note, but shape
           // the tip as a narrow flare instead of a large circular bloom.
-          this.drawGlitter(ctx,tip.x,tip.y,tip.age,tip.power,tip.color,tip.index);
-          this.drawTrailTip(ctx,tip.x,tip.y,tip.decay*tip.power,tip.color);
+          if(gpuFx){
+            this.gpuCommands.push({kind:'trailTip',space:'stage',x:tip.x,y:tip.y,
+              energy:tip.decay*tip.power*trailBrightness,color:tip.color,age:tip.age,velocity:tip.velocity,emphasis:tip.emphasis});
+            this.gpuCommands.push({kind:'burst',space:'stage',x:tip.x,y:tip.y,age:tip.age,
+              velocity:tip.velocity,energy:Math.min(1,tip.power*trailBrightness),color:tip.color,
+              seed:tip.index,force:true});
+          }else{
+            this.drawGlitter(ctx,tip.x,tip.y,tip.age,tip.power*trailBrightness,tip.color,tip.index);
+            this.drawTrailTip(ctx,tip.x,tip.y,tip.decay*tip.power*trailBrightness,tip.color);
+          }
         }
       }
       ctx.restore();
@@ -388,6 +488,6 @@
       }
     }
   }
-  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,minimalActiveColor,noteLightColor,pitchLightProfile,normalize,frame,mix,random,selectHandTrails,LayerRenderer};
+  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,minimalActiveColor,minimalPalette,recommendMinimalPalette,minimalNoteAccent,noteLightColor,pitchLightProfile,normalize,frame,mix,random,gpuScorePoint,selectHandTrails,LayerRenderer};
 })(typeof window!=='undefined'?window:globalThis);
 if(typeof module!=='undefined')module.exports=globalThis.ScoreStudio;

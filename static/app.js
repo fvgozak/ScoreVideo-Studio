@@ -4,8 +4,14 @@
  const $=id=>document.getElementById(id),audio=$('audioPlayer'),transport=window.ScoreTransport;
  window.ScoreHexControls?.setup();
  const inputIds=['score','midi','audio'],labelIds=['scoreName','midiName','audioName'];
- const persistent=['minimalMode','paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','aspectRatio','outputQuality','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
- 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreCropTop','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor'];
+ const persistent=['fxRenderer','gpuPreset','gpuClassicOn','gpuClassicStrength','gpuBloomOn','gpuBloomStrength','gpuOutlineOn','gpuOutlineStrength','gpuStardustOn','gpuStardustStrength','pedalResonance','sustainAfterglow','minimalMode','minimalPaletteMode','minimalNoteColor','minimalWhiteColor','minimalBlackColor','minimalPedalColor','paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','aspectRatio','outputQuality','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
+ 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreCropTop','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','videoQuality','videoBitrate','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor','trailLength','trailBrightness','trailThickness','trailDuration','customAspectWidth','customAspectHeight'];
+ persistent.push('gpuCoreStrength','gpuCoreRadius','gpuMidStrength','gpuMidRadius','gpuHaloStrength','gpuHaloRadius');
+ persistent.push('gpuBurstOn','gpuParticleCount','gpuParticleSize','gpuParticleSpeed',
+   'gpuParticleDirection','gpuParticleSpread','gpuParticleLife','gpuParticleBrightness');
+ persistent.push('gpuVolumetricOn','gpuVolumetricStrength','gpuChromaticOn','gpuChromaticStrength');
+ persistent.push('gpuTrailOn','gpuTrailStrength','gpuTrailLength','gpuTrailDuration');
+ persistent.push('gpuCinematicOn','gpuCinematicStrength','gpuMusicReaction');
  const storeKey='scorevideo_studio_v05_settings';
  const exportModeKey='scorevideo_mp4_engine_v1';
  let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0,cancelReturnTime=null,activeDownloadJob=null;
@@ -14,7 +20,7 @@
  let legacyStartPending=false,legacyCancelPending=false;
  let mp4MeasuredFps=0;
  let offlineSupport=null,offlineActive=false,offlineCancelPending=false,offlineEpoch=0,offlineDownloadUrl=null,offlineReturnTime=0,experimentalOptIn=false;
- let exportChoiceExplicit=['offline','legacy'].includes(localStorage.getItem(exportModeKey)),lastExportProfile='';
+ let exportChoiceExplicit=['offline','legacy'].includes(localStorage.getItem(exportModeKey));
  const webmType=window.ScoreWebmRecorder?.supportedType(true)||'';
  function webmUnavailableReason(){
    if(!webmType)return 'MediaRecorder에서 오디오 포함 WebM 코덱을 지원하지 않습니다.';
@@ -24,51 +30,56 @@
    return '';
  }
  const webmUnavailable=webmUnavailableReason();
- let preserveLegacyWide=false;
+ let preserveLegacyWide=false,preserveCustomResolution='',exportGeometry=false;
  function syncOutputSize(){
-   const canonical=window.ScoreOutputSize.size($('aspectRatio').value,$('outputQuality').value);
-   const {width,height}=preserveLegacyWide&&$('aspectRatio').value==='21:9'&&$('outputQuality').value==='1080'
-     ?{width:2560,height:1080}:canonical;
+   const aspect=$('aspectRatio').value;
+   const custom=[Number($('customAspectWidth').value)||16,Number($('customAspectHeight').value)||9];
+   const canonical=window.ScoreOutputSize.size(aspect,$('outputQuality').value,custom);
+   const {width,height}=preserveLegacyWide&&aspect==='21:9'&&$('outputQuality').value==='1080'
+     ?{width:2560,height:1080}:preserveCustomResolution&&aspect==='custom'
+       ?{width:Number(preserveCustomResolution.split('x')[0]),height:Number(preserveCustomResolution.split('x')[1])}:canonical;
    $('resolution').value=`${width}x${height}`;
+   $('customAspectControls').hidden=aspect!=='custom';
    $('actualOutputSize').textContent=`실제 출력 크기: ${width}×${height} · 짧은 변 ${Math.min(width,height)}p${preserveLegacyWide?' · 이전 2560×1080 유지 (비율 또는 해상도를 변경하면 정확한 21:9로 전환)':''}`;
+   $('exportAspectSummary').textContent=`미리보기 화면 비율: ${aspect==='custom'?`${custom[0]}:${custom[1]}`:aspect} · 최종 ${width}×${height}`;
    $('convertExactWide').hidden=!preserveLegacyWide;
  }
  function migrateOutputSize(settings){
    if(!settings?.aspectRatio||!settings?.outputQuality){
      const legacy=window.ScoreOutputSize.migrate(settings?.resolution||'1920x1080');
-     $('aspectRatio').value=legacy.aspect;$('outputQuality').value=String(legacy.quality);
+     const [oldWidth,oldHeight]=String(settings?.resolution||'1920x1080').split('x').map(Number);
+     const canonical=window.ScoreOutputSize.size(legacy.aspect,legacy.quality);
+     if(oldWidth&&oldHeight&&(oldWidth!==canonical.width||oldHeight!==canonical.height)&&settings?.resolution!=='2560x1080'){
+       $('aspectRatio').value='custom';$('customAspectWidth').value=String(oldWidth);$('customAspectHeight').value=String(oldHeight);
+     }else $('aspectRatio').value=legacy.aspect;
+     $('outputQuality').value=String(legacy.quality);
    }
+   preserveCustomResolution=$('aspectRatio').value==='custom'&&/^\d+x\d+$/.test(settings?.resolution||'')?settings.resolution:'';
    preserveLegacyWide=settings?.resolution==='2560x1080'&&$('aspectRatio').value==='21:9'&&$('outputQuality').value==='1080';
    syncOutputSize();
  }
- function selectedExportMode(){return document.querySelector('input[name="exportMode"]:checked')?.value||'legacy';}
+ function selectedExportMode(){return document.querySelector('input[name="exportMode"]:checked')?.value||'offline';}
  function updateExportUi(){
    const resolution=$('resolution').value,[width,height]=resolution.split('x').map(Number),fps=Number($('fps').value);
    const highZoom=Number($('zoom').value)>=1.5,drawScore=$('drawScore').checked;
-   const shortEdge=Math.min(width,height),base720=resolution==='1280x720'&&(fps===30||fps===60);
-   const verified=base720&&!highZoom&&!drawScore;
-   const experimental=!drawScore&&((shortEdge===720&&(fps===30||fps===60))||(shortEdge===1080&&fps===30))&&!verified;
-   const profile=`${resolution}|${fps}|${highZoom}|${drawScore}`;
-   if(!renderUiActive&&profile!==lastExportProfile){
-     lastExportProfile=profile;
-     if(!exportChoiceExplicit)document.querySelector(`input[name="exportMode"][value="${verified?'offline':'legacy'}"]`).checked=true;
-   }
+   const verified=resolution==='1280x720'&&(fps===30||fps===60)&&!highZoom&&!drawScore;
+   const experimental=!verified;
    const reason=!offlineSupport?'브라우저 인코더·모듈 확인 중':!offlineSupport.supported?offlineSupport.reason:
-     !project?.audio_filename?'원본 오디오가 없는 프로젝트는 기존 FFmpeg 경로를 사용합니다.':
-     drawScore?'악보 그리기 애니메이션(drawScore)은 신규 엔진의 전체 곡 검증이 끝나지 않아 호환 렌더링만 지원합니다.':
-     !verified&&!experimental?'이 실제 출력 크기·FPS 조합은 신규 엔진 지원 범위 밖입니다.':'';
-   const unavailable=Boolean(reason);
-   const hardUnavailable=Boolean(offlineSupport&&!offlineSupport.supported||project&&!project.audio_filename||drawScore||!verified&&!experimental);
+     project&&!project.audio_filename?'원본 오디오가 없는 프로젝트는 기존 FFmpeg 경로를 사용합니다.':'';
+   const hardUnavailable=Boolean(offlineSupport&&!offlineSupport.supported||project&&!project.audio_filename);
    document.querySelector('input[name="exportMode"][value="offline"]').disabled=hardUnavailable;
    if(hardUnavailable&&selectedExportMode()==='offline')document.querySelector('input[name="exportMode"][value="legacy"]').checked=true;
+   else if(!hardUnavailable&&!renderUiActive&&(!exportChoiceExplicit||localStorage.getItem(exportModeKey)==='offline'))
+     document.querySelector('input[name="exportMode"][value="offline"]').checked=true;
    const offline=selectedExportMode()==='offline',seconds=Number(project?.audio_duration_sec)||0;
    $('mp4OnlyOptions').hidden=offline;$('webmLengthOptions').hidden=true;
    $('offlineSupportText').textContent=reason?`${offlineSupport===null?'확인 중':'고속 오프라인 MP4 사용 불가'}: ${reason}`:
      experimental?`${width}×${height} · ${fps}fps${highZoom?' · 150% 이상 악보 확대':''} 전체 곡은 미검증입니다. 실패하거나 메모리가 부족하면 호환 렌더링을 선택하세요.`:
      'WebCodecs H.264/AAC · OPFS 사용 가능 · 720p 전체 곡 검증 완료';
    $('exportButton').innerHTML=`${offline?'고속 오프라인':'호환 렌더링'} MP4 시작 <span>↗</span>`;
-   $('selectedEngineSummary').textContent=`출력 예정: ${$('aspectRatio').value} · ${width}×${height} · ${fps}fps · ${offline?'고속 오프라인 (WebCodecs)':'호환 렌더링 (FFmpeg)'}`;
-   $('exportButton').disabled=!project||renderUiActive||(offline&&unavailable);
+   const ratioLabel=$('aspectRatio').value==='custom'?`${$('customAspectWidth').value}:${$('customAspectHeight').value}`:$('aspectRatio').value;
+   $('selectedEngineSummary').textContent=`출력 예정: ${ratioLabel} · ${width}×${height} · ${fps}fps · ${offline?'고속 오프라인 (WebCodecs)':'호환 렌더링 (FFmpeg)'}`;
+   $('exportButton').disabled=!project||renderUiActive||(offline&&(!offlineSupport||hardUnavailable));
    $('exportEstimate').textContent=offline?
      `${fmt(seconds)} 분량을 실제 재생 없이 프레임별로 생성합니다. 출력 시간은 컴퓨터 성능에 따라 달라집니다.`:
      `예상 시간: ${mp4MeasuredFps&&seconds?fmt(Math.ceil(seconds*fps/mp4MeasuredFps)):'첫 FFmpeg 출력 후 측정 가능'}${mp4MeasuredFps?` (이전 출력 평균 ${mp4MeasuredFps.toFixed(1)}프레임/초 기준)`:''} · 기존 Chromium + FFmpeg 경로`;
@@ -88,17 +99,24 @@
    $('renderEngineText').textContent=`실행 엔진: ${status.engine==='webcodecs'||offlineActive?'고속 WebCodecs':'호환 FFmpeg'}`;
    $('renderWarningText').textContent=status.webm?'영상 녹화 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.':'영상 렌더링 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.';
    $('renderStageText').textContent=state==='cancelling'?'렌더링 취소 중...':state==='queued'?'렌더링 준비 중':detail.split('|')[0].trim()||'영상 렌더링 중';
-   $('renderEtaText').textContent=detail.match(/남은 시간[^|]*/)?.[0].trim()||'남은 시간 계산 중';
+   const seconds=detail.match(/남은 시간(?: 약)? (\d+)초/);
+   const minuteSeconds=detail.match(/남은 시간(?: 약)? (\d+)분 (\d+)초/);
+   const clock=detail.match(/남은 시간 (\d{2}:\d{2}:\d{2})/);
+   $('renderEtaText').textContent=clock?`남은 시간 ${clock[1]}`:minuteSeconds
+     ?`남은 시간 ${fmtHms(Number(minuteSeconds[1])*60+Number(minuteSeconds[2]))}`
+     :seconds?`남은 시간 ${fmtHms(seconds[1])}`:'남은 시간 계산 중';
    $('renderPercentText').textContent=`${Math.max(0,Math.min(100,Number(status.progress)||0))}%`;
  }
  window.addEventListener('beforeunload',event=>{if(!renderUiActive)return;event.preventDefault();event.returnValue='';});
  const fmt=(s)=>{const t=Math.max(0,Math.floor(Number(s)||0));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
+ const fmtHms=(s)=>{const t=Math.max(0,Math.ceil(Number(s)||0));return `${String(Math.floor(t/3600)).padStart(2,'0')}:${String(Math.floor(t/60)%60).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;};
  function exportFileName(extension){
    let name=String($('downloadName').value||project?.score_name||project?.musicxml_title||project?.midi_name||'ScoreVideo').replace(/\\/g,'/').split('/').pop();
    name=name.replace(/\.(musicxml|xml|mxl|mid|midi|mp4|webm)$/i,'').replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g,'_').trim().replace(/^[. ]+|[. ]+$/g,'');
    if(!name||/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i.test(name))name='ScoreVideo';
    if(extension!=='mp4')return `${name.slice(0,180)}.${extension}`;
-   const {width,height,fps}=config(),ratio=$('aspectRatio').value.replace(':','x');
+   const {width,height,fps}=config(),ratio=($('aspectRatio').value==='custom'
+     ?`${$('customAspectWidth').value}x${$('customAspectHeight').value}`:$('aspectRatio').value.replace(':','x'));
    return `${name.slice(0,150)}_${ratio}_${width}x${height}_${fps}fps.mp4`;
  }
  function message(text,error=false){$('message').textContent=text;$('message').classList.toggle('error',error);}
@@ -138,6 +156,8 @@
  function sceneOptions(){return {
    template:$('sceneTemplate').value,cameraMode:$('cameraMode').value,fxMode:$('fxMode').value,fxStrength:Number($('fxStrength').value),scoreImpactEnabled:$('scoreImpactEnabled').checked,scoreImpactStrength:Number($('scoreImpactStrength').value),lightColorMode:$('lightColorMode').value,velocityScale:$('velocityScale').value,
    trailUpper:$('trailUpperColor').value,trailLower:$('trailLowerColor').value,
+   trailLength:Number($('trailLength').value),trailBrightness:Number($('trailBrightness').value),
+   trailThickness:Number($('trailThickness').value),trailDuration:Number($('trailDuration').value),
    auroraPreset:$('auroraPreset').value,auroraLow:$('auroraLow').value,auroraHigh:$('auroraHigh').value,
    font:$('titleFont').value,notationStyle:$('notationStyle').value,titleGap:Number($('titleGap').value),
    title:$('titleText').value,artist:$('artistText').value,credit:$('creditText').value,showText:$('showText').checked,
@@ -145,9 +165,37 @@
    keyframes:[{time:0,color:$('sceneStartColor').value,glow:$('sceneStartGlow').value},
      {time:Number($('transitionTime').value),color:$('sceneEndColor').value,glow:$('sceneEndGlow').value}],
  };}
+ function gpuEffects(){
+   const result={preset:$('gpuPreset').value,pedalResonance:$('pedalResonance').checked,
+     sustainAfterglow:$('sustainAfterglow').checked,
+     cinematic:{on:$('gpuCinematicOn').checked,strength:Number($('gpuCinematicStrength').value),
+       reaction:Number($('gpuMusicReaction').value)},
+     glow:{core:{strength:Number($('gpuCoreStrength').value),radius:Number($('gpuCoreRadius').value)},
+       mid:{strength:Number($('gpuMidStrength').value),radius:Number($('gpuMidRadius').value)},
+       halo:{strength:Number($('gpuHaloStrength').value),radius:Number($('gpuHaloRadius').value)}},
+     burst:{on:$('gpuBurstOn').checked,count:Number($('gpuParticleCount').value),
+       size:Number($('gpuParticleSize').value),speed:Number($('gpuParticleSpeed').value),
+       direction:Number($('gpuParticleDirection').value),spread:Number($('gpuParticleSpread').value),
+       life:Number($('gpuParticleLife').value),brightness:Number($('gpuParticleBrightness').value)},
+     volumetric:{on:$('gpuVolumetricOn').checked,strength:Number($('gpuVolumetricStrength').value)},
+     chromatic:{on:$('gpuChromaticOn').checked,strength:Number($('gpuChromaticStrength').value)},
+     trails:{on:$('gpuTrailOn').checked,strength:Number($('gpuTrailStrength').value),
+       length:Number($('gpuTrailLength').value),duration:Number($('gpuTrailDuration').value)}};
+   for(const [name,label] of [['classic','Classic'],['bloom','Bloom'],['outline','Outline'],['stardust','Stardust']])
+     result[name]={on:$("gpu"+label+"On").checked,strength:Number($("gpu"+label+"Strength").value)};
+   return result;
+ }
+ function minimalPalette(){return {mode:$('minimalPaletteMode').value,note:$('minimalNoteColor').value,
+   white:$('minimalWhiteColor').value,black:$('minimalBlackColor').value,pedal:$('minimalPedalColor').value};}
+ function recommendMinimalColors(){
+   const recommended=window.ScoreStudio.recommendMinimalPalette($('minimalPaletteMode').value,{
+     paper:$('paperColor').value,ink:$('inkColor').value,accent:$('accentColor').value,glow:$('glowColor').value,
+     white:$('pianoWhiteKeyColor').value,black:$('pianoBlackKeyColor').value});
+   for(const [key,id] of Object.entries({note:'minimalNoteColor',white:'minimalWhiteColor',black:'minimalBlackColor',pedal:'minimalPedalColor'}))$(id).value=recommended[key];
+ }
  function config(){
    const [width,height]=$('resolution').value.split('x').map(Number);
-   return {width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
+   return {width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,video_quality:$('videoQuality').value,video_bitrate:$('videoBitrate').value,fx_renderer:$('fxRenderer').value,gpu_effects:gpuEffects(),minimal_palette:minimalPalette(),download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
       paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
       glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
       texture:$('texture').value,background_opacity:Number($('backgroundOpacity').value),background_fit:$('backgroundFit').value,background_position_x:Number($('backgroundPosX').value),background_position_y:Number($('backgroundPosY').value),
@@ -156,11 +204,18 @@
       score_visible:$('scoreVisible').checked,piano_enabled:$('pianoEnabled').checked,piano_camera:$('pianoCamera').checked,piano_key_style:$('pianoKeyStyle').value,piano_white_key_color:$('pianoWhiteKeyColor').value,piano_black_key_color:$('pianoBlackKeyColor').value,piano_light:$('pianoLight').checked,piano_light_strength:Number($('pianoLightStrength').value),
       layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_crop_top:Number($('scoreCropTop').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
  }
+ function previewConfig(){
+   const settings=config(),short=Math.min(settings.width,settings.height),scale=Math.min(1,1080/short);
+   settings.width=Math.max(200,2*Math.round(settings.width*scale/2));
+   settings.height=Math.max(200,2*Math.round(settings.height*scale/2));
+   return settings;
+ }
  function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));}
  function restoreSettings(){try{
    const data=JSON.parse(localStorage.getItem(storeKey)||'{}');
    if(data.fxMode==='aurora'&&!data.lightColorMode){data.fxMode='bloom';data.lightColorMode='aurora';}
    for(const id of persistent){const node=$(id);if(data[id]===undefined)continue;if(node.type==='checkbox')node.checked=!!data[id];else node.value=data[id];}
+   if(data.minimalNoteColor===undefined)recommendMinimalColors();
    migrateOutputSize(data);
  }catch(e){syncOutputSize();}updateLabels();resizePreview();}
  const videoPresetStoreKey='scorevideo_named_video_presets_v1';
@@ -214,6 +269,7 @@
        if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
      }
      if(preset.settings.minimalMode===undefined)$('minimalMode').checked=false;
+     if(preset.settings.minimalNoteColor===undefined)recommendMinimalColors();
      migrateOutputSize(preset.settings);
      $('offset').value=String(preset.settings.offset??0);
      $('pianoOffset').value=String(preset.settings.pianoOffset??0);
@@ -268,7 +324,7 @@
    $('cameraPointTools').hidden=$('cameraMode').value!=='points';
  }
  function resizePreview(){
-   const [w,h]=$('resolution').value.split('x').map(Number);
+   const {width:w,height:h}=exportGeometry?config():previewConfig();
    const surround=$('previewSurround'),frame=$('stageFrame'),viewport=$('scoreViewport');
    const avail=Math.max(140,surround.clientWidth-24);
    const desktop=window.matchMedia('(min-width:951px)').matches;
@@ -284,7 +340,7 @@
  }
  function queueApply(){
    revision++;
-   const myRevision=revision,setting=config();
+   const myRevision=revision,setting=previewConfig();
    saveSettings();updateLabels();resizePreview();
    if(!stage){$('scoreViewport').style.backgroundColor=setting.paper_color;return;}
    $('previewInfo').textContent='설정을 미리보기에 적용 중…';
@@ -309,11 +365,69 @@
    $('clearSyncButton').hidden=false;
  }
  for(let i=0;i<inputIds.length;i++)$(inputIds[i]).addEventListener('change',()=>{$(labelIds[i]).textContent=$(inputIds[i]).files?.[0]?.name||'파일 선택';});
+ $('scoreViewport').addEventListener('score-fx-renderer',event=>{
+   const {actual,reason}=event.detail||{};
+   if(reason)$('fxRendererStatus').removeAttribute('data-i18n');
+   else $('fxRendererStatus').setAttribute('data-i18n',actual==='pixi'?'effects.rendererActive':'effects.rendererDefault');
+   $('fxRendererStatus').textContent=reason
+     ?window.ScoreI18n?.t('effects.rendererFallback',{reason})||`GPU 실패: ${reason} · Canvas2D 사용`
+     :actual==='pixi'?(window.ScoreI18n?.t('effects.rendererActive')||'현재 사용: PixiJS GPU')
+       :(window.ScoreI18n?.t('effects.rendererDefault')||'현재 사용: 기존 Canvas2D');
+ });
  for(const id of persistent){
    if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom','scorePosX','scorePosY','aspectRatio','outputQuality','resolution'].includes(id))continue;
    $(id).addEventListener('input',queueApply);
    $(id).addEventListener('change',queueApply);
  }
+ $('gpuPreset').addEventListener('change',()=>{
+   const cinematic=window.ScorePixiFx.cinematicPresets[$('gpuPreset').value];
+   if(cinematic){
+     const set=(id,value)=>{const node=$(id);if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);};
+     set('gpuCinematicOn',true);
+     set('gpuCinematicStrength',cinematic.cinematic.strength);
+     set('gpuMusicReaction',cinematic.cinematic.reaction);
+     for(const [name,label] of [['classic','Classic'],['bloom','Bloom'],['outline','Outline'],['stardust','Stardust'],
+       ['volumetric','Volumetric'],['chromatic','Chromatic']]){
+       set('gpu'+label+'On',cinematic[name].on);
+       set('gpu'+label+'Strength',cinematic[name].strength);
+     }
+     for(const [name,label] of [['core','Core'],['mid','Mid'],['halo','Halo']]){
+       set('gpu'+label+'Strength',cinematic.glow[name].strength);
+       set('gpu'+label+'Radius',cinematic.glow[name].radius);
+     }
+     for(const [name,id] of [['on','gpuBurstOn'],['count','gpuParticleCount'],['size','gpuParticleSize'],
+       ['speed','gpuParticleSpeed'],['direction','gpuParticleDirection'],['spread','gpuParticleSpread'],
+       ['life','gpuParticleLife'],['brightness','gpuParticleBrightness']])set(id,cinematic.burst[name]);
+     for(const [name,id] of [['on','gpuTrailOn'],['strength','gpuTrailStrength'],
+       ['length','gpuTrailLength'],['duration','gpuTrailDuration']])set(id,cinematic.trails[name]);
+     for(const [name,id] of [['lightColorMode','lightColorMode'],['auroraLow','auroraLow'],
+       ['auroraHigh','auroraHigh'],['glowColor','glowColor']])
+       if(cinematic.palette?.[name]!==undefined)set(id,cinematic.palette[name]);
+     if(cinematic.palette?.auroraLow)$('auroraPreset').value='custom';
+     $('fxMode').value='bloom';
+     if($('fxRenderer').value==='canvas')$('fxRenderer').value='auto';
+     queueApply();return;
+   }
+   const preset=window.ScorePixiFx.presets[$('gpuPreset').value];
+   if(!preset||$('gpuPreset').value==='custom')return;
+   for(const [name,label] of [['classic','Classic'],['bloom','Bloom'],['outline','Outline'],['stardust','Stardust']]){
+     $('gpu'+label+'On').checked=preset[name]>0;
+     $('gpu'+label+'Strength').value=String(preset[name]||1);
+   }
+   queueApply();
+ });
+ for(const label of ['Classic','Bloom','Outline','Stardust'])for(const suffix of ['On','Strength'])
+   $('gpu'+label+suffix).addEventListener('change',()=>{$('gpuPreset').value='custom';queueApply();});
+ for(const label of ['Core','Mid','Halo'])for(const suffix of ['Strength','Radius'])
+   $('gpu'+label+suffix).addEventListener('change',()=>{$('gpuPreset').value='custom';queueApply();});
+ for(const id of ['gpuBurstOn','gpuParticleCount','gpuParticleSize','gpuParticleSpeed',
+   'gpuParticleDirection','gpuParticleSpread','gpuParticleLife','gpuParticleBrightness'])
+   $(id).addEventListener('change',()=>{$('gpuPreset').value='custom';queueApply();});
+ for(const id of ['gpuVolumetricOn','gpuVolumetricStrength','gpuChromaticOn','gpuChromaticStrength',
+   'gpuTrailOn','gpuTrailStrength','gpuTrailLength','gpuTrailDuration',
+   'gpuCinematicStrength','gpuMusicReaction','fxMode','lightColorMode','auroraLow','auroraHigh','glowColor'])
+   $(id).addEventListener('change',()=>{$('gpuPreset').value='custom';queueApply();});
+ $('minimalPaletteMode').addEventListener('change',()=>{recommendMinimalColors();queueApply();});
  $('scoreCropTopNumber').addEventListener('input',()=>{
    const value=Number($('scoreCropTopNumber').value);
    if(!Number.isFinite(value))return;
@@ -386,6 +500,7 @@
    $('auroraLow').value=palette.auroraLow;$('auroraHigh').value=palette.auroraHigh;
    $('auroraPreset').value='theme';
    $('animateBackground').checked=false;$('inverted').checked=false;
+   recommendMinimalColors();
    queueApply();message('테마와 어울리는 오선·음표·배경·발광 및 오른손/왼손 궤적 2색을 자동 설정했습니다.');
  });
  $('autoTrailPalette').addEventListener('click',()=>{
@@ -486,6 +601,7 @@
    // recommended score colors are not overridden by animated background.
    const hasPhoto=Boolean(project?.background_filename||pendingBackgroundFile);
    $('scorePanelOpacity').value=hasPhoto?String(Math.round(Number(scheme.panel_opacity||.65)*100/5)*5):'0';
+   recommendMinimalColors();
    queueApply();
    paletteMessage(`${scheme.name} 디자인을 적용했습니다. 배경 이미지는 그대로 유지됩니다. 색상은 개별 수정할 수 있어요.`);
  }
@@ -608,6 +724,8 @@
    if(webmDownloadUrl){URL.revokeObjectURL(webmDownloadUrl);void webmRelease?.();webmDownloadUrl=null;webmRelease=null;$('webmDownloadLink').hidden=true;}
    const hasScore=meta.has_score!==false;
    const projectName=(hasScore?meta.score_name:meta.midi_name).replace(/\.(musicxml|xml|mxl|mid|midi)$/i,'');
+   // Project filenames are user data, not interface copy.
+   $('projectTitle').setAttribute('data-i18n-ignore','');
    $('projectTitle').textContent=projectName;
    const titleOverride=localStorage.getItem('scorevideo_title_override_'+meta.id);
    $('titleText').value=titleOverride!==null?titleOverride:projectName;
@@ -642,7 +760,7 @@
    $('nextMeasureButton').disabled=!hasScore;
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
-   stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:config()});
+   stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:previewConfig()});
    await stage.load();stage.seek(0);$('cameraPointAuto').disabled=!hasScore||!stage.follower?.noteTriggers?.length;
    $('webmRecordButton').disabled=Boolean(webmUnavailable);updateExportUi();
    void fetch(`/api/projects/${meta.id}/render-diagnostics`).then(r=>r.ok?r.json():null).then(report=>{if(project?.id===meta.id&&Number(report?.frame_processing_fps)>0){mp4MeasuredFps=Number(report.frame_processing_fps);updateExportUi();}}).catch(()=>{});
@@ -828,15 +946,18 @@
      await applySerial;
      if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
      const [width,height]=$('resolution').value.split('x').map(Number);
-     const supported=await window.ScoreOfflineExport.probe(width,height,fps);
+     const supported=await window.ScoreOfflineExport.probe(width,height,fps,$('videoBitrate').value);
      if(offlineCancelPending)throw Error('Cancelled');
      if(!supported.supported)throw Error(supported.reason);
-     const {file,metrics}=await window.ScoreOfflineExport.run({fps,onProgress({completed,frameCount}){
+     exportGeometry=true;resizePreview();
+     await stage.setSettings(config());
+     if(offlineCancelPending)throw Error('Cancelled');
+     const {file,metrics}=await window.ScoreOfflineExport.run({fps,quality:$('videoQuality').value,bitrate:$('videoBitrate').value,onProgress({completed,frameCount}){
        if(token!==offlineEpoch||!offlineActive)return;
        const progress=Math.min(99,Math.floor(completed/frameCount*100));
        const elapsed=(performance.now()-started)/1000;
        const remaining=completed>0?Math.ceil((frameCount-completed)*elapsed/completed):null;
-       const detail=`WebCodecs H.264/AAC · ${completed}/${frameCount}프레임 | 남은 시간 ${remaining===null?'계산 중':`약 ${remaining}초`}`;
+       const detail=`WebCodecs H.264/AAC · ${completed}/${frameCount}프레임 | 남은 시간 ${remaining===null?'계산 중':fmtHms(remaining)}`;
        setRenderUi(true,{state:'rendering',message:detail,progress});
        $('statusText').textContent=detail;$('percent').textContent=`${progress}%`;$('progressBar').style.width=`${progress}%`;
      }});
@@ -859,6 +980,7 @@
      }
      await window.ScoreOfflineExport.release();
    }finally{
+     if(exportGeometry){exportGeometry=false;resizePreview();try{await stage?.setSettings(previewConfig());}catch(error){message(`미리보기 복원 실패: ${error.message}`,true);}}
      if(token===offlineEpoch){offlineActive=false;offlineCancelPending=false;$('cancelRenderButton').hidden=true;
        $('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';
        setRenderUi(false);updateExportUi();seekTo(offlineReturnTime);
@@ -891,7 +1013,7 @@
        seconds,fps:Number($('fps').value),audio,onFrame(time){webmPosition=time;$('currentTime').textContent=fmt(time);$('seek').value=time;},
        onProgress({elapsed,total,progress,frames,dropped,stalls,hiddenSeconds}){
          setRenderUi(true,{webm:true,state:'recording',message:`녹화 중 ${fmt(elapsed)} / ${fmt(total)} · 화면 갱신 ${frames}회 · 건너뜀 ${dropped}회${stalls?` · 화면 지연 ${stalls}회`:''}`,progress});
-         $('renderEtaText').textContent=`남은 시간 약 ${Math.ceil(total-elapsed)}초`;
+         $('renderEtaText').textContent=`남은 시간 ${fmtHms(total-elapsed)}`;
          if(hiddenSeconds>=1)$('renderStageText').textContent+=' · 탭 전환으로 프레임이 누락될 수 있습니다';
        }
      });
@@ -970,19 +1092,22 @@
    localStorage.setItem(exportModeKey,radio.value);updateExportUi();
  });
  const savedExportMode=localStorage.getItem(exportModeKey);
- document.querySelector(`input[name="exportMode"][value="${savedExportMode==='offline'?'offline':'legacy'}"]`).checked=true;
+ document.querySelector(`input[name="exportMode"][value="${savedExportMode==='legacy'?'legacy':'offline'}"]`).checked=true;
  let offlineProbeEpoch=0;
  async function refreshOfflineSupport(){
    const epoch=++offlineProbeEpoch,[width,height]=$('resolution').value.split('x').map(Number),fps=Number($('fps').value);
    offlineSupport=null;updateExportUi();
-   const result=await window.ScoreOfflineExport.probe(width,height,fps);
+   const result=await window.ScoreOfflineExport.probe(width,height,fps,$('videoBitrate').value);
    if(epoch===offlineProbeEpoch){offlineSupport=result;updateExportUi();}
  }
  $('retryOfflineSupport').addEventListener('click',()=>{if(!renderUiActive)void refreshOfflineSupport();});
- for(const id of ['aspectRatio','outputQuality'])$(id).addEventListener('change',()=>{preserveLegacyWide=false;syncOutputSize();experimentalOptIn=false;queueApply();void refreshOfflineSupport();});
+ for(const id of ['aspectRatio','outputQuality','customAspectWidth','customAspectHeight'])$(id).addEventListener('change',()=>{
+   preserveLegacyWide=false;preserveCustomResolution='';syncOutputSize();experimentalOptIn=false;queueApply();void refreshOfflineSupport();
+ });
  $('convertExactWide').addEventListener('click',()=>{preserveLegacyWide=false;syncOutputSize();queueApply();void refreshOfflineSupport();});
  $('resolution').addEventListener('change',()=>{migrateOutputSize({resolution:$('resolution').value});experimentalOptIn=false;queueApply();void refreshOfflineSupport();});
  $('fps').addEventListener('change',()=>{experimentalOptIn=false;void refreshOfflineSupport();});
+ $('videoBitrate').addEventListener('change',()=>{void refreshOfflineSupport();});
  for(const id of ['drawScore','zoom'])$(id).addEventListener('change',()=>{experimentalOptIn=false;updateExportUi();});
  refreshVideoPresets();restoreSettings();void refreshOfflineSupport();window.addEventListener('resize',resizePreview);
  if(typeof ResizeObserver!=='undefined'){

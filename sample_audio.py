@@ -44,7 +44,7 @@ def render_salamander(timing: dict, output: Path) -> float:
     events = timing.get("note_events") or []
     if not events:
         raise ValueError("No MIDI notes to synthesize")
-    last_note = max(float(note.get("end_second", note["second"] + .35)) for note in events)
+    last_note = max(float(note.get("sustain_end_second", note.get("end_second", note["second"] + .35))) for note in events)
     duration = max(float(timing.get("midi_duration_sec") or 0), last_note) + 1.5
     if duration > 600:
         raise ValueError("Automatic piano audio is limited to 10 minutes; supply an audio file for longer pieces")
@@ -61,7 +61,7 @@ def render_salamander(timing: dict, output: Path) -> float:
         if start >= frames:
             continue
         rate = 2 ** ((pitch - sample_pitch) / 12)
-        hold = max(.06, float(note.get("end_second", note["second"] + .35)) - float(note["second"]))
+        hold = max(.06, float(note.get("sustain_end_second", note.get("end_second", note["second"] + .35))) - float(note["second"]))
         count = min(frames - start, int((hold + 1.4) * SAMPLE_RATE), int((len(sample) - 1) / rate))
         if count <= 0:
             continue

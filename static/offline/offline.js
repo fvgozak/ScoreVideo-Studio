@@ -2,7 +2,7 @@
 import {Output, Mp4OutputFormat, BufferTarget, StreamTarget, CanvasSource, Quality} from './mediabunny.min.mjs';
 import {decodeProjectAudio,createAacSource,encodeAudioSamples} from './offline-audio.js';
 import {createScoreGlowOverlay} from './score-glow-overlay.js?v=top-crop-1';
-import {createStaticScoreHeads} from './score-static-heads.js?v=top-crop-1';
+import {createStaticScoreHeads} from './score-static-heads.js?v=pedal-colors-1';
 
 const average=items=>items.reduce((sum,item)=>sum+item,0)/Math.max(1,items.length);
 function summary(items){const sorted=[...items].sort((a,b)=>a-b);return {totalMs:Math.round(items.reduce((sum,item)=>sum+item,0)),avgMs:+average(items).toFixed(3),p95Ms:+(sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.95)-1)]||0).toFixed(3)};}
@@ -10,7 +10,7 @@ let cancelRequested=false,activeAbort=null,releaseResult=null;
 window.ScoreOfflinePrototype={
   cancel(){cancelRequested=true;activeAbort?.abort();},
   async release(){if(releaseResult){await releaseResult();releaseResult=null;}window.__offlineResult=null;},
-  async run(mode,{fps=30,seconds=30,fullSong=false,audioMode='none',storage='memory',cancelAtFrame=null,pianoMode='baseline',capturePixels=false,scoreGlow=true,startSeconds=0}={}){
+  async run(mode,{fps=30,seconds=30,fullSong=false,audioMode='none',storage='memory',cancelAtFrame=null,pianoMode='baseline',capturePixels=false,scoreGlow=true,startSeconds=0,videoQuality='high',videoBitrate='auto'}={}){
   await window.ScoreOfflinePrototype.release();
   cancelRequested=false;
   const abortController=new AbortController();activeAbort=abortController;
@@ -96,7 +96,8 @@ window.ScoreOfflinePrototype={
         target=new StreamTarget(await handle.createWritable(),{chunked:true,chunkSize:4*1024*1024});
       }else target=new BufferTarget();
       output=new Output({format:new Mp4OutputFormat(),target});
-      source=new CanvasSource(canvas,{codec:'avc',quality:new Quality('high'),hardwareAcceleration:'no-preference'});
+      const rate=videoBitrate==='auto'?new Quality(videoQuality):new Quality({bitrate:Number(videoBitrate)*1_000_000});
+      source=new CanvasSource(canvas,{codec:'avc',quality:rate,hardwareAcceleration:'no-preference'});
       output.addVideoTrack(source,{frameRate:fps});
       if(audioInfo)audioTrack=createAacSource(output);
       await output.start();
@@ -152,7 +153,12 @@ window.ScoreOfflinePrototype={
     if(output){window.__offlineResult=resultFile||new Blob([output.target.buffer],{type:'video/mp4'});
       if(opfs){const {directory,name}=opfs;releaseResult=()=>directory.removeEntry(name);}}
     const spriteStats=exportCache?.stats();
+    const fxRequested=stage?.settings?.piano?.fxRenderer||'canvas';
+    const fxPiano=stage?.piano?.gpu?'pixi':'canvas';
+    const fxScore=stage?.scoreGpu?'pixi':'canvas';
     return {mode,pianoMode,pianoOptimizationApplied,scoreGlow,startSeconds,width,height,fps,seconds,frames:completed,bytes,
+      fxRendererRequested:fxRequested,fxRendererPiano:fxPiano,fxRendererScore:fxScore,
+      fxPianoStats:stage?.piano?.gpu?.stats()||null,fxScoreStats:stage?.scoreGpu?.stats()||null,
       audioMode,storage:opfs?'opfs':'memory',audioInputBytes:audioInfo?.inputBytes||0,
       audioFetchMs:+(audioInfo?.fetchMs||0).toFixed(2),audioDecodeMs:+(audioInfo?.decodeMs||0).toFixed(2),
       audioEncodeMs:+audioEncodeMs.toFixed(2),audioWaitMs:+audioWaitMs.toFixed(2),

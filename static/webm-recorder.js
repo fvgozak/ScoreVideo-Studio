@@ -62,7 +62,8 @@
    if(!base.width||!base.height)return;
    const sx=stage.settings.width/base.width,sy=stage.settings.height/base.height;
    const canvases=[...viewport.querySelectorAll('canvas')].filter(canvas=>canvas.width&&canvas.height&&getComputedStyle(canvas).display!=='none'&&
-     (kind==='piano'?canvas.classList.contains('piano-fall-canvas'):!canvas.classList.contains('piano-fall-canvas')));
+     (kind==='piano'?canvas.classList.contains('piano-fall-canvas')||canvas.classList.contains('score-pixi-piano')
+       :!canvas.classList.contains('piano-fall-canvas')&&!canvas.classList.contains('score-pixi-piano')));
    canvases.sort((a,b)=>(Number(getComputedStyle(a).zIndex)||0)-(Number(getComputedStyle(b).zIndex)||0));
    for(const canvas of canvases){
      const r=canvas.getBoundingClientRect();ctx.save();
@@ -122,7 +123,9 @@
        const copy=svg.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('data-notation-style',notation);
        if(!stage.settings.effects.drawScore)copy.querySelectorAll('.score-glowing,.score-note-moving,.score-minimal-active').forEach(node=>{node.classList.remove('score-glowing','score-note-moving','score-minimal-active');node.style.removeProperty('translate');node.style.removeProperty('scale');node.style.removeProperty('--score-minimal-color');});
        const style=document.createElementNS('http://www.w3.org/2000/svg','style');
-       style.textContent=css.replaceAll('.score-window[data-notation-style=', 'svg[data-notation-style=');copy.insertBefore(style,copy.firstChild);
+       if(stage.settings.effects.minimalMode)copy.style.setProperty('--minimal-note-base',stage.settings.effects.minimalPalette?.note||stage.settings.effects.accent);
+       style.textContent=css.replaceAll('.score-window[data-notation-style=', 'svg[data-notation-style=')
+         .replaceAll('.score-minimal-stage',stage.settings.effects.minimalMode?'svg':'.score-minimal-stage');copy.insertBefore(style,copy.firstChild);
        image=await imageFromSvg(new XMLSerializer().serializeToString(copy));cache.set(svg,image);
        if(measure){measure.svgDecodeMs+=performance.now()-decodeStarted;measure.svgDecodes++;}
      }

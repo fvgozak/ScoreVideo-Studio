@@ -5,6 +5,10 @@
 .video-stage .studio-atmosphere{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:screen}
 .video-stage .studio-fx-canvas{position:absolute;left:0;top:0;z-index:8;pointer-events:none}
 .video-stage .piano-fall-canvas{position:absolute;inset:0;z-index:5;pointer-events:none}
+.video-stage .score-pixi-fx{position:absolute;inset:0;z-index:5;pointer-events:none}
+.video-stage .score-window .score-pixi-score{z-index:2}
+.video-stage.score-pixi-active .score-glowing{filter:none}
+.video-stage.score-pixi-active .note-star,.video-stage.score-pixi-active .note-trail{visibility:hidden}
 .video-stage .studio-titles{position:absolute;inset:0;z-index:10;pointer-events:none;display:flex;flex-direction:column;align-items:center;text-align:center;padding:4% 5%;font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;text-shadow:0 2px 11px rgba(0,0,0,.14)}
 .video-stage .studio-title{font-size:var(--stage-title-size,40px);font-weight:650;letter-spacing:-.035em;max-width:85%;line-height:1.18}
 .video-stage .studio-artist{font-size:var(--stage-artist-size,20px);font-weight:450;letter-spacing:.2em;margin-top:14px}
@@ -37,6 +41,10 @@
   fill:var(--score-minimal-color)!important;stroke:var(--score-minimal-color)!important;
 }
 .score-minimal-active [fill="none"]{fill:none!important}
+.score-minimal-stage .vf-notehead:not(.score-minimal-active) path{
+  fill:var(--minimal-note-base)!important;stroke:var(--minimal-note-base)!important;
+}
+.score-minimal-stage .vf-notehead path[fill="none"]{fill:none!important}
 .score-minimal-stage .score-playback-cursor,.score-minimal-stage .studio-titles{text-shadow:none!important;box-shadow:none!important}
 
 /* Notation presets style the SVG glyphs without moving their musical anchors.

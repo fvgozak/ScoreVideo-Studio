@@ -23,18 +23,25 @@
     return Error(`고속 엔진 모듈 로딩 실패${failures.length?` (${failures.join('; ')})`:''}: ${error.message}`);
   }
 
-  async function probe(width=1280,height=720,fps=30){
+  async function probe(width=1280,height=720,fps=30,bitrate='auto'){
+    if(!Number.isInteger(width)||!Number.isInteger(height)||width<200||height<200||width>8192||height>8192||width%2||height%2)
+      return {supported:false,reason:'출력 크기는 200~8192 범위의 짝수 픽셀이어야 합니다.'};
     if(!root.isSecureContext)return {supported:false,reason:'보안 컨텍스트(로컬호스트 또는 HTTPS)가 필요합니다.'};
     if(!root.VideoEncoder||!root.AudioEncoder)return {supported:false,reason:'WebCodecs H.264/AAC 인코더를 지원하지 않습니다.'};
     if(!root.AudioContext||!root.createImageBitmap||!document.createElement('canvas').getContext('2d'))
       return {supported:false,reason:'오디오 디코딩 또는 Canvas 합성을 지원하지 않습니다.'};
     if(!navigator.storage?.getDirectory)return {supported:false,reason:'장시간 MP4를 저장할 OPFS를 지원하지 않습니다.'};
     try{
-      const [video,audio]=await Promise.all([
-        VideoEncoder.isConfigSupported({codec:'avc1.420028',width,height,framerate:fps,bitrate:8_000_000}),
-        AudioEncoder.isConfigSupported({codec:'mp4a.40.2',sampleRate:48000,numberOfChannels:2,bitrate:192000})
-      ]);
-      if(!video.supported||!audio.supported)return {supported:false,reason:'이 해상도에서 H.264 또는 AAC 인코더를 사용할 수 없습니다.'};
+      const chosenBitrate=bitrate==='auto'?Math.min(100_000_000,Math.max(8_000_000,Math.round(width*height*fps*.14))):Number(bitrate)*1_000_000;
+      const codecs=width*height*fps>1920*1080*60?['avc1.640034']:
+        width*height*fps>1920*1080*30?['avc1.64002a','avc1.640034']:['avc1.420028','avc1.64002a'];
+      let video=null;
+      for(const codec of codecs){
+        const result=await VideoEncoder.isConfigSupported({codec,width,height,framerate:fps,bitrate:chosenBitrate});
+        if(result.supported){video=result;break;}
+      }
+      const audio=await AudioEncoder.isConfigSupported({codec:'mp4a.40.2',sampleRate:48000,numberOfChannels:2,bitrate:192000});
+      if(!video||!audio.supported)return {supported:false,reason:`${width}×${height} · ${fps}fps에서 H.264 또는 AAC 인코더를 사용할 수 없습니다.`};
       const directory=await navigator.storage.getDirectory();
       if(!directory)return {supported:false,reason:'OPFS 저장 공간에 접근할 수 없습니다.'};
       await engine();
@@ -44,7 +51,7 @@
 
   async function engine(){
     if(!modulePromise){
-      const path=`/static/offline/offline.js?v=4${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
+      const path=`/static/offline/offline.js?v=6${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
       modulePromise=import(path).catch(async error=>{modulePromise=null;moduleAttempt++;throw await moduleFailure(error,path);});
     }
     await modulePromise;
@@ -52,7 +59,7 @@
     return root.ScoreOfflinePrototype;
   }
 
-  async function run({fps,onProgress=()=>{}}){
+  async function run({fps,quality='high',bitrate='auto',onProgress=()=>{}}){
     if(running)throw Error('다른 오프라인 MP4 출력이 진행 중입니다.');
     running=true;cancelled=false;
     const timer=setInterval(()=>{if(root.__offlineProgress)onProgress(root.__offlineProgress);},250);
@@ -60,7 +67,7 @@
       const api=await engine();
       if(cancelled)throw Error('Cancelled');
       const metrics=await api.run('full',{fps,fullSong:true,audioMode:'source',storage:'opfs',
-        pianoMode:'shadow-sprite',scoreGlow:true});
+        pianoMode:'shadow-sprite',scoreGlow:true,videoQuality:quality,videoBitrate:bitrate});
       if(cancelled){await api.release();throw Error('Cancelled');}
       const file=root.__offlineResult;
       if(!(file instanceof Blob)||file.size<4096){await api.release();throw Error('완성된 MP4 파일이 유효하지 않습니다.');}

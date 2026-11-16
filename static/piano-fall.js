@@ -18,6 +18,14 @@
     while(lo<hi){const mid=(lo+hi)>>>1;if(notes[mid].audio<time)lo=mid+1;else hi=mid;}
     return lo;
   }
+  function accentAt(accents,time){
+    let lo=0,hi=accents.length;
+    while(lo<hi){const mid=(lo+hi)>>>1;if(accents[mid].time<time)lo=mid+1;else hi=mid;}
+    const before=accents[lo-1],after=accents[lo];
+    const nearest=!before?after:!after?before:
+      Math.abs(before.time-time)<=Math.abs(after.time-time)?before:after;
+    return nearest&&Math.abs(nearest.time-time)<=.075?Number(nearest.intensity)||0:0;
+  }
   function noteRange(notes,time,longestDuration=0,lookahead=CAMERA_LOOKAHEAD){
     const start=lowerBound(notes,time-longestDuration-.001),end=lowerBound(notes,time+lookahead+.001);
     let low=LAST,high=FIRST,found=false;
@@ -142,11 +150,40 @@
   }
   class PianoFall {
     constructor(viewport){
+      if(viewport.__scorePianoFall&&viewport.__scorePianoFall!==this)viewport.__scorePianoFall.dispose();
+      viewport.__scorePianoFall=this;
       this.canvas=document.createElement('canvas');this.canvas.className='piano-fall-canvas';
       this.canvas.setAttribute('aria-hidden','true');viewport.appendChild(this.canvas);
-      this.context=this.canvas.getContext('2d');this.notes=[];this.follower=null;this.settings={enabled:true,light:true};
+      this.context=this.canvas.getContext('2d');this.notes=[];this.pedalEvents=[];this.follower=null;this.settings={enabled:true,light:true};
       const Cache=root.ScorePianoShadowSprite?.ShadowSpriteCache;
       this.shadowCache=Cache?new Cache():null;
+      this.gpu=null;this.gpuError='';this.gpuEpoch=0;this.ready=Promise.resolve();
+    }
+    prepareGpu(){
+      const mode=this.settings?.fxRenderer||'canvas',wanted=mode!=='canvas'&&
+        this.settings.enabled&&this.settings.light&&!this.settings.minimalMode;
+      const epoch=++this.gpuEpoch;
+      if(!wanted){this.gpu?.dispose();this.gpu=null;this.ready=Promise.resolve();
+        this.canvas.parentElement?.dispatchEvent(new CustomEvent('score-fx-renderer',
+          {detail:{actual:'canvas',requested:mode}}));return this.ready;}
+      if(this.gpu)return this.ready;
+      const Layer=root.ScorePixiFx?.Layer;
+      if(!Layer){this.gpuError='PixiJS 효과 모듈이 로드되지 않았습니다.';
+        this.canvas.parentElement?.dispatchEvent(new CustomEvent('score-fx-renderer',
+          {detail:{actual:'canvas',requested:mode,reason:this.gpuError}}));
+        return Promise.resolve();}
+      this.ready=Layer.create(this.canvas.parentElement,'piano').then(layer=>{
+        if(epoch!==this.gpuEpoch){layer.dispose();return;}
+        this.gpu=layer;this.gpuError='';
+        this.canvas.parentElement.dispatchEvent(new CustomEvent('score-fx-renderer',
+          {detail:{actual:'pixi',requested:mode}}));
+      }).catch(error=>{
+        if(epoch!==this.gpuEpoch)return;
+        this.gpuError=String(error?.message||error);
+        this.canvas.parentElement.dispatchEvent(new CustomEvent('score-fx-renderer',
+          {detail:{actual:'canvas',requested:mode,reason:this.gpuError}}));
+      });
+      return this.ready;
     }
     setSettings(settings){
       const next=settings||{enabled:true,light:true},old=this.settings||{};
@@ -154,6 +191,8 @@
         if(old[key]!==next[key]){this.shadowCache?.clear();break;}
       }
       this.settings=next;this.canvas.style.display=this.settings.enabled?'':'none';
+      if(old.fxRenderer!==next.fxRenderer||old.minimalMode!==next.minimalMode||old.light!==next.light||old.enabled!==next.enabled)
+        this.prepareGpu();
     }
     setFollower(follower){
       if(this.follower&&this.follower!==follower)this.shadowCache?.clear();
@@ -165,11 +204,24 @@
         const midi=Number.isFinite(event.second)?event.second:follower.beatToSeconds(event.beat);
         const end=Number(event.end_second);
         // Auto sync is shared, but score and piano trims are independent.
-        return {pitch:event.pitch,velocity:event.velocity,audio:follower.midiToAudio(midi)+trim,
-          endAudio:follower.midiToAudio(Number.isFinite(end)&&end>midi?end:midi+.35)+trim};
+        const sustainEnd=Number(event.sustain_end_second);
+        return {pitch:event.pitch,velocity:event.velocity,channel:event.channel??0,audio:follower.midiToAudio(midi)+trim,
+          endAudio:follower.midiToAudio(Number.isFinite(end)&&end>midi?end:midi+.35)+trim,
+          sustainEndAudio:follower.midiToAudio(Number.isFinite(sustainEnd)&&sustainEnd>end?sustainEnd:(Number.isFinite(end)&&end>midi?end:midi+.35))+trim};
       }).filter(note=>note.pitch>=FIRST&&note.pitch<=LAST&&Number.isFinite(note.audio))
         .sort((a,b)=>a.audio-b.audio);
-      this.longestDuration=this.notes.reduce((longest,note)=>Math.max(longest,note.endAudio-note.audio),.35);
+      const accents=follower?.cameraAccents||[];
+      for(const note of this.notes)note.emphasis=accentAt(accents,note.audio);
+      this.pedalEvents=(follower?.pedalEvents||[]).map(event=>({
+        audio:follower.midiToAudio(Number(event.second))+trim,channel:event.channel??0,down:event.down??event.value>=64
+      })).filter(event=>Number.isFinite(event.audio)).sort((a,b)=>a.audio-b.audio);
+      const channels=new Set();let releaseTime=-Infinity;
+      this.pedalTimeline=this.pedalEvents.map(event=>{
+        if(event.down)channels.add(event.channel);
+        else{channels.delete(event.channel);releaseTime=event.audio;}
+        return {audio:event.audio,down:channels.size>0,releaseTime};
+      });
+      this.longestDuration=this.notes.reduce((longest,note)=>Math.max(longest,note.sustainEndAudio-note.audio),.35);
       const last=Math.max(Number(follower?.audioDuration)||0,this.notes.at(-1)?.endAudio||0);
       this.cameraTargets=[];
       if(this.settings?.portrait&&this.settings.camera!==false){
@@ -193,6 +245,13 @@
       return key.black?{x:left+(key.whiteIndex+1)*whiteWidth-whiteWidth*.32,w:whiteWidth*.64}
         :{x:left+key.whiteIndex*whiteWidth,w:whiteWidth};
     }
+    pedalAt(time){
+      const events=this.pedalTimeline||[];let lo=0,hi=events.length;
+      while(lo<hi){const mid=(lo+hi)>>>1;if(events[mid].audio<=time)lo=mid+1;else hi=mid;}
+      const state=events[lo-1];
+      return {down:Boolean(state?.down),energy:state?.down?1:
+        Math.exp(-Math.max(0,time-(state?.releaseTime??-Infinity))*5)};
+    }
     draw(time){
       if(!this.settings.enabled||!this.context||!this.follower)return;
       const canvas=this.canvas,w=this.follower.stageRoot?.clientWidth||canvas.parentElement.clientWidth;
@@ -203,6 +262,8 @@
       const ctx=this.context;ctx.clearRect(0,0,w,h);
       const keys=keyPalette(this.settings,this.follower.colors?.().paper);
       const minimal=Boolean(this.settings.minimalMode);
+      const palette=this.settings.minimalPalette,fx=this.settings.gpuEffects||{};
+      if(minimal&&palette){keys.white=palette.white;keys.black=palette.black;}
       const camera=this.cameraAt(time),cinematic=Boolean(this.settings?.portrait&&this.settings.camera!==false);
       const {keyTop,keyHeight,shadeTop,impact,left,right,whiteWidth,speed,visibleSeconds}=
         pianoProjection(camera,w,h,cinematic);
@@ -217,6 +278,8 @@
       let lo=0,hi=this.notes.length;
       while(lo<hi){const mid=(lo+hi)>>>1;if(this.notes[mid].audio<time-this.longestDuration-.8)lo=mid+1;else hi=mid;}
       const active=[];
+      const gpuCommands=[];
+      const pedal=this.pedalAt(time);
       if(!minimal){
         ctx.save();ctx.beginPath();ctx.rect(left,fallTop,right-left,impact-fallTop);ctx.clip();
         for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+visibleSeconds+.2;i++){
@@ -227,8 +290,11 @@
         const x=box.x+box.w*(key.black?.15:.22),barWidth=box.w*(key.black?.7:.56);
         const top=Math.min(geometry.top,geometry.bottom-3),height=Math.max(3,geometry.bottom-top);
         ctx.fillStyle=rgba(color,.18);ctx.fillRect(x-2,top-2,barWidth+4,height+4);
-        ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=clamp(this.settings.strength??1,0,4)*11;
+        ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=this.gpu?0:clamp(this.settings.strength??1,0,4)*11;
         ctx.beginPath();ctx.roundRect(x,top,barWidth,height,Math.min(5,barWidth*.35));ctx.fill();ctx.shadowBlur=0;
+        if(this.gpu)gpuCommands.push({kind:'fall',x:x+barWidth/2,y:top+height/2,width:barWidth,height,
+          age:Math.max(0,time-note.audio),seed:note.pitch+note.audio,
+          energy:.22*clamp(this.settings.strength??1,0,4),color});
       }
         ctx.restore();
       }
@@ -244,31 +310,69 @@
         ctx.fillStyle=keys.highlight;ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*.04);
       }
       for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time;i++){
-        const note=this.notes[i];if(time>Math.max(note.audio+.8,note.endAudio+.35))continue;
+        const note=this.notes[i];if(time>Math.max(note.audio+.8,note.endAudio+.35,note.sustainEndAudio+.3))continue;
         if(minimal&&time>=Math.max(note.audio+.08,note.endAudio))continue;
         const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
-        const color=minimal?root.ScoreStudio.minimalActiveColor(this.follower.colors().accent,
+        const accent=minimal?(root.ScoreStudio.minimalNoteAccent(palette,note.velocity,
+          this.follower.effects?.velocityScale,this.follower.velocityRange,
+          this.follower.effects?.auroraLow,this.follower.effects?.auroraHigh)||this.follower.colors().accent):null;
+        const color=minimal?root.ScoreStudio.minimalActiveColor(accent,
           key.black?keys.black:keys.white,this.follower.colors().paper,note.velocity,
           this.follower.effects?.velocityScale,this.follower.velocityRange):this.follower.eventLightColor(note.velocity);
         const duration=Math.max(.08,note.endAudio-note.audio);
-        const intensity=minimal?1:impactEnvelope(time-note.audio,duration,note.velocity/127);
+        const pedalled=!minimal&&note.sustainEndAudio>note.endAudio+.001&&
+          time>note.endAudio&&time<note.sustainEndAudio+.3;
+        const intensity=minimal?1:(pedalled ? .18*Math.exp(-Math.max(0,time-note.sustainEndAudio)*12) :
+          impactEnvelope(time-note.audio,duration,note.velocity/127));
         if(intensity<=.006)continue;
-        active.push({note,key,box,color,intensity});
+        active.push({note,key,box,color,intensity,pedalled});
       }
       // Key fill and luminous impact are separate from the existing notehead
       // glow. Neither effect hides or switches off the other.
       for(const hit of active){
-        const {note,key,box,color,intensity}=hit;
+        const {note,key,box,color,intensity,pedalled}=hit;
         ctx.fillStyle=minimal?color:rgba(color,intensity*(key.black?.8:.43));
         ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*(key.black?.67:1)-3);
         if(minimal||!this.settings.light)continue;
+        if(pedalled){
+          if(fx.sustainAfterglow!==false){
+            if(this.gpu)gpuCommands.push({kind:'afterglow',x:box.x+box.w/2,y:impact,
+              width:box.w*2.4,height:whiteWidth*3.2,energy:intensity*4.4,color});
+            else{ctx.save();ctx.globalAlpha=.15;ctx.fillStyle=color;
+              ctx.fillRect(box.x+1,keyTop+2,box.w-2,Math.min(keyHeight*.18,18));ctx.restore();}
+          }
+          continue;
+        }
         const strength=clamp(this.settings.strength??1,0,4);
-        drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color,shadowCache:this.shadowCache});
+        if(this.gpu){
+          const energy=impactEnvelope(time-note.audio,Math.max(.08,note.endAudio-note.audio),note.velocity/127)*strength;
+          const {spread,focus}=root.ScoreStudio?.pitchLightProfile(note.pitch)||{spread:1,focus:1};
+          gpuCommands.push({kind:'piano',x:box.x+box.w/2,y:impact,unit:whiteWidth,
+            age:time-note.audio,seed:note.pitch+note.audio,velocity:note.velocity/127,emphasis:note.emphasis,
+            keyWidth:box.w,keyHeight,energy,strength,color,spread,focus});
+        }else drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color,shadowCache:this.shadowCache});
       }
+      if(!minimal&&pedal.energy>.01&&fx.pedalResonance!==false){
+        const color=this.follower.colors().glow;
+        if(this.gpu)gpuCommands.push({kind:'pedal',x:(left+right)/2,y:keyTop-whiteWidth*.35,
+          width:right-left,height:Math.max(16,whiteWidth*6),energy:pedal.energy,color});
+        else{ctx.save();ctx.globalAlpha=.11*pedal.energy;ctx.fillStyle=color;
+          ctx.fillRect(left,keyTop-5,right-left,5);ctx.restore();}
+      }
+      if(minimal&&pedal.down&&fx.pedalResonance!==false){ctx.fillStyle=palette?.pedal||this.follower.colors().accent;
+        ctx.fillRect(left,h-4,right-left,4);}
       ctx.restore();
+      if(this.gpu){
+        try{this.gpu.app.canvas.style.display=minimal||!this.settings.light?'none':'';
+          this.gpu.draw(minimal?[]:gpuCommands,w,h,fx);
+        }catch(error){this.gpuError=String(error?.message||error);this.gpu.dispose();this.gpu=null;
+          this.canvas.parentElement?.dispatchEvent(new CustomEvent('score-fx-renderer',
+            {detail:{actual:'canvas',requested:this.settings.fxRenderer,reason:this.gpuError}}));}
+      }
       if(measuring)this.onDrawMeasured(performance.now()-started,resized);
     }
-    dispose(){this.shadowCache?.clear();this.canvas.remove();this.follower=null;this.notes=[];}
+    dispose(){const viewport=this.canvas.parentElement;this.gpuEpoch++;this.gpu?.dispose();this.gpu=null;this.shadowCache?.clear();this.canvas.remove();this.follower=null;this.notes=[];
+      if(viewport?.__scorePianoFall===this)viewport.__scorePianoFall=null;}
   }
   root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,sparkleSeed,drawImpactLight,keyPalette,luminance,noteRange,cameraTarget,pianoProjection};
 })(typeof window==='undefined'?globalThis:window);

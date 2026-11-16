@@ -117,13 +117,13 @@ export function createScoreGlowOverlay(stage,canvas){
         const style=getComputedStyle(el);
         const color=minimal?(style.getPropertyValue('--score-minimal-color').trim()||follower.colors().accent):glowing?(style.getPropertyValue('--score-note-active').trim()||follower.eventLightColor(80)):
           (getComputedStyle(el.querySelector('path')||el).fill||follower.colors().ink);
-        const blur=glowing?(parseFloat(style.getPropertyValue('--score-glow-blur'))||3)*Math.max(sx,sy):0;
+        const blur=glowing&&!stage.scoreGpu?(parseFloat(style.getPropertyValue('--score-glow-blur'))||3)*Math.max(sx,sy):0;
         const [x,y,w,h]=place(rect,base,sx,sy),sprite=headSprite(el,color,blur,w,h);
         if(!sprite)continue;
         ctx.drawImage(sprite.tile,x-sprite.pad,y-sprite.pad,w+2*sprite.pad,h+2*sprite.pad);
         activeHeads++;
       }
-      if(!stage.settings.effects.minimalMode)drawParticles(follower.overlay,base,sx,sy);
+      if(!stage.settings.effects.minimalMode&&!stage.scoreGpu)drawParticles(follower.overlay,base,sx,sy);
       ctx.restore();
       return {heads:activeHeads-beforeHeads,particles:particleCount-beforeParticles};
     },

@@ -372,6 +372,13 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
                     diagnostic['fallback_reason'] = str(exc)[-350:]
                     diagnostic['selected_encoder'] = fallback
                 report = {**diagnostic, **stats}
+                report['fx_renderer_requested'] = settings.fx_renderer
+                report['fx_renderer_actual'] = page.evaluate('''() => {
+                    const stage = window.__scoreVideoDebug?.getStage?.();
+                    return {piano: stage?.piano?.gpu ? 'pixi' : 'canvas',
+                            score: stage?.scoreGpu ? 'pixi' : 'canvas',
+                            piano_error: stage?.piano?.gpuError || null};
+                }''')
             finally:
                 browser.close()
 

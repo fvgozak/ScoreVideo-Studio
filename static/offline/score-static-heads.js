@@ -9,7 +9,8 @@ const position=(rect,origin,sx,sy)=>[(rect.left-origin.left)*sx,(rect.top-origin
 
 export async function createStaticScoreHeads(stage,canvas){
   const css=(await fetch('/static/stage.css').then(response=>response.text()))
-    .replaceAll('.score-window[data-notation-style=','svg[data-notation-style=');
+    .replaceAll('.score-window[data-notation-style=','svg[data-notation-style=')
+    .replaceAll('.score-minimal-stage',stage.settings.effects.minimalMode?'svg':'.score-minimal-stage');
   const entries=new Map(),scratch=document.createElement('canvas'),brush=scratch.getContext('2d');
   const output=canvas.getContext('2d');
   let rasterMs=0,drawMs=0,removedHeads=0,frames=0;
@@ -17,6 +18,8 @@ export async function createStaticScoreHeads(stage,canvas){
     const method=svg.cloneNode,original=method.bind(svg),copy=original(true);
     copy.setAttribute('xmlns',svgNamespace);
     copy.setAttribute('data-notation-style',stage.settings.scene.notationStyle);
+    if(stage.settings.effects.minimalMode)copy.style.setProperty('--minimal-note-base',
+      stage.settings.effects.minimalPalette?.note||stage.settings.effects.accent);
     copy.querySelectorAll('.score-glowing,.score-note-moving,.score-minimal-active').forEach(node=>{
       node.classList.remove('score-glowing','score-note-moving','score-minimal-active');
       node.style.removeProperty('translate');node.style.removeProperty('scale');

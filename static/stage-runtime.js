@@ -11,7 +11,7 @@
    const range=velocities.reduce((result,velocity)=>({min:Math.min(result.min,velocity),max:Math.max(result.max,velocity)}),{min:127,max:1});
    return {
      stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,
-     noteEvents:meta.note_events||[],noteTriggers:[],tieContinuations:[],timestamps:[0,meta.audio_duration_sec||0],measureStarts:[],
+     noteEvents:meta.note_events||[],pedalEvents:meta.pedal_events||[],noteTriggers:[],tieContinuations:[],timestamps:[0,meta.audio_duration_sec||0],measureStarts:[],
      tempoMap:meta.tempo_map||[{beat:0,second:0,tempo_us:500000}],audioDuration:meta.audio_duration_sec,
      offsetSec:settings.offsetSec,sync:meta.sync,effects:{...settings.effects,velocityScale:settings.scene.velocityScale},scene:settings.scene,velocityRange:range,
      colors(){const e=this.effects;return {paper:e.inverted?e.ink:e.paper,ink:e.inverted?e.paper:e.ink,accent:e.accent,glow:e.glow};},
@@ -50,9 +50,13 @@
      motionStrength:clamp(number(s.motion_strength,1),0,2),
      scorePositionX:clamp(number(s.score_position_x,38),0,100),scorePositionY:clamp(number(s.score_position_y,0),0,100),
    };
+   effect.minimalPalette=root.ScoreStudio.minimalPalette(s.minimal_palette,{
+     paper:effect.paper,ink:effect.ink,accent:effect.accent,glow:effect.glow,
+     white:hex(s.piano_white_key_color,'#f1f1f5'),black:hex(s.piano_black_key_color,'#151821')});
+   const gpuEffects=root.ScorePixiFx?.normalizeEffects(s.gpu_effects);
    const layout=(s.layout_mode||s.scroll_mode||'page');
-   const width=clamp(Math.round(number(s.width,1280)),200,4096);
-   const height=clamp(Math.round(number(s.height,720)),200,4096);
+   const width=clamp(Math.round(number(s.width,1280)),200,8192);
+   const height=clamp(Math.round(number(s.height,720)),200,8192);
    return {
      width,height,
      zoom:clamp(number(s.zoom,.9),.5,2),offsetSec:number(s.offset_sec,0),scoreVisible:meta.has_score!==false&&s.score_visible!==false,
@@ -69,8 +73,10 @@
        key:String(p?.key||'').slice(0,80),zoom:clamp(number(p?.zoom,1.3),1.05,1.6),
        duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1),timing:clamp(number(p?.timing,-.6),-2,1.5)
      })).filter(p=>p.key),
-     effects:effect,scene:root.ScoreStudio.normalize({...s.scene,minimalMode:Boolean(s.minimal_mode)}),
+     effects:effect,gpuEffects,scene:root.ScoreStudio.normalize({...s.scene,minimalMode:Boolean(s.minimal_mode)}),
      piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,minimalMode:Boolean(s.minimal_mode),
+       fxRenderer:['canvas','auto','pixi'].includes(s.fx_renderer)?s.fx_renderer:'canvas',
+       gpuEffects,minimalPalette:effect.minimalPalette,
        camera:s.piano_camera!==false,portrait:height>width,
        keyStyle:['auto','dark','classic','custom'].includes(s.piano_key_style)?s.piano_key_style:'auto',
        whiteKeyColor:hex(s.piano_white_key_color,'#5a6576'),blackKeyColor:hex(s.piano_black_key_color,'#141b27'),
@@ -144,7 +150,105 @@
      // The window geometry and title spacing remain independent.
      return Math.round(Math.max(0,Stage.scoreGeometry(settings).height-200)*settings.effects.scorePositionY/100*.7);
    }
+   async configureScoreGpu(){
+     const epoch=this.scoreGpuEpoch=(this.scoreGpuEpoch||0)+1;
+     this.scoreGpu?.dispose();this.scoreGpu=null;
+     if(this.follower)this.follower.gpuParticles=false;
+     if(this.layer)this.layer.gpuLayer=null;
+     this.viewport.classList.remove('score-pixi-active');
+     const mode=this.settings.piano.fxRenderer;
+     if(mode==='canvas'||this.settings.effects.minimalMode||!this.settings.scoreVisible||this.meta.has_score===false)return;
+     try{
+       const Layer=root.ScorePixiFx?.Layer;
+       if(!Layer)throw Error('PixiJS 효과 모듈이 로드되지 않았습니다.');
+       const layer=await Layer.create(this.scoreWindow,'score');
+       if(epoch!==this.scoreGpuEpoch){layer.dispose();return;}
+       this.scoreGpu=layer;this.viewport.classList.add('score-pixi-active');
+       this.follower.gpuParticles=true;
+       if(this.layer)this.layer.gpuLayer=layer;
+     }catch(error){
+       if(epoch!==this.scoreGpuEpoch)return;
+       // Treat a score-layer failure as a complete effects fallback, so the
+       // reported renderer matches both visible layers.
+       this.piano?.setSettings({...this.piano.settings,fxRenderer:'canvas'});
+       if(this.follower)this.follower.gpuParticles=false;
+       this.viewport.dispatchEvent(new CustomEvent('score-fx-renderer',
+         {detail:{actual:'canvas',requested:mode,reason:String(error?.message||error)}}));
+     }
+   }
+   drawScoreGpu(){
+     const gpu=this.scoreGpu,score=this.scoreWindow;
+     if(!gpu||!this.follower)return;
+     const base=score.getBoundingClientRect(),stage=this.viewport.getBoundingClientRect();
+     if(!base.width||!base.height||!stage.width||!stage.height)return;
+     const commands=[],scoreScaleX=base.width/score.clientWidth,scoreScaleY=base.height/score.clientHeight;
+     const toScore=(x,y)=>({
+       x:(stage.left+x*stage.width/this.viewport.clientWidth-base.left)/scoreScaleX,
+       y:(stage.top+y*stage.height/this.viewport.clientHeight-base.top)/scoreScaleY});
+     const pointOf=element=>root.ScoreStudio.gpuScorePoint(element,score);
+     for(const command of this.layer?.gpuCommands||[]){
+       if(command.kind==='trailRibbon'){
+         commands.push({...command,a:{...command.a,...toScore(command.a.x,command.a.y)},
+           b:{...command.b,...toScore(command.b.x,command.b.y)}});
+         continue;
+       }
+       const point=toScore(command.x,command.y);
+       commands.push({...command,...point});
+     }
+     for(const active of this.follower.activeNodes||[]){
+       const el=active.el;if(!el?.classList?.contains('score-glowing'))continue;
+       const rect=el.getBoundingClientRect();if(!rect.width||!rect.height)continue;
+       const point=pointOf(el);if(!point)continue;
+       const style=getComputedStyle(el),color=style.getPropertyValue('--score-note-active').trim()||this.follower.colors().glow;
+       const blur=parseFloat(style.getPropertyValue('--score-glow-blur'))||3;
+       let headWidth=rect.width,headHeight=rect.height,rotation=0;
+       if(typeof el.getBBox==='function'&&typeof el.getScreenCTM==='function')try{
+         const box=el.getBBox(),matrix=el.getScreenCTM();
+         if(matrix&&box.width&&box.height){
+           headWidth=box.width*Math.hypot(matrix.a,matrix.b);
+           headHeight=box.height*Math.hypot(matrix.c,matrix.d);
+           rotation=Math.atan2(matrix.b,matrix.a);
+         }
+       }catch(_){}
+       commands.push({kind:'note',x:point.x,y:point.y,
+         radius:Math.max(headWidth/scoreScaleX,headHeight/scoreScaleY)+blur*5,
+         width:headWidth/scoreScaleX+blur*7,height:headHeight/scoreScaleY+blur*5,rotation,
+         energy:Math.min(.65,.18+blur*.07),color,age:active.age??1,
+         velocity:(active.velocity??78)/127,seed:active.seed??0});
+       if((this.settings.gpuEffects?.stardust?.on||this.settings.gpuEffects?.burst?.on)&&
+           this.settings.scene.fxMode!=='glitter')
+         commands.push({kind:'burst',x:point.x,y:point.y,age:active.age??1,
+           velocity:(active.velocity??78)/127,energy:1,color,seed:active.seed??0});
+     }
+     for(const particle of this.follower.overlay?.children||[]){
+       if(!particle.classList.contains('note-star')&&!particle.classList.contains('note-trail'))continue;
+       const rect=particle.getBoundingClientRect();if(!rect.width||!rect.height)continue;
+       const point=pointOf(particle);if(!point)continue;
+       const style=getComputedStyle(particle),color=style.getPropertyValue('--score-glow').trim()||this.follower.colors().glow;
+       commands.push({kind:particle.classList.contains('note-star')?'particle':'trail',
+         x:point.x,y:point.y,size:Math.max(rect.width/scoreScaleX,rect.height/scoreScaleY),
+         width:rect.width/scoreScaleX,
+         energy:Number(style.opacity)||.5,color});
+     }
+     try{gpu.draw(commands,score.clientWidth,score.clientHeight,this.settings.gpuEffects);}
+     catch(error){gpu.dispose();this.scoreGpu=null;this.viewport.classList.remove('score-pixi-active');
+       this.follower.gpuParticles=false;
+       if(this.layer)this.layer.gpuLayer=null;
+       this.piano?.setSettings({...this.piano.settings,fxRenderer:'canvas'});
+       this.viewport.dispatchEvent(new CustomEvent('score-fx-renderer',
+         {detail:{actual:'canvas',requested:this.settings.piano.fxRenderer,reason:String(error?.message||error)}}));}
+   }
    async load(){
+     const previous=this.viewport.__scoreFxStage;
+     if(previous&&previous!==this){
+       previous.scoreGpuEpoch=(previous.scoreGpuEpoch||0)+1;
+       previous.scoreGpu?.dispose();previous.scoreGpu=null;
+       if(previous.layer)previous.layer.gpuLayer=null;
+     }
+     this.viewport.__scoreFxStage=this;
+     this.scoreGpuEpoch=(this.scoreGpuEpoch||0)+1;
+     this.scoreGpu?.dispose();this.scoreGpu=null;this.viewport.classList.remove('score-pixi-active');
+     if(this.layer)this.layer.gpuLayer=null;
      if(this.follower?.osmd?.dispose)try{this.follower.osmd.dispose();}catch(_){}
      this.container.replaceChildren();
      // Switching projects creates a new Stage on the same viewport. Remove
@@ -163,6 +267,8 @@
        this.applyScoreVisibility();
        if(!this.piano)this.piano=new root.ScorePianoFall.PianoFall(this.viewport);
        this.piano.setSettings(s.piano);this.piano.setFollower(this.follower);
+       await this.piano.ready;
+       await this.configureScoreGpu();
        this.seek(this.time);return this;
      }
      // Force the score subviewport to settle before OSMD measures its width.
@@ -187,6 +293,7 @@
          scoreTopPadding:Stage.scoreTopPadding(s)},
        scrollMode:s.scrollMode});
      this.follower.cameraMode=s.scene.cameraMode;
+     this.follower.pedalEvents=this.meta.pedal_events||[];
      this.follower.audioDuration=this.meta.audio_duration_sec;
      await this.follower.load(`/api/projects/${this.meta.id}/score`);
      this.layer=new root.ScoreStudio.LayerRenderer(this.viewport);
@@ -195,6 +302,8 @@
      if(!this.piano)this.piano=new root.ScorePianoFall.PianoFall(this.viewport);
      this.piano.setSettings(s.piano);
      this.piano.setFollower(this.follower);
+     await this.piano.ready;
+     await this.configureScoreGpu();
      this.seek(this.time);
      return this;
    }
@@ -228,15 +337,19 @@
      this.piano?.setFollower(this.follower);
      if(JSON.stringify(prev.cameraPoints)!==JSON.stringify(next.cameraPoints))this.follower.setCameraPoints(next.cameraPoints);
      this.follower.cameraMode=next.scene.cameraMode;
-     this.layer?.setScene(next.scene);this.seek(this.time);
-     return Promise.resolve();
+     this.layer?.setScene(next.scene);
+     if(prev.piano.fxRenderer!==next.piano.fxRenderer||prev.effects.minimalMode!==next.effects.minimalMode||prev.scoreVisible!==next.scoreVisible)
+       return Promise.all([this.piano?.ready,this.configureScoreGpu()]).then(()=>{this.seek(this.time);});
+     this.seek(this.time);return Promise.resolve();
    }
    seek(time){
      this.time=Math.max(0,Number(time)||0);
      if(!this.follower)return;
      this.follower.seek(this.time,true);
+     if(this.layer)this.layer.gpuEffects=this.settings.gpuEffects;
      this.layer?.draw(this.time,this.follower);
      this.piano?.draw(this.time);
+     this.drawScoreGpu();
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}
    setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.piano?.setFollower(this.follower);this.seek(this.time);}}
