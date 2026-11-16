@@ -210,6 +210,31 @@
    settings.height=Math.max(200,2*Math.round(settings.height*scale/2));
    return settings;
  }
+ function relativeNoteheadWidth(){
+   const head=stage?.scoreWindow?.querySelector('.vf-notehead');
+   const note=head?.getBoundingClientRect(),frame=stage?.viewport?.getBoundingClientRect();
+   return note?.width&&frame?.width?note.width/frame.width:0;
+ }
+ async function prepareExportStage(){
+   const previewWidth=relativeNoteheadWidth();
+   exportGeometry=true;resizePreview();
+   let settings=config();
+   await stage.setSettings(settings);
+   const outputWidth=relativeNoteheadWidth();
+   if(previewWidth&&outputWidth){
+     const scale=Math.max(.5,Math.min(4,previewWidth/outputWidth));
+     if(Math.abs(scale-1)>.01){
+       settings={...settings,score_layout_scale:scale};
+       await stage.setSettings(settings);
+     }
+   }
+   return settings;
+ }
+ async function restorePreviewStage(){
+   if(!exportGeometry)return;
+   exportGeometry=false;resizePreview();
+   await stage?.setSettings(previewConfig());
+ }
  function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));}
  function restoreSettings(){try{
    const data=JSON.parse(localStorage.getItem(storeKey)||'{}');
@@ -949,8 +974,7 @@
      const supported=await window.ScoreOfflineExport.probe(width,height,fps,$('videoBitrate').value);
      if(offlineCancelPending)throw Error('Cancelled');
      if(!supported.supported)throw Error(supported.reason);
-     exportGeometry=true;resizePreview();
-     await stage.setSettings(config());
+     await prepareExportStage();
      if(offlineCancelPending)throw Error('Cancelled');
      const {file,metrics}=await window.ScoreOfflineExport.run({fps,quality:$('videoQuality').value,bitrate:$('videoBitrate').value,onProgress({completed,frameCount}){
        if(token!==offlineEpoch||!offlineActive)return;
@@ -980,7 +1004,7 @@
      }
      await window.ScoreOfflineExport.release();
    }finally{
-     if(exportGeometry){exportGeometry=false;resizePreview();try{await stage?.setSettings(previewConfig());}catch(error){message(`미리보기 복원 실패: ${error.message}`,true);}}
+     try{await restorePreviewStage();}catch(error){message(`미리보기 복원 실패: ${error.message}`,true);}
      if(token===offlineEpoch){offlineActive=false;offlineCancelPending=false;$('cancelRenderButton').hidden=true;
        $('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';
        setRenderUi(false);updateExportUi();seekTo(offlineReturnTime);
@@ -993,7 +1017,11 @@
    if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;await window.ScoreOfflineExport.release();}
    setRenderUi(true,{state:'queued',message:'영상 설정 저장 중',progress:0});
    $('progressWrap').hidden=false;$('statusText').textContent='영상 설정 저장 중';$('progressBar').style.width='0%';
-   try{await applySerial;if(legacyCancelPending)throw Error('Cancelled');const payload=config();
+   try{await applySerial;if(legacyCancelPending)throw Error('Cancelled');
+     let payload;
+     try{payload=await prepareExportStage();}
+     finally{await restorePreviewStage();}
+     if(legacyCancelPending)throw Error('Cancelled');
      const r=await fetch(`/api/projects/${projectId}/render`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
      const result=await r.json();if(project?.id!==projectId||epoch!==renderPollEpoch)return;legacyStartPending=false;if(!r.ok)throw Error(result.detail||'출력 실패');
      activeDownloadJob=result.job_id;renderUiJob=result.job_id;

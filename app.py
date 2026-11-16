@@ -59,6 +59,7 @@ class RenderRequest(BaseModel):
     width: int = Field(default=1280)
     height: int = Field(default=720)
     zoom: float = Field(default=0.9, ge=0.5, le=2.0)
+    score_layout_scale: float = Field(default=1.0, ge=0.5, le=4.0)
     offset_sec: float = Field(default=0.0, ge=-30, le=30)
     piano_offset_sec: float = Field(default=0.0, ge=-5, le=5)
     paper_color: str = Field(default="#fffdf6", pattern=r"^#[0-9a-fA-F]{6}$")

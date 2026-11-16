@@ -59,6 +59,7 @@
    const height=clamp(Math.round(number(s.height,720)),200,8192);
    return {
      width,height,
+     layoutScale:clamp(number(s.score_layout_scale,1),.5,4),
      zoom:clamp(number(s.zoom,.9),.5,2),offsetSec:number(s.offset_sec,0),scoreVisible:meta.has_score!==false&&s.score_visible!==false,
      layoutMode:['page','singleline','vertical','horizontal'].includes(layout)?layout:'page',
      scrollMode:(layout==='singleline'||layout==='horizontal')?'horizontal':'vertical',
@@ -148,7 +149,9 @@
    static scoreTopPadding(settings){
      // X/Y sliders move engraving *inside* the score window in both layouts.
      // The window geometry and title spacing remain independent.
-     return Math.round(Math.max(0,Stage.scoreGeometry(settings).height-200)*settings.effects.scorePositionY/100*.7);
+     const scale=Math.max(1,Math.min(settings.width,settings.height)/1080);
+     const logicalHeight=Stage.scoreGeometry(settings).height/scale;
+     return Math.round(Math.max(0,logicalHeight-200)*settings.effects.scorePositionY/100*.7*scale);
    }
    async configureScoreGpu(){
      const epoch=this.scoreGpuEpoch=(this.scoreGpuEpoch||0)+1;
@@ -285,7 +288,10 @@
      this.viewport.style.setProperty('--stage-credit-size',Math.round(s.width*.013)+'px');
      this.follower=new root.ScoreFollower({container:this.container,viewport:this.scoreScroll,
        tempoMap:this.meta.tempo_map,noteEvents:this.meta.note_events,scoreAlignment:this.meta.score_alignment,tieContinuations:this.meta.tie_continuations,
-       sync:this.meta.sync,offsetSec:s.offsetSec,zoom:s.zoom,cameraPoints:s.cameraPoints,
+       // The export-only calibration keeps notehead scale relative to the
+       // preview without changing the user's saved zoom value.
+       sync:this.meta.sync,offsetSec:s.offsetSec,
+       zoom:s.zoom*s.layoutScale,cameraPoints:s.cameraPoints,
        stageRoot:this.viewport,
        effects:{...s.effects,lightColorMode:s.scene.lightColorMode,
          auroraLow:s.scene.auroraLow,auroraHigh:s.scene.auroraHigh,velocityScale:s.scene.velocityScale,
@@ -310,7 +316,7 @@
    setSettings(settings,{layout=false}={}){
      const next=normalized(settings,this.meta);
      const prev=this.settings;this.settings=next;
-     const changed=layout||prev.zoom!==next.zoom||prev.scrollMode!==next.scrollMode||
+     const changed=layout||prev.zoom!==next.zoom||prev.layoutScale!==next.layoutScale||prev.scrollMode!==next.scrollMode||
        prev.scoreRegion.widthPercent!==next.scoreRegion.widthPercent||
        prev.scoreRegion.xPercent!==next.scoreRegion.xPercent||
        prev.scoreRegion.heightPercent!==next.scoreRegion.heightPercent||

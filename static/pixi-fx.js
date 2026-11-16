@@ -145,8 +145,7 @@
         float theta=atan(p.y,p.x);
         radial=length(p)/(0.43+0.32*pow(abs(cos(theta*2.0)),10.0));
       }else if(shape>3.5){
-        float box=max(abs(p.x),abs(p.y));
-        radial=abs(box-.82)*7.0;edgeDistance=box;
+        radial=abs(length(p)-.76)*7.0;
       }else if(shape>2.5){
         radial=abs(radial-.72)*7.0;
       }else if(shape>1.5){
@@ -158,6 +157,8 @@
       float mid=exp(-.5*pow(radial/max(.001,uCoreMid.w),2.0))*uCoreMid.z;
       float halo=exp(-.5*pow(radial/max(.001,uHaloMode.y),2.0))*uHaloMode.x;
       float edge=1.0-smoothstep(.78,1.0,edgeDistance);
+      if(shape<.5||(shape>3.5&&shape<4.5))
+        edge*=1.0-smoothstep(.62,.98,length(p));
       if(shape>.5&&shape<1.5){
         edge*=1.0-smoothstep(.85,1.0,abs(p.x));
         halo*=smoothstep(-1.0,.85,p.y);
@@ -168,8 +169,11 @@
         float shift=min(.07,uChromatic*.045);
         float redRadius=length(p-vec2(shift,0.0));
         float blueRadius=length(p+vec2(shift,0.0));
-        float redEdge=1.0-smoothstep(.78,1.0,max(abs(p.x-shift),abs(p.y)));
-        float blueEdge=1.0-smoothstep(.78,1.0,max(abs(p.x+shift),abs(p.y)));
+        // Shifted RGB lobes must also vanish at the unshifted quad boundary.
+        // Otherwise one fringe still has alpha when the geometry is clipped.
+        float guard=1.0-smoothstep(.90,1.0,edgeDistance);
+        float redEdge=guard*(1.0-smoothstep(.62,.98,redRadius));
+        float blueEdge=guard*(1.0-smoothstep(.62,.98,blueRadius));
         float red=clamp((exp(-.5*pow(redRadius/max(.001,uCoreMid.y),2.0))*uCoreMid.x+
           exp(-.5*pow(redRadius/max(.001,uCoreMid.w),2.0))*uCoreMid.z+
           exp(-.5*pow(redRadius/max(.001,uHaloMode.y),2.0))*uHaloMode.x)*redEdge*uHaloMode.z,0.0,1.0);
