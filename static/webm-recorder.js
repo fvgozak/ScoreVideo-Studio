@@ -62,8 +62,8 @@
    if(!base.width||!base.height)return;
    const sx=stage.settings.width/base.width,sy=stage.settings.height/base.height;
    const canvases=[...viewport.querySelectorAll('canvas')].filter(canvas=>canvas.width&&canvas.height&&getComputedStyle(canvas).display!=='none'&&
-     (kind==='piano'?canvas.classList.contains('piano-fall-canvas')||canvas.classList.contains('score-pixi-piano')
-       :!canvas.classList.contains('piano-fall-canvas')&&!canvas.classList.contains('score-pixi-piano')));
+     (kind==='piano'?canvas.classList.contains('piano-fall-canvas')||canvas.classList.contains('piano-dynamic-canvas')||canvas.classList.contains('score-pixi-piano')
+       :!canvas.classList.contains('piano-fall-canvas')&&!canvas.classList.contains('piano-dynamic-canvas')&&!canvas.classList.contains('score-pixi-piano')));
    canvases.sort((a,b)=>(Number(getComputedStyle(a).zIndex)||0)-(Number(getComputedStyle(b).zIndex)||0));
    for(const canvas of canvases){
      const r=canvas.getBoundingClientRect();ctx.save();
@@ -141,7 +141,10 @@
    const {width,height,effects}=stage.settings;
    const start=measure?performance.now():0;
    ctx.fillStyle=stage.follower?.bgLayer?.style.backgroundColor||effects.paper;ctx.fillRect(0,0,width,height);
-   drawPhoto(ctx,photo,stage);drawAtmosphere(ctx,stage,t);
+   drawPhoto(ctx,photo,stage);
+   const texture=stage.follower?.textureLayer?.querySelector('canvas.score-texture-canvas');
+   if(texture&&!texture.hidden&&(!stage.piano?.dynamic||stage.piano.dynamic.canvas.style.display==='none'))ctx.drawImage(texture,0,0,width,height);
+   drawAtmosphere(ctx,stage,t);
    if(measure)measure.backgroundMs=performance.now()-start;
    const pianoStart=measure?performance.now():0;
    drawLiveCanvases(ctx,stage,'piano');if(measure)measure.pianoMs=performance.now()-pianoStart;
@@ -152,13 +155,8 @@
    if(measure){measure.effectsMs=performance.now()-effectsStart;measure.totalMs=performance.now()-start;}
  }
  async function createDiagnosticComposer(stage){
-   const {width,height}=stage.settings,canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-   const ctx=canvas.getContext('2d',{alpha:false}),cache=new WeakMap();
-   if(!ctx)throw Error('Canvas 2D unavailable');
-   const css=await fetch('/static/stage.css').then(response=>response.text());
-   let photo=null;
-   if(stage.settings.effects.backgroundUrl){const response=await fetch(stage.settings.effects.backgroundUrl);photo=await createImageBitmap(await response.blob());}
-   return {canvas,async compose(time){const measure={svgDecodeMs:0,svgDecodes:0};await drawScene(ctx,stage,css,photo,time,cache,measure);return measure;},close(){photo?.close?.();}};
+   if(!root.ScoreGpuComposer)throw Error('GPU 합성 모듈이 로드되지 않았습니다.');
+   return root.ScoreGpuComposer.createDiagnosticComposer(stage);
  }
  class Recorder{
    constructor(stage,{seconds=10,fps=30,audio=null,onProgress=()=>{},onFrame=()=>{}}={}){
@@ -178,15 +176,8 @@
    async start(){
      const mimeType=supportedType(Boolean(this.audio));if(!mimeType)throw Error('이 브라우저는 오디오가 포함된 WebM MediaRecorder를 지원하지 않습니다.');
      const stage=this.stage,{width,height}=stage.settings;
-     const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-     const ctx=canvas.getContext('2d',{alpha:false});if(!ctx)throw Error('녹화 Canvas를 만들 수 없습니다.');
-     const renderCanvas=document.createElement('canvas');renderCanvas.width=width;renderCanvas.height=height;
-     const renderCtx=renderCanvas.getContext('2d',{alpha:false});if(!renderCtx)throw Error('합성 Canvas를 만들 수 없습니다.');
-     const scoreCache=new WeakMap();
-     const css=await fetch('/static/stage.css').then(r=>{if(!r.ok)throw Error('악보 스타일을 읽지 못했습니다.');return r.text();});
-     let photo=null;const background=stage.settings.effects.backgroundUrl;
-     if(background){const response=await fetch(background);if(!response.ok)throw Error('배경 이미지를 읽지 못했습니다.');photo=await createImageBitmap(await response.blob());}
-     if(this.cancelled){photo?.close?.();throw Error('녹화가 취소되었습니다.');}
+     const composer=await createDiagnosticComposer(stage),canvas=composer.canvas;
+     if(this.cancelled){composer.close();throw Error('녹화가 취소되었습니다.');}
      const bitrate=Math.min(20_000_000,Math.max(5_000_000,width*height*this.fps*.18));
      if(navigator.storage?.estimate){try{const {quota,usage}=await navigator.storage.estimate();const free=quota-usage,needed=this.seconds*(bitrate+256_000)/8*1.1+16*1024*1024;if(Number.isFinite(free)&&free<needed)throw Error(`WebM 저장 공간이 부족할 수 있습니다. 예상 필요 공간 ${Math.ceil(needed/1048576)}MB, 사용 가능 약 ${Math.floor(free/1048576)}MB.`);}catch(error){if(error.message?.startsWith('WebM 저장 공간'))throw error;}}
      const store=await chunkStore(error=>{this.error=error;this.cancel();});this.store=store;
@@ -194,14 +185,14 @@
      if(this.audio){
        this.audio.pause();this.audio.currentTime=0;
        try{this.graph=await Promise.race([this.audioReady||this.prepareAudio(),this.cancelSignal.then(()=>{throw Error('녹화가 취소되었습니다.');})]);}
-       catch(error){photo?.close?.();await store.discard();throw error;}
+       catch(error){composer.close();await store.discard();throw error;}
      }
      let media;
      try{
        const video=canvas.captureStream(this.fps);
        this.stream=this.audio?new MediaStream([...video.getVideoTracks(),...this.graph.destination.stream.getAudioTracks()]):video;
        media=this.media=new MediaRecorder(this.stream,{mimeType,videoBitsPerSecond:bitrate});
-     }catch(error){photo?.close?.();this.cleanup();await store.discard();throw error;}
+     }catch(error){composer.close();this.cleanup();await store.discard();throw error;}
      const finished=new Promise((resolve,reject)=>{
        media.ondataavailable=event=>{if(!this.cancelled&&event.data.size)try{store.append(event.data);}catch(error){this.error=error;this.cancel();}};
        media.addEventListener('error',event=>reject(event.error||Error('WebM 인코딩 오류')),{once:true});
@@ -220,7 +211,7 @@
          try{
            this.droppedFrames+=Math.max(0,index-this.lastFrame-1);this.lastFrame=index;
            stage.seek(visualTime);this.onFrame(elapsed);
-           if(!this.cancelled){await drawScene(renderCtx,stage,css,photo,visualTime,scoreCache);if(!this.cancelled){ctx.drawImage(renderCanvas,0,0);this.frameCount++;}}
+           if(!this.cancelled){await composer.compose(visualTime);if(!this.cancelled)this.frameCount++;}
          }catch(error){this.error=error;this.cancel();}
          processing=false;
        }
@@ -229,7 +220,7 @@
        if(elapsed>=this.seconds||this.audio?.ended){
          if(!processing&&media.state==='recording'){
            this.audio?.pause();stage.seek(this.seconds);this.onFrame(this.seconds);
-           try{await drawScene(renderCtx,stage,css,photo,this.seconds,scoreCache);if(!this.cancelled)ctx.drawImage(renderCanvas,0,0);}
+           try{await composer.compose(this.seconds);}
            catch(error){this.error=error;this.cancel();return;}
            if(this.cancelled)return;
            setTimeout(()=>{if(media.state==='recording')media.stop();},220);
@@ -239,7 +230,7 @@
      };
      try{
        // First frame is painted before recording to avoid a blank lead-in.
-       await drawScene(renderCtx,stage,css,photo,0,scoreCache);ctx.drawImage(renderCanvas,0,0);
+       await composer.compose(0);
        if(this.cancelled)return null;
        media.start(1000);
        if(media.state!=='recording')throw Error('WebM 녹화가 시작되지 않았습니다.');
@@ -255,7 +246,7 @@
        if(blob.size<1024)throw Error('브라우저가 유효한 WebM 데이터를 생성하지 못했습니다.');
        succeeded=true;this.finished=true;
        return {blob,mimeType,elapsed:(performance.now()-startTime)/1000,frames:this.frameCount,dropped:this.droppedFrames,stalls:this.stalls,hiddenSeconds:this.hiddenSeconds,maxFrameGapMs:this.maxFrameGapMs,width,height,storage:store.kind,release:()=>store.release()};
-     }finally{this.finished=true;if(media.state==='recording')media.stop();photo?.close?.();this.cleanup();if(!succeeded)await store.discard();}
+     }finally{this.finished=true;if(media.state==='recording')media.stop();composer.close();this.cleanup();if(!succeeded)await store.discard();}
    }
  }
  root.ScoreWebmRecorder={Recorder,supportedType,createDiagnosticComposer};

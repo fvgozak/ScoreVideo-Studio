@@ -277,7 +277,7 @@
       this.titleBox.querySelector('.studio-title').style.opacity=s.showText?String(ease(intro)):0;
       this.titleBox.querySelector('.studio-artist').style.opacity=s.showText?String(ease(intro)):0;
       this.titleBox.querySelector('.studio-credit').style.opacity=s.showText?String(ease(outro)):0;
-      this.titleBox.style.color=s.animateBackground?(s.template==='cinematic'?'#fffdf7':'#303039'):follower.colors().ink;
+      this.titleBox.style.color=s.animateBackground?(lightness(p.color)<.18?'#fffdf7':'#303039'):follower.colors().ink;
       this.gpuCommands=[];
       ctx.clearRect(0,0,w,h);
       if(s.minimalMode)return;

@@ -27,7 +27,7 @@ from score_alignment import align_score_to_midi, extract_score_ties
 from score_repeats import unfold_musicxml
 from sample_audio import render_salamander
 from auto_sync import first_attack_sync
-from image_palette import propose_score_palettes
+from image_palette import THEME_COLORS, propose_score_palettes, propose_theme_palettes
 from musical_salience import load_or_build as load_salience_features, reweight as reweight_salience
 from render_cancel import RenderCancelled
 
@@ -231,7 +231,7 @@ def choose_performance_score(folder: Path, timing: dict) -> tuple[dict, dict]:
     original_alignment = align_score_to_midi(original, folder / "score.mid", timing)
     expanded = folder / "score-playback.musicxml"
     repeat = {"mode": "written", "source_measures": None, "playback_measures": None,
-              "warning": "", "expanded": False}
+              "warning": "", "expanded": False, "analysis_version": 2}
     try:
         expanded_meta = unfold_musicxml(original, expanded)
         repeat["source_measures"] = max(expanded_meta["order"]) + 1
@@ -244,12 +244,36 @@ def choose_performance_score(folder: Path, timing: dict) -> tuple[dict, dict]:
             new_matches = unfolded_alignment.get("matched_notes", 0)
             original_ratio = original_matches / max(1, timing.get("note_count", 1))
             new_ratio = new_matches / max(1, timing.get("note_count", 1))
-            # Require a material gain in absolute explained MIDI events, not
-            # just a score-coverage percentage (original may score 100%).
-            if (new_matches >= original_matches + 2 and
-                new_matches >= original_matches * 1.12 and
-                new_ratio >= max(.68, original_ratio + .08) and
-                unfolded_alignment.get("coverage", 0) >= .68):
+            # Two kinds of evidence can justify unfolding:
+            # 1. A substantial global alignment improvement (the old rule).
+            # 2. A short repeat in a long composition that explains the MIDI's
+            #    previously unmatched notes, even if the global improvement
+            #    is smaller than 8 percentage points.
+            # The second rule demands high final coverage and that most of
+            # the newly inserted *written* notes explain new MIDI events.
+            # This avoids unfolding a score simply because it has repeat marks
+            # when the supplied MIDI actually plays the passage only once.
+            added_score_notes = max(0, unfolded_alignment.get("total_notes", 0)
+                                      - original_alignment.get("total_notes", 0))
+            gained_matches = new_matches - original_matches
+            required_new_matches = max(2, math.ceil(added_score_notes * .7))
+            global_gain = (new_matches >= original_matches + 2 and
+                           new_matches >= original_matches * 1.12 and
+                           new_ratio >= max(.68, original_ratio + .08) and
+                           unfolded_alignment.get("coverage", 0) >= .68)
+            short_repeat_gain = (added_score_notes >= 2 and
+                                 gained_matches >= required_new_matches and
+                                 new_ratio >= .92 and
+                                 unfolded_alignment.get("coverage", 0) >= .90 and
+                                 new_ratio > original_ratio)
+            repeat["matching"] = {
+                "written_matched_notes": original_matches,
+                "unfolded_matched_notes": new_matches,
+                "midi_notes": timing.get("note_count", 0),
+                "additional_score_notes": added_score_notes,
+                "newly_explained_midi_notes": gained_matches,
+            }
+            if global_gain or short_repeat_gain:
                 repeat.update(mode="unfolded", expanded=True,
                               warning="되돌이표를 실제 MIDI 연주 순서로 전개했습니다.")
                 return unfolded_alignment, repeat
@@ -382,6 +406,26 @@ def get_project(project_id: str):
     return meta
 
 
+@app.put("/api/projects/{project_id}/effect-settings")
+def save_effect_settings(project_id: str, settings: dict):
+    # Optional metadata: old projects without this key retain their prior
+    # defaults, and schema_version is never changed by an effects edit.
+    if len(settings) > 100 or len(json.dumps(settings)) > 16000 or any(
+        not isinstance(key, str) or not isinstance(value, (str, int, float, bool))
+        for key, value in settings.items()
+    ):
+        raise HTTPException(400, "Invalid effect settings")
+    folder = project_path(project_id)
+    path = folder / "meta.json"
+    with state_lock:
+        meta = json.loads(path.read_text(encoding="utf-8"))
+        meta["effect_settings"] = settings
+        pending = folder / "meta-effects.pending.json"
+        pending.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        pending.replace(path)
+    return {"saved": True}
+
+
 def _salience_cache(project_id: str):
     folder = project_path(project_id)
     meta = get_project(project_id)
@@ -433,6 +477,13 @@ def reset_sync(project_id: str):
     temp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     temp.replace(meta_file)
     return {"sync": None}
+
+
+@app.get("/api/palette/themes")
+def theme_palettes(theme: str = "space"):
+    if theme not in THEME_COLORS:
+        raise HTTPException(400, "Unknown palette theme")
+    return propose_theme_palettes(theme)
 
 
 @app.post("/api/palette/extract")

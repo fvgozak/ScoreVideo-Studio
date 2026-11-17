@@ -6,11 +6,12 @@
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
  function pianoOnlyFollower(meta,settings,viewport){
    const bg=document.createElement('div');bg.className='score-background';
-   const photo=document.createElement('div');photo.className='score-photo';bg.appendChild(photo);viewport.prepend(bg);
+   const photo=document.createElement('div');photo.className='score-photo';bg.appendChild(photo);
+   const texture=document.createElement('div');texture.className='score-texture';bg.appendChild(texture);viewport.prepend(bg);
    const velocities=(meta.note_events||[]).map(note=>Number(note.velocity)).filter(Number.isFinite);
    const range=velocities.reduce((result,velocity)=>({min:Math.min(result.min,velocity),max:Math.max(result.max,velocity)}),{min:127,max:1});
    return {
-     stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,
+     stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,textureLayer:texture,
      noteEvents:meta.note_events||[],pedalEvents:meta.pedal_events||[],noteTriggers:[],tieContinuations:[],timestamps:[0,meta.audio_duration_sec||0],measureStarts:[],
      tempoMap:meta.tempo_map||[{beat:0,second:0,tempo_us:500000}],audioDuration:meta.audio_duration_sec,
      offsetSec:settings.offsetSec,sync:meta.sync,effects:{...settings.effects,velocityScale:settings.scene.velocityScale},scene:settings.scene,velocityRange:range,
@@ -31,7 +32,8 @@
        const url=String(e.backgroundUrl||'');photo.style.backgroundImage=url.startsWith('/api/projects/')?'url('+JSON.stringify(url)+')':'none';
        photo.style.backgroundSize=e.backgroundFit==='contain'?'contain':'cover';
        photo.style.backgroundPosition=`${e.backgroundPositionX}% ${e.backgroundPositionY}%`;
-       photo.style.opacity=String(e.backgroundOpacity);},
+       photo.style.opacity=String(e.backgroundOpacity);
+       root.ScoreBackgroundPattern?.render(texture,e.texture,viewport.clientWidth,viewport.clientHeight);},
      setOffset(value){this.offsetSec=value;},setSync(value){this.sync=value;},setCameraPoints(){},setCameraPointPicking(){},seek(){},
    };
  }
@@ -54,6 +56,7 @@
      paper:effect.paper,ink:effect.ink,accent:effect.accent,glow:effect.glow,
      white:hex(s.piano_white_key_color,'#f1f1f5'),black:hex(s.piano_black_key_color,'#151821')});
    const gpuEffects=root.ScorePixiFx?.normalizeEffects(s.gpu_effects);
+   const scene=root.ScoreStudio.normalize({...s.scene,minimalMode:Boolean(s.minimal_mode)});
    const layout=(s.layout_mode||s.scroll_mode||'page');
    const width=clamp(Math.round(number(s.width,1280)),200,8192);
    const height=clamp(Math.round(number(s.height,720)),200,8192);
@@ -74,10 +77,13 @@
        key:String(p?.key||'').slice(0,80),zoom:clamp(number(p?.zoom,1.3),1.05,1.6),
        duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1),timing:clamp(number(p?.timing,-.6),-2,1.5)
      })).filter(p=>p.key),
-     effects:effect,gpuEffects,scene:root.ScoreStudio.normalize({...s.scene,minimalMode:Boolean(s.minimal_mode)}),
+     effects:effect,gpuEffects,scene,
      piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,minimalMode:Boolean(s.minimal_mode),
        fxRenderer:['canvas','auto','pixi'].includes(s.fx_renderer)?s.fx_renderer:'canvas',
        gpuEffects,minimalPalette:effect.minimalPalette,
+       lightingScene:scene,
+       scoreLighting:{panelColor:hex(s.score_panel_color,'#0c1120'),
+         panelOpacity:clamp(number(s.score_panel_opacity,0),0,1),scoreVisible:meta.has_score!==false&&s.score_visible!==false},
        camera:s.piano_camera!==false,portrait:height>width,
        keyStyle:['auto','dark','classic','custom'].includes(s.piano_key_style)?s.piano_key_style:'auto',
        whiteKeyColor:hex(s.piano_white_key_color,'#5a6576'),blackKeyColor:hex(s.piano_black_key_color,'#141b27'),
@@ -160,7 +166,7 @@
      if(this.layer)this.layer.gpuLayer=null;
      this.viewport.classList.remove('score-pixi-active');
      const mode=this.settings.piano.fxRenderer;
-     if(mode==='canvas'||this.settings.effects.minimalMode||!this.settings.scoreVisible||this.meta.has_score===false)return;
+     if(this.settings.effects.minimalMode||!this.settings.scoreVisible||this.meta.has_score===false)return;
      try{
        const Layer=root.ScorePixiFx?.Layer;
        if(!Layer)throw Error('PixiJS 효과 모듈이 로드되지 않았습니다.');
@@ -171,12 +177,10 @@
        if(this.layer)this.layer.gpuLayer=layer;
      }catch(error){
        if(epoch!==this.scoreGpuEpoch)return;
-       // Treat a score-layer failure as a complete effects fallback, so the
-       // reported renderer matches both visible layers.
-       this.piano?.setSettings({...this.piano.settings,fxRenderer:'canvas'});
        if(this.follower)this.follower.gpuParticles=false;
        this.viewport.dispatchEvent(new CustomEvent('score-fx-renderer',
-         {detail:{actual:'canvas',requested:mode,reason:String(error?.message||error)}}));
+         {detail:{actual:'error',requested:mode,reason:String(error?.message||error)}}));
+       throw error;
      }
    }
    drawScoreGpu(){
@@ -237,9 +241,9 @@
      catch(error){gpu.dispose();this.scoreGpu=null;this.viewport.classList.remove('score-pixi-active');
        this.follower.gpuParticles=false;
        if(this.layer)this.layer.gpuLayer=null;
-       this.piano?.setSettings({...this.piano.settings,fxRenderer:'canvas'});
        this.viewport.dispatchEvent(new CustomEvent('score-fx-renderer',
-         {detail:{actual:'canvas',requested:this.settings.piano.fxRenderer,reason:String(error?.message||error)}}));}
+         {detail:{actual:'error',requested:this.settings.piano.fxRenderer,reason:String(error?.message||error)}}));
+       throw error;}
    }
    async load(){
      const previous=this.viewport.__scoreFxStage;
@@ -259,6 +263,9 @@
      this.viewport.querySelectorAll('.piano-fall-canvas').forEach(canvas=>{
        if(canvas!==this.piano?.canvas)canvas.remove();
      });
+     this.viewport.querySelectorAll('.piano-three-canvas').forEach(canvas=>{
+       if(canvas!==this.piano?.keyboard3d?.canvas)canvas.remove();
+     });
      this.viewport.querySelectorAll('.score-background,.score-glitter-overlay,.studio-fx-canvas,.studio-atmosphere,.studio-titles').forEach(e=>e.remove());
      const s=this.settings;
      this.applyScoreWindow();
@@ -270,7 +277,8 @@
        this.applyScoreVisibility();
        if(!this.piano)this.piano=new root.ScorePianoFall.PianoFall(this.viewport);
        this.piano.setSettings(s.piano);this.piano.setFollower(this.follower);
-       await this.piano.ready;
+       await Promise.all([this.piano.ready,this.piano.notesReady,this.piano.keyboardReady,this.piano.dynamicReady]);
+       await this.piano.dynamic?.lightingReady;
        await this.configureScoreGpu();
        this.seek(this.time);return this;
      }
@@ -308,7 +316,8 @@
      if(!this.piano)this.piano=new root.ScorePianoFall.PianoFall(this.viewport);
      this.piano.setSettings(s.piano);
      this.piano.setFollower(this.follower);
-     await this.piano.ready;
+     await Promise.all([this.piano.ready,this.piano.notesReady,this.piano.keyboardReady,this.piano.dynamicReady]);
+     await this.piano.dynamic?.lightingReady;
      await this.configureScoreGpu();
      this.seek(this.time);
      return this;
@@ -345,8 +354,9 @@
      this.follower.cameraMode=next.scene.cameraMode;
      this.layer?.setScene(next.scene);
      if(prev.piano.fxRenderer!==next.piano.fxRenderer||prev.effects.minimalMode!==next.effects.minimalMode||prev.scoreVisible!==next.scoreVisible)
-       return Promise.all([this.piano?.ready,this.configureScoreGpu()]).then(()=>{this.seek(this.time);});
-     this.seek(this.time);return Promise.resolve();
+       return Promise.all([this.piano?.ready,this.piano?.notesReady,this.piano?.keyboardReady,this.piano?.dynamicReady,
+         this.piano?.dynamic?.lightingReady,this.configureScoreGpu()]).then(()=>{this.seek(this.time);});
+     return Promise.resolve(this.piano?.dynamic?.lightingReady).then(()=>{this.seek(this.time);});
    }
    seek(time){
      this.time=Math.max(0,Number(time)||0);
@@ -355,6 +365,8 @@
      if(this.layer)this.layer.gpuEffects=this.settings.gpuEffects;
      this.layer?.draw(this.time,this.follower);
      this.piano?.draw(this.time);
+   if(this.follower.textureLayer)this.follower.textureLayer.style.display=
+     !this.piano?.dynamic||this.piano.dynamic.canvas.style.display==='none'?'':'none';
      this.drawScoreGpu();
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}

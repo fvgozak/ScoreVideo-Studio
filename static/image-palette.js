@@ -18,8 +18,9 @@
    for(const scheme of items){
      if(!scheme.colors||!validHex(scheme.colors.paper)||!validHex(scheme.colors.ink))continue;
      const btn=document.createElement('button');btn.type='button';btn.className='palette-scheme';btn.dataset.schemeId=scheme.id;
-     const preview=document.createElement('div');preview.className='palette-scheme-preview';preview.style.backgroundColor=scheme.colors.paper;
+     const preview=document.createElement('div');preview.className='palette-scheme-preview';preview.style.backgroundColor=scheme.colors.background||scheme.colors.paper;
      const line=document.createElement('span');line.className='palette-music-sample';line.style.color=scheme.colors.ink;
+     line.style.backgroundColor=scheme.colors.paper;
      line.textContent='𝄞  ♩  ♪  ♫';preview.appendChild(line);
      const meta=document.createElement('span');meta.className='palette-scheme-meta';
      const name=document.createElement('strong');name.textContent=scheme.name;

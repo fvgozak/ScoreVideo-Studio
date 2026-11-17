@@ -132,3 +132,85 @@ def test_three_pass_repeat_and_xml_title_unchanged():
         unfold_musicxml(source,root/'score-playback.musicxml')
         assert ET.parse(source).getroot().find('.//repeat') is not None
         assert len(extract_score_attacks(root/'score-playback.musicxml'))==11
+
+
+def test_short_repeat_inside_long_piece_is_not_rejected_by_global_ratio():
+    """A four-bar repeat in a 100-bar score adds only 3.8% MIDI coverage.
+
+    Old logic required an >=8 percentage point global gain and therefore
+    silently preferred the wrong, unexpanded MusicXML despite a perfect match.
+    """
+    import mido
+    with tempfile.TemporaryDirectory() as d:
+        root=Path(d)
+        pitches=[48+(i*7+i*i*3)%30 for i in range(100)]
+        start,end=48,51
+        names=['C','C','D','D','E','F','F','G','G','A','A','B']
+        alterations=[0,1,0,1,0,0,1,0,1,0,1,0]
+        xml=['<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1">']
+        for i,pitch in enumerate(pitches):
+            xml.append(f'<measure number="{i+1}">')
+            if i==0:
+                xml.append('<attributes><divisions>480</divisions><time><beats>1</beats><beat-type>4</beat-type></time></attributes>')
+            if i==start:xml.append('<barline location="left"><repeat direction="forward"/></barline>')
+            pc=pitch%12
+            xml.append(f'<note><pitch><step>{names[pc]}</step><alter>{alterations[pc]}</alter><octave>{pitch//12-1}</octave></pitch><duration>480</duration><type>quarter</type></note>')
+            if i==end:xml.append('<barline location="right"><repeat direction="backward"/></barline>')
+            xml.append('</measure>')
+        xml.append('</part></score-partwise>')
+        (root/'score.musicxml').write_text(''.join(xml))
+
+        def write_midi(sequence):
+            mid=mido.MidiFile(ticks_per_beat=480)
+            track=mido.MidiTrack()
+            mid.tracks.append(track)
+            for pitch in sequence:
+                track.append(mido.Message('note_on',note=pitch,velocity=85,time=0))
+                track.append(mido.Message('note_off',note=pitch,velocity=0,time=480))
+            mid.save(root/'score.mid')
+
+        expanded=pitches[:end+1]+pitches[start:end+1]+pitches[end+1:]
+        write_midi(expanded)
+        alignment,selected=choose_performance_score(root,read_timing(root/'score.mid'))
+        assert selected['mode']=='unfolded', selected
+        assert selected['source_measures']==100
+        assert selected['playback_measures']==104
+        assert alignment['matched_notes']==len(expanded)
+        assert selected['matching']['newly_explained_midi_notes']==4
+
+        # An otherwise identical MIDI with no second pass must not be unfolded.
+        write_midi(pitches)
+        alignment,selected=choose_performance_score(root,read_timing(root/'score.mid'))
+        assert selected['mode']=='written', selected
+        assert selected['expanded'] is False
+        assert not (root/'score-playback.musicxml').exists()
+
+
+def test_existing_project_reanalyzes_v1_repeat_decision_on_next_load(monkeypatch):
+    """A saved v14 project is upgraded in place, without touching user effects."""
+    import app as service
+    import json
+    with tempfile.TemporaryDirectory() as tmp:
+        data=Path(tmp)
+        monkeypatch.setattr(service,'DATA',data)
+        project='aabbccddeeff00112233445566778899'
+        folder=data/project
+        folder.mkdir()
+        (folder/'score.musicxml').write_text(piece(['C','D','E','F','G']))
+        midi_file(folder/'score.mid',['C','D','E','F','D','E','F','G'])
+        data_meta={
+            'has_score': True,
+            'score_name': 'score.musicxml',
+            'musicxml_title': 'Keep this title',
+            'repeat_info': {'mode': 'written','warning': 'old result'},
+            'score_alignment': {'method': 'pitch-onset-anchors-v1'},
+            'effect_settings': {'my_custom_effect': 'preserve'},
+            'schema_version': 42,
+        }
+        (folder/'meta.json').write_text(json.dumps(data_meta))
+        refreshed=service.get_project(project)
+        assert refreshed['repeat_info']['analysis_version']==2
+        assert refreshed['repeat_info']['mode']=='unfolded'
+        assert refreshed['effect_settings']==data_meta['effect_settings']
+        assert refreshed['schema_version']==42
+        assert (folder/'score-playback.musicxml').is_file()

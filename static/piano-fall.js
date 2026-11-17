@@ -151,61 +151,95 @@
   class PianoFall {
     constructor(viewport){
       if(viewport.__scorePianoFall&&viewport.__scorePianoFall!==this)viewport.__scorePianoFall.dispose();
-      viewport.__scorePianoFall=this;
-      this.canvas=document.createElement('canvas');this.canvas.className='piano-fall-canvas';
-      this.canvas.setAttribute('aria-hidden','true');viewport.appendChild(this.canvas);
-      this.context=this.canvas.getContext('2d');this.notes=[];this.pedalEvents=[];this.follower=null;this.settings={enabled:true,light:true};
-      const Cache=root.ScorePianoShadowSprite?.ShadowSpriteCache;
-      this.shadowCache=Cache?new Cache():null;
-      this.gpu=null;this.gpuError='';this.gpuEpoch=0;this.ready=Promise.resolve();
+      viewport.__scorePianoFall=this;this.viewport=viewport;
+      this.canvas=null;this.notes=[];this.pedalEvents=[];this.follower=null;
+      this.settings={enabled:true,light:true,fxRenderer:'pixi'};
+      this.gpu=null;this.gpuError='';this.gpuEpoch=0;
+      this.notesGpu=null;this.notesEpoch=0;
+      this.keyboard3d=null;this.keyboardError='';this.keyboardEpoch=0;
+      this.dynamic=null;this.dynamicError='';this.errorElement=null;
+      root.ScoreKeyboardDebug={snapshot:()=>this.debugStatus()};
+      if(typeof location!=='undefined'&&new URLSearchParams(location.search).has('keyboardDebug')){
+        let badge=document.getElementById('scoreKeyboardDebug');
+        if(!badge){badge=document.createElement('pre');badge.id='scoreKeyboardDebug';
+          badge.style.cssText='position:fixed;right:12px;bottom:12px;z-index:10000;padding:10px 12px;background:#08111de8;color:#a9f4f4;border:1px solid #3a8190;border-radius:6px;font:12px/1.45 monospace;pointer-events:none;white-space:pre-wrap';
+          document.body.appendChild(badge);}
+        if(!root.__scoreKeyboardDebugTimer)root.__scoreKeyboardDebugTimer=setInterval(()=>{
+          const status=root.ScoreKeyboardDebug?.snapshot();
+          if(status)badge.textContent=`Active Keyboard Renderer: ${status.active}\nDynamic FX initialized: ${status.initialized}\nCanvas: ${status.canvas?.join('×')||'—'} px\nWebGL2: ${status.webgl2}\nFrame draws: ${status.frameDraws}\nMIDI Note On: ${status.noteOnCount}\nError: ${status.error||'none'}`;
+        },250);
+      }
+      this.notesReady=Promise.resolve();this.keyboardReady=Promise.resolve();
+      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=boundary8').then(({ScoreDynamicFX})=>{
+        if(this.viewport!==viewport||viewport.__scorePianoFall!==this)return;
+        this.dynamic=new ScoreDynamicFX(viewport);
+        if(this.follower)this.dynamic.load(this,this.follower);
+        this.syncRendererVisibility();
+      }).catch(error=>{
+        this.dynamic?.dispose();this.dynamic=null;
+        this.dynamicError=String(error?.message||error);
+        if(this.settings.minimalMode)return;
+        viewport.dispatchEvent(new CustomEvent('score-keyboard-renderer',
+          {detail:{actual:'error',reason:this.dynamicError}}));
+        this.showDynamicError();
+        throw error;
+      });
+      this.ready=Promise.resolve();
+    }
+    prepareLegacy(){
+      if(this.notesGpu||this.keyboard3d||this.legacyPending)return;
+      const viewport=this.viewport;
+      this.legacyPending=true;
+      const notesEpoch=++this.notesEpoch;
+      this.notesReady=root.ScorePixiNotes.NotesLayer.create(viewport).then(layer=>{
+        if(notesEpoch!==this.notesEpoch){layer.dispose();return;}
+        this.notesGpu=layer;this.canvas=layer.canvas;this.syncRendererVisibility();
+      }).catch(error=>{this.gpuError=String(error?.message||error);
+        viewport.dispatchEvent(new CustomEvent('score-fx-renderer',{detail:{actual:'error',reason:this.gpuError}}));
+        throw error;
+      });
+      const keyboardEpoch=++this.keyboardEpoch;
+      this.keyboardReady=root.ScoreThreeKeyboard.create(viewport).then(keyboard=>{
+        if(keyboardEpoch!==this.keyboardEpoch){keyboard.dispose();return;}
+        this.keyboard3d=keyboard;this.syncRendererVisibility();
+      }).catch(error=>{
+        this.keyboardError=String(error?.message||error);
+        viewport.dispatchEvent(new CustomEvent('score-keyboard-renderer',{detail:{actual:'error',reason:this.keyboardError}}));
+        throw error;
+      });
     }
     prepareGpu(){
-      const mode=this.settings?.fxRenderer||'canvas',wanted=mode!=='canvas'&&
-        this.settings.enabled&&this.settings.light&&!this.settings.minimalMode;
       const epoch=++this.gpuEpoch;
-      if(!wanted){this.gpu?.dispose();this.gpu=null;this.ready=Promise.resolve();
-        this.canvas.parentElement?.dispatchEvent(new CustomEvent('score-fx-renderer',
-          {detail:{actual:'canvas',requested:mode}}));return this.ready;}
-      if(this.gpu)return this.ready;
+      if(this.gpu)return Promise.resolve();
       const Layer=root.ScorePixiFx?.Layer;
-      if(!Layer){this.gpuError='PixiJS 효과 모듈이 로드되지 않았습니다.';
-        this.canvas.parentElement?.dispatchEvent(new CustomEvent('score-fx-renderer',
-          {detail:{actual:'canvas',requested:mode,reason:this.gpuError}}));
-        return Promise.resolve();}
-      this.ready=Layer.create(this.canvas.parentElement,'piano').then(layer=>{
+      if(!Layer)return Promise.reject(Error('PixiJS 필수 모듈이 누락되었습니다.'));
+      this.ready=Layer.create(this.viewport,'piano').then(layer=>{
         if(epoch!==this.gpuEpoch){layer.dispose();return;}
-        this.gpu=layer;this.gpuError='';
-        this.canvas.parentElement.dispatchEvent(new CustomEvent('score-fx-renderer',
-          {detail:{actual:'pixi',requested:mode}}));
+        this.gpu=layer;this.gpuError='';this.syncRendererVisibility();
+        this.viewport.dispatchEvent(new CustomEvent('score-fx-renderer',{detail:{actual:'pixi',requested:'pixi'}}));
       }).catch(error=>{
-        if(epoch!==this.gpuEpoch)return;
         this.gpuError=String(error?.message||error);
-        this.canvas.parentElement.dispatchEvent(new CustomEvent('score-fx-renderer',
-          {detail:{actual:'canvas',requested:mode,reason:this.gpuError}}));
+        this.viewport.dispatchEvent(new CustomEvent('score-fx-renderer',{detail:{actual:'error',requested:'pixi',reason:this.gpuError}}));
+        throw error;
       });
       return this.ready;
     }
-    setSettings(settings){
-      const next=settings||{enabled:true,light:true},old=this.settings||{};
-      for(const key of ['enabled','light','minimalMode','keyStyle','whiteKeyColor','blackKeyColor','strength','camera','portrait']){
-        if(old[key]!==next[key]){this.shadowCache?.clear();break;}
-      }
-      this.settings=next;this.canvas.style.display=this.settings.enabled?'':'none';
-      if(old.fxRenderer!==next.fxRenderer||old.minimalMode!==next.minimalMode||old.light!==next.light||old.enabled!==next.enabled)
-        this.prepareGpu();
+    setSettings(settings){this.settings={enabled:true,light:true,...settings,fxRenderer:'pixi'};
+      if(this.settings.minimalMode)this.prepareLegacy();
+      if(this.dynamicError&&!this.settings.minimalMode)this.showDynamicError();
+      else if(this.errorElement){this.errorElement.remove();this.errorElement=null;}
+      this.syncRendererVisibility();
+      if(this.dynamic&&this.follower)this.dynamic.configure(this.settings,this.follower);
+      this.gpuEpoch++;this.gpu?.dispose();this.gpu=null;this.ready=Promise.resolve();
     }
     setFollower(follower){
-      if(this.follower&&this.follower!==follower)this.shadowCache?.clear();
       this.follower=follower;
-      // Use every physical MIDI attack, including notes without an engraved
-      // counterpart. The same midiToAudio mapping drives score-note lights.
       const trim=(Number(this.settings?.offsetSec)||0)-(Number(follower?.offsetSec)||0);
       this.notes=(follower?.noteEvents||[]).map(event=>{
         const midi=Number.isFinite(event.second)?event.second:follower.beatToSeconds(event.beat);
-        const end=Number(event.end_second);
-        // Auto sync is shared, but score and piano trims are independent.
-        const sustainEnd=Number(event.sustain_end_second);
-        return {pitch:event.pitch,velocity:event.velocity,channel:event.channel??0,audio:follower.midiToAudio(midi)+trim,
+        const end=Number(event.end_second),sustainEnd=Number(event.sustain_end_second);
+        return {pitch:event.pitch,velocity:event.velocity,channel:event.channel??0,
+          audio:follower.midiToAudio(midi)+trim,
           endAudio:follower.midiToAudio(Number.isFinite(end)&&end>midi?end:midi+.35)+trim,
           sustainEndAudio:follower.midiToAudio(Number.isFinite(sustainEnd)&&sustainEnd>end?sustainEnd:(Number.isFinite(end)&&end>midi?end:midi+.35))+trim};
       }).filter(note=>note.pitch>=FIRST&&note.pitch<=LAST&&Number.isFinite(note.audio))
@@ -213,7 +247,8 @@
       const accents=follower?.cameraAccents||[];
       for(const note of this.notes)note.emphasis=accentAt(accents,note.audio);
       this.pedalEvents=(follower?.pedalEvents||[]).map(event=>({
-        audio:follower.midiToAudio(Number(event.second))+trim,channel:event.channel??0,down:event.down??event.value>=64
+        audio:follower.midiToAudio(Number(event.second))+trim,channel:event.channel??0,
+        down:event.down??event.value>=64
       })).filter(event=>Number.isFinite(event.audio)).sort((a,b)=>a.audio-b.audio);
       const channels=new Set();let releaseTime=-Infinity;
       this.pedalTimeline=this.pedalEvents.map(event=>{
@@ -221,17 +256,17 @@
         else{channels.delete(event.channel);releaseTime=event.audio;}
         return {audio:event.audio,down:channels.size>0,releaseTime};
       });
-      this.longestDuration=this.notes.reduce((longest,note)=>Math.max(longest,note.sustainEndAudio-note.audio),.35);
+      this.longestDuration=this.notes.reduce((max,note)=>Math.max(max,note.sustainEndAudio-note.audio),.35);
       const last=Math.max(Number(follower?.audioDuration)||0,this.notes.at(-1)?.endAudio||0);
+      this.dynamic?.load(this,follower);
       this.cameraTargets=[];
-      if(this.settings?.portrait&&this.settings.camera!==false){
+      if(this.settings.portrait&&this.settings.camera!==false){
         for(let second=0;second<=Math.ceil(last)+1;second++){
           const range=noteRange(this.notes,second,this.longestDuration);
           this.cameraTargets.push(range?cameraTarget(range):null);
         }
         const first=this.cameraTargets.find(Boolean)||cameraTarget(null);
-        let previous=first;
-        this.cameraTargets=this.cameraTargets.map(target=>(previous=target||previous));
+        let previous=first;this.cameraTargets=this.cameraTargets.map(target=>(previous=target||previous));
       }
     }
     cameraAt(time){
@@ -241,73 +276,48 @@
       const blend=smoothstep(position-index);
       return {center:a.center+(b.center-a.center)*blend,span:a.span+(b.span-a.span)*blend};
     }
-    keyBox(key,left,whiteWidth){
-      return key.black?{x:left+(key.whiteIndex+1)*whiteWidth-whiteWidth*.32,w:whiteWidth*.64}
-        :{x:left+key.whiteIndex*whiteWidth,w:whiteWidth};
-    }
+    keyBox(key,left,whiteWidth){return key.black?{x:left+(key.whiteIndex+1)*whiteWidth-whiteWidth*.32,w:whiteWidth*.64}
+      :{x:left+key.whiteIndex*whiteWidth,w:whiteWidth};}
     pedalAt(time){
       const events=this.pedalTimeline||[];let lo=0,hi=events.length;
       while(lo<hi){const mid=(lo+hi)>>>1;if(events[mid].audio<=time)lo=mid+1;else hi=mid;}
-      const state=events[lo-1];
-      return {down:Boolean(state?.down),energy:state?.down?1:
+      const state=events[lo-1];return {down:Boolean(state?.down),energy:state?.down?1:
         Math.exp(-Math.max(0,time-(state?.releaseTime??-Infinity))*5)};
     }
     draw(time){
-      if(!this.settings.enabled||!this.context||!this.follower)return;
-      const canvas=this.canvas,w=this.follower.stageRoot?.clientWidth||canvas.parentElement.clientWidth;
-      const h=this.follower.stageRoot?.clientHeight||canvas.parentElement.clientHeight;
-      const measuring=typeof this.onDrawMeasured==='function',started=measuring?performance.now():0;
-      const resized=canvas.width!==w||canvas.height!==h;
-      if(resized){canvas.width=w;canvas.height=h;this.shadowCache?.clear();}
-      const ctx=this.context;ctx.clearRect(0,0,w,h);
-      const keys=keyPalette(this.settings,this.follower.colors?.().paper);
-      const minimal=Boolean(this.settings.minimalMode);
+      if(!this.settings.enabled||!this.follower)return;
+      if(this.dynamic&&!this.settings.minimalMode){
+        this.dynamic.draw(time);
+        return;
+      }
+      if(!this.settings.minimalMode)throw Error(`Dynamic FX v1.6 is not ready: ${this.dynamicError||'initializing'}`);
+      if(!this.notesGpu||!this.keyboard3d)
+        throw Error('GPU renderer is not ready: Three.js and PixiJS are mandatory.');
+      const w=this.follower.stageRoot?.clientWidth||this.viewport.clientWidth;
+      const h=this.follower.stageRoot?.clientHeight||this.viewport.clientHeight;
+      const started=typeof this.onDrawMeasured==='function'?performance.now():0;
+      const keys=keyPalette(this.settings,this.follower.colors?.().paper),minimal=Boolean(this.settings.minimalMode);
       const palette=this.settings.minimalPalette,fx=this.settings.gpuEffects||{};
       if(minimal&&palette){keys.white=palette.white;keys.black=palette.black;}
-      const camera=this.cameraAt(time),cinematic=Boolean(this.settings?.portrait&&this.settings.camera!==false);
+      const camera=this.cameraAt(time),cinematic=Boolean(this.settings.portrait&&this.settings.camera!==false);
       const {keyTop,keyHeight,shadeTop,impact,left,right,whiteWidth,speed,visibleSeconds}=
         pianoProjection(camera,w,h,cinematic);
-      const fallTop=0;
-      ctx.save();
-      if(!minimal){
-        const shade=ctx.createLinearGradient(0,shadeTop,0,keyTop);
-        shade.addColorStop(0,'rgba(4,8,18,0)');shade.addColorStop(.23,'rgba(4,8,18,.54)');shade.addColorStop(1,'rgba(4,8,18,.9)');
-        ctx.fillStyle=shade;ctx.fillRect(0,shadeTop,w,keyTop-shadeTop);
-      }
-      // Binary search keeps long pieces inexpensive during 30/60fps export.
       let lo=0,hi=this.notes.length;
       while(lo<hi){const mid=(lo+hi)>>>1;if(this.notes[mid].audio<time-this.longestDuration-.8)lo=mid+1;else hi=mid;}
-      const active=[];
-      const gpuCommands=[];
-      const pedal=this.pedalAt(time);
+      const bars=[],active=[],gpuCommands=[],pedal=this.pedalAt(time);
       if(!minimal){
-        ctx.save();ctx.beginPath();ctx.rect(left,fallTop,right-left,impact-fallTop);ctx.clip();
         for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+visibleSeconds+.2;i++){
-        const note=this.notes[i],geometry=noteGeometry(note,time,impact,speed);
-        if(geometry.bottom<fallTop||geometry.top>impact)continue;
-        const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
-        const color=this.follower.eventLightColor(note.velocity);
-        const x=box.x+box.w*(key.black?.15:.22),barWidth=box.w*(key.black?.7:.56);
-        const top=Math.min(geometry.top,geometry.bottom-3),height=Math.max(3,geometry.bottom-top);
-        ctx.fillStyle=rgba(color,.18);ctx.fillRect(x-2,top-2,barWidth+4,height+4);
-        ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=this.gpu?0:clamp(this.settings.strength??1,0,4)*11;
-        ctx.beginPath();ctx.roundRect(x,top,barWidth,height,Math.min(5,barWidth*.35));ctx.fill();ctx.shadowBlur=0;
-        if(this.gpu)gpuCommands.push({kind:'fall',x:x+barWidth/2,y:top+height/2,width:barWidth,height,
-          age:Math.max(0,time-note.audio),seed:note.pitch+note.audio,
-          energy:.22*clamp(this.settings.strength??1,0,4),color});
-      }
-        ctx.restore();
-      }
-      ctx.fillStyle=keys.bed;ctx.fillRect(left,keyTop,right-left,keyHeight);
-      for(const key of keyLayout.keys.filter(item=>!item.black)){
-        const box=this.keyBox(key,left,whiteWidth);
-        ctx.fillStyle=keys.white;ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight-3);
-        ctx.fillStyle=keys.divider;ctx.fillRect(box.x+box.w-1,keyTop,1,keyHeight);
-      }
-      for(const key of keyLayout.keys.filter(item=>item.black)){
-        const box=this.keyBox(key,left,whiteWidth);
-        ctx.fillStyle=keys.black;ctx.fillRect(box.x,keyTop,box.w,keyHeight*.67);
-        ctx.fillStyle=keys.highlight;ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*.04);
+          const note=this.notes[i],geometry=noteGeometry(note,time,impact,speed);
+          if(geometry.bottom<0||geometry.top>impact)continue;
+          const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
+          const color=this.follower.eventLightColor(note.velocity);
+          const x=box.x+box.w*(key.black?.15:.22),barWidth=box.w*(key.black?.7:.56);
+          const top=Math.min(geometry.top,geometry.bottom-3),height=Math.max(3,geometry.bottom-top);
+          bars.push({x,top,width:barWidth,height,color});
+          gpuCommands.push({kind:'fall',x:x+barWidth/2,y:top+height/2,width:barWidth,height,
+            age:Math.max(0,time-note.audio),seed:note.pitch+note.audio,
+            energy:.22*clamp(this.settings.strength??1,0,4),color});
+        }
       }
       for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time;i++){
         const note=this.notes[i];if(time>Math.max(note.audio+.8,note.endAudio+.35,note.sustainEndAudio+.3))continue;
@@ -322,57 +332,71 @@
         const duration=Math.max(.08,note.endAudio-note.audio);
         const pedalled=!minimal&&note.sustainEndAudio>note.endAudio+.001&&
           time>note.endAudio&&time<note.sustainEndAudio+.3;
-        const intensity=minimal?1:(pedalled ? .18*Math.exp(-Math.max(0,time-note.sustainEndAudio)*12) :
+        const intensity=minimal?1:(pedalled?.18*Math.exp(-Math.max(0,time-note.sustainEndAudio)*12):
           impactEnvelope(time-note.audio,duration,note.velocity/127));
         if(intensity<=.006)continue;
         active.push({note,key,box,color,intensity,pedalled});
       }
-      // Key fill and luminous impact are separate from the existing notehead
-      // glow. Neither effect hides or switches off the other.
-      for(const hit of active){
-        const {note,key,box,color,intensity,pedalled}=hit;
-        ctx.fillStyle=minimal?color:rgba(color,intensity*(key.black?.8:.43));
-        ctx.fillRect(box.x+1,keyTop+2,box.w-2,keyHeight*(key.black?.67:1)-3);
-        if(minimal||!this.settings.light)continue;
-        if(pedalled){
-          if(fx.sustainAfterglow!==false){
-            if(this.gpu)gpuCommands.push({kind:'afterglow',x:box.x+box.w/2,y:impact,
-              width:box.w*2.4,height:whiteWidth*3.2,energy:intensity*4.4,color});
-            else{ctx.save();ctx.globalAlpha=.15;ctx.fillStyle=color;
-              ctx.fillRect(box.x+1,keyTop+2,box.w-2,Math.min(keyHeight*.18,18));ctx.restore();}
-          }
-          continue;
-        }
-        const strength=clamp(this.settings.strength??1,0,4);
-        if(this.gpu){
+      if(!minimal&&this.settings.light){
+        for(const {note,box,color,intensity,pedalled} of active){
+          if(pedalled){if(fx.sustainAfterglow!==false)gpuCommands.push({kind:'afterglow',
+            x:box.x+box.w/2,y:impact,width:box.w*2.4,height:whiteWidth*3.2,energy:intensity*4.4,color});continue;}
+          const strength=clamp(this.settings.strength??1,0,4);
           const energy=impactEnvelope(time-note.audio,Math.max(.08,note.endAudio-note.audio),note.velocity/127)*strength;
-          const {spread,focus}=root.ScoreStudio?.pitchLightProfile(note.pitch)||{spread:1,focus:1};
+          const {spread,focus}=root.ScoreStudio.pitchLightProfile(note.pitch);
           gpuCommands.push({kind:'piano',x:box.x+box.w/2,y:impact,unit:whiteWidth,
-            age:time-note.audio,seed:note.pitch+note.audio,velocity:note.velocity/127,emphasis:note.emphasis,
-            keyWidth:box.w,keyHeight,energy,strength,color,spread,focus});
-        }else drawImpactLight(ctx,note,box,time,{impact,keyHeight,whiteWidth,black:key.black,strength,color,shadowCache:this.shadowCache});
+            age:time-note.audio,seed:note.pitch+note.audio,velocity:note.velocity/127,
+            emphasis:note.emphasis,keyWidth:box.w,keyHeight,energy,strength,color,spread,focus});
+        }
+        if(pedal.energy>.01&&fx.pedalResonance!==false)gpuCommands.push({kind:'pedal',
+          x:(left+right)/2,y:keyTop-whiteWidth*.35,width:right-left,
+          height:Math.max(16,whiteWidth*6),energy:pedal.energy,color:this.follower.colors().glow});
       }
-      if(!minimal&&pedal.energy>.01&&fx.pedalResonance!==false){
-        const color=this.follower.colors().glow;
-        if(this.gpu)gpuCommands.push({kind:'pedal',x:(left+right)/2,y:keyTop-whiteWidth*.35,
-          width:right-left,height:Math.max(16,whiteWidth*6),energy:pedal.energy,color});
-        else{ctx.save();ctx.globalAlpha=.11*pedal.energy;ctx.fillStyle=color;
-          ctx.fillRect(left,keyTop-5,right-left,5);ctx.restore();}
-      }
-      if(minimal&&pedal.down&&fx.pedalResonance!==false){ctx.fillStyle=palette?.pedal||this.follower.colors().accent;
-        ctx.fillRect(left,h-4,right-left,4);}
-      ctx.restore();
-      if(this.gpu){
-        try{this.gpu.app.canvas.style.display=minimal||!this.settings.light?'none':'';
-          this.gpu.draw(minimal?[]:gpuCommands,w,h,fx);
-        }catch(error){this.gpuError=String(error?.message||error);this.gpu.dispose();this.gpu=null;
-          this.canvas.parentElement?.dispatchEvent(new CustomEvent('score-fx-renderer',
-            {detail:{actual:'canvas',requested:this.settings.fxRenderer,reason:this.gpuError}}));}
-      }
-      if(measuring)this.onDrawMeasured(performance.now()-started,resized);
+      this.notesGpu.draw({width:w,height:h,visible:true,minimal,shadeTop,keyTop,left,right,impact,bars,
+        pedal,pedalColor:palette?.pedal||this.follower.colors().accent});
+      if(!this.keyboard3d.draw({width:w,height:h,left,whiteWidth,keyTop,keyHeight,
+        keys,layout:keyLayout,active,minimal,pedal,pedalEnabled:fx.pedalResonance!==false}))
+        throw Error(this.keyboardError||'Three.js keyboard rendering failed.');
+      if(this.gpu)this.gpu.draw(gpuCommands,w,h,fx);
+      if(started)this.onDrawMeasured(performance.now()-started,false);
     }
-    dispose(){const viewport=this.canvas.parentElement;this.gpuEpoch++;this.gpu?.dispose();this.gpu=null;this.shadowCache?.clear();this.canvas.remove();this.follower=null;this.notes=[];
-      if(viewport?.__scorePianoFall===this)viewport.__scorePianoFall=null;}
+    syncRendererVisibility(){
+      const oldVisible=this.settings.enabled&&this.settings.minimalMode;
+      if(this.canvas)this.canvas.style.display=oldVisible?'':'none';
+      if(this.keyboard3d?.canvas)this.keyboard3d.canvas.style.display=oldVisible?'':'none';
+      if(this.gpu?.app?.canvas)this.gpu.app.canvas.style.display=oldVisible?'':'none';
+      if(this.dynamic?.canvas)this.dynamic.canvas.style.display=this.settings.enabled&&!this.settings.minimalMode?'':'none';
+      this.viewport.classList.toggle('score-dynamic-active',Boolean(this.dynamic&&this.settings.enabled&&!this.settings.minimalMode));
+      const active=this.settings.minimalMode?'legacy':this.dynamic?'dynamic':null;
+      if(active&&active!==this.lastRendererStatus){
+        this.lastRendererStatus=active;
+        this.viewport.dispatchEvent(new CustomEvent('score-keyboard-renderer',{detail:{actual:active}}));
+      }
+    }
+    showDynamicError(){
+      if(this.errorElement)return;
+      this.errorElement=document.createElement('div');this.errorElement.className='piano-dynamic-error';
+      this.errorElement.textContent=`Dynamic FX v1.6 초기화 실패: ${this.dynamicError}`;
+      this.viewport.appendChild(this.errorElement);
+    }
+    debugStatus(){const stats=this.dynamic?.stats()||{};
+      return {active:this.settings.minimalMode?'Legacy':this.dynamic?'Dynamic FX v1.6':'ERROR',
+        initialized:stats.initialized||false,canvas:stats.canvas||null,
+        webgl2:stats.webgl2||'unavailable',frameDraws:stats.frameDraws||0,
+        drawCalls:stats.drawCalls||0,lastDrawTime:stats.lastDrawTime??null,
+        noteOnCount:stats.noteOnCount||0,lastNoteOn:stats.lastNoteOn||null,
+        particles:stats.particles||0,display:stats.display||null,
+        visibility:stats.visibility||null,zIndex:stats.zIndex||null,
+        position:stats.position||null,cssSize:stats.cssSize||null,
+        error:this.dynamicError||null,glError:stats.glError??null};
+    }
+    dispose(){this.gpuEpoch++;this.keyboardEpoch++;this.notesEpoch++;
+      this.dynamic?.dispose();this.dynamic=null;
+      this.errorElement?.remove();this.errorElement=null;this.viewport.classList.remove('score-dynamic-active');
+      this.gpu?.dispose();this.keyboard3d?.dispose();this.notesGpu?.dispose();
+      this.gpu=null;this.keyboard3d=null;this.notesGpu=null;this.follower=null;this.notes=[];
+      if(this.viewport.__scorePianoFall===this)this.viewport.__scorePianoFall=null;
+    }
   }
   root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,sparkleSeed,drawImpactLight,keyPalette,luminance,noteRange,cameraTarget,pianoProjection};
 })(typeof window==='undefined'?globalThis:window);

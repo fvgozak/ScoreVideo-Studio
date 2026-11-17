@@ -45,6 +45,18 @@ def test_palette_endpoint_without_project():
     assert len({s['colors']['paper'] for s in p['schemes']})==4
 
 
+def test_theme_palettes_without_image_or_project():
+    for theme in ('space','sea','forest','wood'):
+        r=client.get('/api/palette/themes',params={'theme':theme})
+        assert r.status_code==200,r.text
+        data=r.json()
+        assert len(data['palette'])==3
+        assert [s['id'] for s in data['schemes']]==['paper','dark','muted','vivid']
+        assert all(contrast_ratio(s['colors']['paper'],s['colors']['ink'])>=7 for s in data['schemes'])
+        assert all(s['colors']['background']!=s['colors']['paper'] for s in data['schemes'])
+    assert client.get('/api/palette/themes',params={'theme':'unknown'}).status_code==400
+
+
 def test_bright_neutral_and_transparent_images():
     img=Image.new('RGBA',(120,120),(255,255,255,0));buf=io.BytesIO();img.save(buf,'PNG')
     r=client.post('/api/palette/extract',files={'image':('transparent.png',buf.getvalue(),'image/png')})

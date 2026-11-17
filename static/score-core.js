@@ -104,6 +104,7 @@
       this.index=0; this.activeNodes=[]; this.noteTriggers=[]; this.tieContinuations=[];
       this.activeTime=-1; this.overlay=null; this.glitterLayer=null;
       this.drawItems=[];this.drawSystems=[];this.drawCompleteCount=0;this.drawingActive=false;this.lastSeekTime=0;
+      this.drawRevision=0;
     }
     beatToSeconds(beat) {
       let lo=0, hi=this.tempoMap.length-1;
@@ -287,6 +288,21 @@
       this.resolveCameraPoints();
       this.bindCameraPointTargets();
     }
+    // VexFlow/OSMD engrave each staff as many independent horizontal paths,
+    // often one path per measure. Length alone is NOT a reliable discriminator:
+    // short measures must retain their five staff lines before any notes play.
+    static isStaffPrimitive(el,rect,css){
+      if(!el?.matches?.('path,line,polyline'))return false;
+      if(el.closest?.('defs,clipPath,mask,marker,pattern,symbol,filter'))return false;
+      if(el.closest?.('.vf-ledgers,.vf-stem,.vf-beam,.vf-curve,.vf-slur,.vf-tie,.vf-tuplet'))return false;
+      const parent=el.parentElement;
+      if(!parent?.classList?.contains('vf-measure'))return false;
+      // A staff line is a near-zero-height stroke contained directly in a
+      // VexFlow measure (under the staffline group). Slurs/ledger lines are
+      // inside their own semantic groups and must be revealed with notation.
+      const width=rect.width,height=rect.height;
+      return width>=6&&height<=3&&height<=width*.08&&css.fill==='none'&&css.stroke!=='none';
+    }
     prepareDrawing(){
       this.drawItems=[];
       const rows=new Map();
@@ -299,39 +315,48 @@
       const systems=[...rows.values()].map(row=>({key:row.key,
         y:row.ys.reduce((a,b)=>a+b,0)/Math.max(1,row.ys.length),
         first:Math.min(...row.times),last:Math.max(...row.times),lines:[],items:[]}));
-      const svg=this.container.querySelector('svg');
+      const svgs=[...this.container.querySelectorAll('svg')];
       const viewportWidth=this.viewport.clientWidth||1000;
       const scale=this.viewport.getBoundingClientRect().width/viewportWidth||1;
       const containerBox=this.container.getBoundingClientRect();
-      if(svg&&systems.length){
+      // Classify *every* sheet SVG, including subsequent pages. Previously
+      // only the first SVG was tagged, leaving stray notes permanently visible.
+      // Every paintable glyph is either a staff stroke or a draw item: no
+      // distance-to-nearest-note exclusion may let a beam/slur/text leak early.
+      for(const svg of svgs){
         const graphicSelector='path,line,polyline,polygon,rect,circle,ellipse,text,use';
         for(const el of svg.querySelectorAll(graphicSelector)){
+          if(el.closest('defs,clipPath,mask,marker,pattern,symbol,filter'))continue;
           let rect;try{rect=el.getBoundingClientRect();}catch(_){continue;}
-          if(!rect.width&&!rect.height)continue;
           const css=getComputedStyle(el);
           if(css.display==='none'||css.visibility==='hidden'||(css.stroke==='none'&&css.fill==='none'))continue;
-          const width=rect.width/scale,height=rect.height/scale;
+          // An SVG path can have a zero-height bounding box (staff/stem).
+          // Empty <use> placeholders are skipped, not treated as visible glyphs.
+          if(!rect.width&&!rect.height)continue;
           const y=(rect.top+rect.height*.5-containerBox.top)/scale;
-          let nearest=systems[0],distance=Infinity;
+          let nearest=null,distance=Infinity;
           for(const system of systems){const next=Math.abs(system.y-y);if(next<distance){distance=next;nearest=system;}}
-          if(distance>=240)continue;
-          const isStaffLine=(el.matches('path,line,polyline')&&width>=Math.max(90,viewportWidth*.18)
-            &&height<=4&&css.fill==='none'&&css.stroke!=='none');
-          if(isStaffLine){
-            nearest.lines.push({el,
+          const staff=ScoreFollower.isStaffPrimitive(el,rect,css);
+          el.removeAttribute('data-score-draw-item');el.removeAttribute('data-score-staff-line');
+          if(staff){
+            el.setAttribute('data-score-staff-line','');
+            if(nearest)nearest.lines.push({el,
               originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
             continue;
           }
-          // The cursor itself controls visibility. This keeps every symbol in
-          // lockstep and avoids estimating separate timings for beams, rests,
-          // dynamics, tempo text, and other engraved objects.
+          el.setAttribute('data-score-draw-item','');
+          if(!nearest)continue; // Even an unmatched glyph is hidden in staff-only raster.
+          const left=(rect.left-containerBox.left)/scale;
           const right=(rect.right-containerBox.left)/scale;
-          nearest.items.push({el,right,revealed:false,
+          nearest.items.push({el,left,right,revealed:false,drawProgress:0,
             originalClipPath:el.style.clipPath||'',originalWebkitClipPath:el.style.webkitClipPath||''});
         }
       }
       for(const system of systems){
         system.items.sort((a,b)=>a.right-b.right);
+        system.minLeft=system.items.length?Math.min(...system.items.map(item=>item.left)):0;
+        system.maxRight=system.items.length?Math.max(...system.items.map(item=>item.right)):0;
+        system.revealRight=system.minLeft-1;
         this.drawItems.push(...system.items);
       }
       this.drawSystems=systems;
@@ -342,21 +367,28 @@
       item.el.style.webkitClipPath=`inset(0 ${right} 0 0)`;
     }
     activateDrawing(){
-      for(const item of this.drawItems){this.setDrawClip(item,0);item.revealed=false;}
-      for(const system of this.drawSystems)for(const line of system.lines)this.setDrawClip(line,1);
-      this.drawCompleteCount=0;this.drawingActive=true;
+      for(const item of this.drawItems){this.setDrawClip(item,0);item.revealed=false;item.drawProgress=0;}
+      for(const system of this.drawSystems){
+        system.revealRight=(system.minLeft??0)-1;
+        for(const line of system.lines)this.setDrawClip(line,1);
+      }
+      this.drawCompleteCount=0;this.drawingActive=true;this.drawRevision++;
       this.updateDrawing(this.lastSeekTime);
     }
     deactivateDrawing(){
-      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalWebkitClipPath;item.revealed=false;}
-      for(const system of this.drawSystems)for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;}
-      this.drawCompleteCount=0;this.drawingActive=false;
+      for(const item of this.drawItems){item.el.style.clipPath=item.originalClipPath;item.el.style.webkitClipPath=item.originalWebkitClipPath;item.revealed=false;item.drawProgress=0;}
+      for(const system of this.drawSystems){
+        system.revealRight=(system.minLeft??0)-1;
+        for(const line of system.lines){line.el.style.clipPath=line.originalClipPath;line.el.style.webkitClipPath=line.originalWebkitClipPath;}
+      }
+      this.drawCompleteCount=0;this.drawingActive=false;this.drawRevision++;
     }
     updateDrawing(time){
       if(!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
       if(!this.drawingActive)this.activateDrawing();
       const cursor=ScoreFollower.cursorAt(time,this.positions,this.effects.cursorMotion);
-      const offsetLeft=this.container.offsetLeft||0,offsetTop=this.container.offsetTop||0;
+      const offsetLeft=this.container.offsetLeft||0;
+      const offsetTop=(this.container.offsetTop||0)+(this.scoreVerticalLayout?.offset||0);
       let currentIndex=0;
       if(cursor&&Number.isFinite(cursor.y)&&this.drawSystems.length){
         const cursorY=cursor.y-offsetTop;
@@ -366,6 +398,7 @@
           if(distance<nearest){nearest=distance;currentIndex=i;}
         }
       }
+      let changed=false;
       for(let i=0;i<this.drawSystems.length;i++){
         const system=this.drawSystems[i];
         // Use the visible score cursor's row, not MIDI attack-time ranges.
@@ -378,11 +411,25 @@
         const finalAttackReached=i===this.drawSystems.length-1&&time>=system.last-1e-4;
         const state=i<currentIndex||finalAttackReached?1:i===currentIndex?2:0;
         const cursorX=state===2&&cursor?cursor.x-offsetLeft:NaN;
+        let revealRight=system.minLeft-1;
+        if(state===1)revealRight=system.maxRight+1;
+        else if(state===2&&Number.isFinite(cursorX))revealRight=cursorX+1;
+        if(Math.abs((system.revealRight??0)-revealRight)>.25){system.revealRight=revealRight;changed=true;}
         for(const item of system.items){
-          const reveal=state===1||(state===2&&Number.isFinite(cursorX)&&item.right<=cursorX+1);
-          if(item.revealed!==reveal){this.setDrawClip(item,reveal?1:0);item.revealed=reveal;}
+          let progress=0;
+          if(state===1)progress=1;
+          else if(state===2&&Number.isFinite(cursorX)){
+            const span=Math.max(1,item.right-item.left);
+            progress=(cursorX-item.left)/span;
+          }
+          progress=Math.max(0,Math.min(1,progress));
+          const reveal=progress>=.999;
+          if(Math.abs((item.drawProgress??0)-progress)>.01||item.revealed!==reveal){
+            this.setDrawClip(item,progress);item.drawProgress=progress;item.revealed=reveal;changed=true;
+          }
         }
       }
+      if(changed)this.drawRevision++;
     }
     colors(){
       const p=hex(this.effects.paper,'#fffdf6');
@@ -431,13 +478,13 @@
       this.stageRoot.style.setProperty('--score-glow',glow);
       if(this.bgLayer){
         this.bgLayer.style.backgroundColor=paper;
-        const validTextures=['none','paper','parchment','grain','linen','dots'];
-        this.textureLayer.dataset.texture=validTextures.includes(this.effects.texture)?this.effects.texture:'none';
+        window.ScoreBackgroundPattern?.render(this.textureLayer,this.effects.texture,
+          this.stageRoot.clientWidth,this.stageRoot.clientHeight);
         // Asset URL is a project-specific same-origin endpoint, not a user URL.
         const url=String(this.effects.backgroundUrl||'');
         this.photoLayer.style.backgroundImage=url.startsWith('/api/projects/')?'url('+JSON.stringify(url)+')':'none';
         this.photoLayer.style.backgroundSize=this.effects.backgroundFit==='contain'?'contain':'cover';
-        this.photoLayer.style.backgroundPosition=`${clamp(Number(this.effects.backgroundPositionX)||50,0,100)}% ${clamp(Number(this.effects.backgroundPositionY)||50,0,100)}%`;
+        this.photoLayer.style.backgroundPosition=`${clamp(Number(this.effects.backgroundPositionX??50),0,100)}% ${clamp(Number(this.effects.backgroundPositionY??50),0,100)}%`;
         this.photoLayer.style.opacity=String(clamp(Number(this.effects.backgroundOpacity)||0,0,1));
       }
       if(this.glitterLayer)this.glitterLayer.style.display='none';
@@ -751,11 +798,19 @@
       if(!p){this.playbackCursor.hidden=true;return;}
       // Position values are measured in score-scroll content coordinates;
       // the cursor DOM node is attached inside the child score container.
-      const left=this.container.offsetLeft||0,top=this.container.offsetTop||0;
+      const left=this.container.offsetLeft||0;
+      // offsetTop excludes the centering margin used by single-line engraving.
+      // The sampled cursor position includes it, so remove it exactly once.
+      const top=(this.container.offsetTop||0)+(this.scoreVerticalLayout?.offset||0);
       this.playbackCursor.hidden=false;
       this.playbackCursor.style.left=`${(p.x-left).toFixed(2)}px`;
       this.playbackCursor.style.top=`${(p.y-top).toFixed(2)}px`;
       this.playbackCursor.style.height=`${p.height.toFixed(2)}px`;
+      // OSMD's cursor height follows engraving zoom; keep the line and glow
+      // proportional too, instead of leaving a fixed-width hairline.
+      const width=clamp(3*this.zoom/.9,2,7);
+      this.playbackCursor.style.setProperty('--playback-cursor-width',`${width.toFixed(2)}px`);
+      this.playbackCursor.style.setProperty('--playback-cursor-glow',`${(7*this.zoom/.9).toFixed(2)}px`);
     }
     findIndex(audioTime){
       const axis=this.audioTimestamps.length?this.audioTimestamps:this.timestamps;

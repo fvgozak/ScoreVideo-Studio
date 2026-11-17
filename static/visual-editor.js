@@ -60,7 +60,7 @@
     selectTab('project');
     return selectTab;
   }
-  function createScoreVisualEditor({frame,overlay,box,editButton,centerButton,controls,getResolution,getStage,commit,label}){
+  function createScoreVisualEditor({frame,overlay,box,editButton,controls,getResolution,getStage,commit,label}){
     const selectTab=initTabs();
     let active=false,dragging=null;
     const sizeLabel=document.getElementById('scoreEditSize');
@@ -80,12 +80,10 @@
       overlay.hidden=!active;
       editButton.setAttribute('aria-pressed',String(active));
       editButton.textContent=active?'✓ 영역 편집 완료':'▢ 악보 영역 편집';
-      centerButton.hidden=!active;
       sync();
     }
     function activate(){selectTab('score');setEditing(true);}
     editButton.addEventListener('click',()=>setEditing(!active));
-    centerButton.addEventListener('click',()=>{controls.x.value='50';label();sync();commit();});
     box.addEventListener('pointerdown',e=>{
       if(e.button!==0||!active)return;
       e.preventDefault();
@@ -103,10 +101,15 @@
       const next=move(d.start,d.mode,dx,dy,d.stageSize.width,d.stageSize.height);
       for(const [key,c] of Object.entries(controls))c.value=String(next[key]);
       label();
-      const g=sync();
-      // Immediate WYSIWYG while dragging; expensive OSMD re-layout only on release.
+      sync();
+      // The edit box uses output-relative percentages, but the live SVG window
+      // belongs to the (possibly downscaled) preview stage. Use that stage's
+      // actual pixel dimensions rather than the export resolution.
       const stage=getStage();
-      if(stage?.scoreWindow&&g){
+      if(stage?.scoreWindow){
+        const previewWidth=stage.settings?.width||d.stageSize.width;
+        const previewHeight=stage.settings?.height||d.stageSize.height;
+        const g=geometry(next,previewWidth,previewHeight);
         Object.assign(stage.scoreWindow.style,{left:`${g.left}px`,top:`${g.top}px`,width:`${g.width}px`,height:`${g.height}px`});
       }
     });

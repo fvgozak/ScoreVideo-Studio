@@ -19,18 +19,21 @@ window.ScoreOfflinePrototype={
   const width=mode==='simple'?1280:stage.settings.width,height=mode==='simple'?720:stage.settings.height;
   const composer=mode==='simple'?null:await window.ScoreWebmRecorder.createDiagnosticComposer(stage);
   const canvas=composer?.canvas||document.createElement('canvas');canvas.width=width;canvas.height=height;
-  const scoreOverlay=composer&&scoreGlow?createScoreGlowOverlay(stage,canvas):null;
+  // Inspect a live export frame without finishing the full song. This is the
+  // actual GPU compositor canvas used by CanvasSource, not the editor preview.
+  window.__scoreExportFrameCanvas=canvas;
+  const scoreOverlay=composer&&!composer.gpu&&scoreGlow?createScoreGlowOverlay(stage,canvas):null;
   let staticHeads=null;
   const context=mode==='simple'?canvas.getContext('2d',{alpha:false}):null;
   let frameCount=Math.round(seconds*fps);
   const times={scene:[],compose:[],scoreOverlay:[],encode:[],background:[],piano:[],score:[],effects:[],svgDecode:[],pianoPaint:[],pianoCopy:[]};
-  let svgDecodes=0;
+  let svgDecodes=0,svgCacheHits=0,visibleSvgTiles=0,rasterCachePeakBytes=0,pianoLayerInfo=[],keyboardCamera=null,keyboardPixelProbe=null;
   let output=null,source=null,completed=0,finalized=false,opfs=null,audioInfo=null,audioTrack=null,audioTask=null;
   let audioEncodeError=null,audioEncodeStats=null,audioEncodeMs=0,audioWaitMs=0;
   let pianoCalls=0,pianoDrawInfo=null,pianoResizes=0,pianoCopiedPixels=0;
   const piano=mode==='simple'?null:stage?.piano,domPianoCanvas=piano?.canvas;
-  const originalDrawImage=composer?.canvas.getContext('2d').drawImage;
   const compositeContext=composer?.canvas.getContext('2d');
+  const originalDrawImage=compositeContext?.drawImage;
   const originalFillText=compositeContext?.fillText;
   const hadOwnFillText=Boolean(compositeContext&&Object.hasOwn(compositeContext,'fillText'));
   let titleDrawIndex=0,titleDrawCalls=0,titleSkipped=0;
@@ -123,7 +126,11 @@ window.ScoreOfflinePrototype={
       times.scene.push(performance.now()-before);
       before=performance.now();
       titleDrawIndex=0;deferredTitles.length=0;
-      if(composer){const metrics=await composer.compose(time);times.background.push(metrics.backgroundMs||0);times.piano.push(metrics.pianoMs||0);times.score.push(metrics.scoreMs||0);times.effects.push(metrics.effectsMs||0);times.svgDecode.push(metrics.svgDecodeMs||0);svgDecodes+=metrics.svgDecodes||0;}
+      if(composer){const metrics=await composer.compose(time);times.background.push(metrics.backgroundMs||0);times.piano.push(metrics.pianoMs||0);times.score.push(metrics.scoreMs||0);times.effects.push(metrics.effectsMs||0);times.svgDecode.push(metrics.svgDecodeMs||0);svgDecodes+=metrics.svgDecodes||0;
+        svgCacheHits+=metrics.tileCacheHits||0;visibleSvgTiles+=metrics.visibleTiles||0;
+        rasterCachePeakBytes=Math.max(rasterCachePeakBytes,metrics.rasterCacheBytes||0);
+        if(frame===0){pianoLayerInfo=metrics.pianoLayerInfo||[];keyboardCamera=metrics.keyboardCamera||null;
+          keyboardPixelProbe=metrics.keyboardPixelProbe||null;}}
       times.compose.push(performance.now()-before);
       staticHeads?.draw();
       if(scoreOverlay){before=performance.now();await scoreOverlay.draw();times.scoreOverlay.push(performance.now()-before);}
@@ -138,7 +145,14 @@ window.ScoreOfflinePrototype={
       if(source)await source.add(time,1/fps);
       times.encode.push(performance.now()-before);
       completed++;
-      if(frame%20===0){window.__offlineProgress={mode,completed,frameCount};jsHeapPeak=Math.max(jsHeapPeak,performance.memory?.usedJSHeapSize||0);await new Promise(resolve=>setTimeout(resolve,0));}
+      if(frame%20===0){
+        const mean100=values=>{const tail=values.slice(-100);return +(tail.reduce((a,b)=>a+b,0)/Math.max(1,tail.length)).toFixed(2);};
+        const cpuTiming100Ms={scene:mean100(times.scene),compose:mean100(times.compose),
+          piano:mean100(times.piano),score:mean100(times.score),effects:mean100(times.effects),
+          svgDecode:mean100(times.svgDecode),encode:mean100(times.encode)};
+        window.__offlineProgress={mode,completed,frameCount,svgDecodes,svgCacheHits,
+          visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,cpuTiming100Ms};
+        jsHeapPeak=Math.max(jsHeapPeak,performance.memory?.usedJSHeapSize||0);await new Promise(resolve=>setTimeout(resolve,0));}
     }
     const audioWaitStarted=performance.now();if(audioTask)await audioTask;
     audioWaitMs=performance.now()-audioWaitStarted;
@@ -149,12 +163,12 @@ window.ScoreOfflinePrototype={
     if(cancelRequested)throw Error('Cancelled');
     const resultFile=opfs?await opfs.handle.getFile():null;
     const bytes=resultFile?.size||output?.target.buffer?.byteLength||0;
-    if(capturePixels&&composer)window.__offlinePixels=compositeContext.getImageData(0,0,width,height).data.slice();
+    if(capturePixels&&composer)throw Error('GPU 합성에서는 Canvas2D 픽셀 캡처를 지원하지 않습니다.');
     if(output){window.__offlineResult=resultFile||new Blob([output.target.buffer],{type:'video/mp4'});
       if(opfs){const {directory,name}=opfs;releaseResult=()=>directory.removeEntry(name);}}
     const spriteStats=exportCache?.stats();
     const fxRequested=stage?.settings?.piano?.fxRenderer||'canvas';
-    const fxPiano=stage?.piano?.gpu?'pixi':'canvas';
+    const fxPiano=stage?.piano?.dynamic&&!stage?.settings?.effects?.minimalMode?'dynamic-webgl2':stage?.piano?.gpu?'pixi':'canvas';
     const fxScore=stage?.scoreGpu?'pixi':'canvas';
     return {mode,pianoMode,pianoOptimizationApplied,scoreGlow,startSeconds,width,height,fps,seconds,frames:completed,bytes,
       fxRendererRequested:fxRequested,fxRendererPiano:fxPiano,fxRendererScore:fxScore,
@@ -163,7 +177,7 @@ window.ScoreOfflinePrototype={
       audioFetchMs:+(audioInfo?.fetchMs||0).toFixed(2),audioDecodeMs:+(audioInfo?.decodeMs||0).toFixed(2),
       audioEncodeMs:+audioEncodeMs.toFixed(2),audioWaitMs:+audioWaitMs.toFixed(2),
       audioEncodedPackets:audioTrack?.packetCount||0,audio:audioEncodeStats,
-      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:scoreOverlay?.stats()||null,staticHeads:staticHeads?.stats()||null,titleDrawCalls,titleSkipped,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls,pianoResizes,pianoCopiedPixels,pianoDrawInfo,spriteCreates:spriteStats?.creates||0,spriteHits:spriteStats?.hits||0,spriteBuildMs:spriteStats?.buildMs||0,peakSpriteBytes:spriteStats?.peakBytes||0,spriteEvictions:spriteStats?.evictions||0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
+      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:scoreOverlay?.stats()||null,staticHeads:staticHeads?.stats()||null,titleDrawCalls,titleSkipped,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls,pianoResizes,pianoCopiedPixels,pianoDrawInfo,spriteCreates:spriteStats?.creates||0,spriteHits:spriteStats?.hits||0,spriteBuildMs:spriteStats?.buildMs||0,peakSpriteBytes:spriteStats?.peakBytes||0,spriteEvictions:spriteStats?.evictions||0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,svgCacheHits,visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
   }catch(error){cancelRequested=true;if(output&&!finalized)try{await output.cancel();}catch(_){}
     if(audioTask)await audioTask;
     if(opfs)try{await opfs.directory.removeEntry(opfs.name);}catch(_){}
@@ -175,5 +189,6 @@ window.ScoreOfflinePrototype={
     if(compositeContext){if(hadOwnCompositeDrawImage)compositeContext.drawImage=originalDrawImage;else delete compositeContext.drawImage;
       if(hadOwnFillText)compositeContext.fillText=originalFillText;else delete compositeContext.fillText;}
     staticHeads?.close();scoreOverlay?.close();composer?.close();window.__offlineProgress=null;
+    if(window.__scoreExportFrameCanvas===canvas)window.__scoreExportFrameCanvas=null;
   }
 }};

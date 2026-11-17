@@ -4,8 +4,11 @@
  const $=id=>document.getElementById(id),audio=$('audioPlayer'),transport=window.ScoreTransport;
  window.ScoreHexControls?.setup();
  const inputIds=['score','midi','audio'],labelIds=['scoreName','midiName','audioName'];
- const persistent=['fxRenderer','gpuPreset','gpuClassicOn','gpuClassicStrength','gpuBloomOn','gpuBloomStrength','gpuOutlineOn','gpuOutlineStrength','gpuStardustOn','gpuStardustStrength','pedalResonance','sustainAfterglow','minimalMode','minimalPaletteMode','minimalNoteColor','minimalWhiteColor','minimalBlackColor','minimalPedalColor','paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','aspectRatio','outputQuality','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
- 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreCropTop','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','videoQuality','videoBitrate','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor','trailLength','trailBrightness','trailThickness','trailDuration','customAspectWidth','customAspectHeight'];
+ const persistent=['fxRenderer','gpuPreset','gpuClassicOn','gpuClassicStrength','gpuBloomOn','gpuBloomStrength','gpuOutlineOn','gpuOutlineStrength','gpuStardustOn','gpuStardustStrength','pedalResonance','sustainAfterglow','minimalMode','minimalPaletteMode','minimalNoteColor','minimalWhiteColor','minimalBlackColor','minimalPedalColor','paperColor','staffColor','inkColor','accentColor','glowColor','cursorColor','cursorVisible','cursorMotion','themeColor','paletteTheme','texture','inverted','glitter','sparkle','velocityReactive','noteMotion','motionStrength','drawScore','scoreVisible','pianoEnabled','pianoCamera','pianoKeyStyle','pianoWhiteKeyColor','pianoBlackKeyColor','scoreImpactEnabled','scoreImpactStrength','pianoLight','pianoLightStrength','layoutMode','notationStyle','scorePosX','scorePosY','zoom','aspectRatio','outputQuality','resolution','fps','backgroundOpacity','backgroundFit','backgroundPosX','backgroundPosY',
+ 'scoreAreaX','scoreAreaWidth','scoreAreaHeight','scoreCropTop','scoreMarginTop','scoreMarginBottom','scorePanelColor','scorePanelOpacity','renderMode','videoQuality','videoBitrate','sceneTemplate','cameraMode','fxMode','fxStrength','lightColorMode','velocityScale','auroraPreset','auroraLow','auroraHigh','titleText','titleFont','titleGap','artistText','creditText','showText','animateBackground','sceneStartColor','sceneEndColor','sceneStartGlow','sceneEndGlow','transitionTime','trailUpperColor','trailLowerColor','trailLength','trailBrightness','trailThickness','trailDuration','customAspectWidth','customAspectHeight',
+ 'scoreFxPreset','scoreColorPreset','keyboardFxPreset','keyboardColorPreset','keyboardColorLow','keyboardColorHigh','keyboardVelocityColor','keyboardPaletteLink','keyboardVelocityScale','keyboardGlowSize','keyboardParticleDensity','keyboardParticleSize','keyboardParticleLife','keyboardCurlStrength','keyboardDensityFastWeight','keyboardBloomStrength','keyboardBloomRadius','keyboardVelocityContrast',
+ 'keyboardLightingMode','keyboardBaseBrightness','keyboardLightingSensitivity','keyboardBrightnessOffset','keyboardTemperatureSync','keyboardWhiteBrightness','keyboardBlackBrightness','keyboardReflectionStrength',
+ 'keyboardBoundaryStyle','keyboardBoundaryStrength','keyboardBoundaryThickness','keyboardBoundaryReaction','keyboardBoundarySpeed','keyboardBoundaryColorMode','keyboardBoundaryColor'];
  persistent.push('gpuCoreStrength','gpuCoreRadius','gpuMidStrength','gpuMidRadius','gpuHaloStrength','gpuHaloRadius');
  persistent.push('gpuBurstOn','gpuParticleCount','gpuParticleSize','gpuParticleSpeed',
    'gpuParticleDirection','gpuParticleSpread','gpuParticleLife','gpuParticleBrightness');
@@ -13,6 +16,21 @@
  persistent.push('gpuTrailOn','gpuTrailStrength','gpuTrailLength','gpuTrailDuration');
  persistent.push('gpuCinematicOn','gpuCinematicStrength','gpuMusicReaction');
  const storeKey='scorevideo_studio_v05_settings';
+ const effectSettingIds=persistent.filter(id=>$(id)?.closest('.fx-group')||
+   ['paperColor','staffColor','inkColor','cursorColor','accentColor','glowColor','auroraLow','auroraHigh','paletteTheme'].includes(id));
+ let effectSaveTimer=null;
+ function saveProjectEffects(){
+   if(!project)return;
+   clearTimeout(effectSaveTimer);
+   const id=project.id;
+   effectSaveTimer=setTimeout(()=>{
+     if(project?.id!==id)return;
+     const settings={};for(const key of effectSettingIds){const node=$(key);settings[key]=node.type==='checkbox'?node.checked:node.value;}
+     void fetch(`/api/projects/${id}/effect-settings`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)})
+       .then(response=>{if(!response.ok)throw Error(`HTTP ${response.status}`)})
+       .catch(error=>console.warn('Effect settings save failed:',error));
+   },550);
+ }
  const exportModeKey='scorevideo_mp4_engine_v1';
  let project=null,stage=null,polling=null,raf=null,applySerial=Promise.resolve(),revision=0,cancelReturnTime=null,activeDownloadJob=null;
  const attemptedDownloads=new Set();
@@ -84,7 +102,7 @@
      `${fmt(seconds)} 분량을 실제 재생 없이 프레임별로 생성합니다. 출력 시간은 컴퓨터 성능에 따라 달라집니다.`:
      `예상 시간: ${mp4MeasuredFps&&seconds?fmt(Math.ceil(seconds*fps/mp4MeasuredFps)):'첫 FFmpeg 출력 후 측정 가능'}${mp4MeasuredFps?` (이전 출력 평균 ${mp4MeasuredFps.toFixed(1)}프레임/초 기준)`:''} · 기존 Chromium + FFmpeg 경로`;
  }
- const renderEditTargets=()=>[document.querySelector('.sidebar'),document.querySelector('.preview-zoom-bar'),document.querySelector('.layer-visibility-controls'),...document.querySelectorAll('.preview-actions > :not(#cancelRenderButton):not(#cancelWebmButton):not(.preview-info)')].filter(Boolean);
+ const renderEditTargets=()=>[document.querySelector('.sidebar'),document.querySelector('.preview-zoom-bar'),document.querySelector('.layer-selection'),...document.querySelectorAll('.preview-actions > :not(#cancelRenderButton):not(#cancelWebmButton):not(.preview-info)')].filter(Boolean);
  function setRenderUi(active,status={}){
    if(active!==renderUiActive){
      renderUiActive=active;
@@ -168,6 +186,25 @@
  function gpuEffects(){
    const result={preset:$('gpuPreset').value,pedalResonance:$('pedalResonance').checked,
      sustainAfterglow:$('sustainAfterglow').checked,
+     groups:{overall:$('minimalMode').checked?'minimal':$('gpuPreset').value,
+       score:{effectPreset:$('scoreFxPreset').value,colorPreset:$('scoreColorPreset').value},
+       keyboard:{effectPreset:$('keyboardFxPreset').value,colorPreset:$('keyboardColorPreset').value}},
+     keyboard:{colorLow:$('keyboardColorPreset').value==='linked'?null:$('keyboardColorLow').value,
+       colorHigh:$('keyboardColorPreset').value==='linked'?null:$('keyboardColorHigh').value,
+       velocityColor:$('keyboardVelocityColor').checked,paletteLink:$('keyboardPaletteLink').checked,
+       velocityScale:$('keyboardVelocityScale').value,
+       glowSize:Number($('keyboardGlowSize').value),particleDensity:Number($('keyboardParticleDensity').value),
+       particleSize:Number($('keyboardParticleSize').value),particleLife:Number($('keyboardParticleLife').value),
+       curlStrength:Number($('keyboardCurlStrength').value),densityFastWeight:Number($('keyboardDensityFastWeight').value),
+       bloomStrength:Number($('keyboardBloomStrength').value),bloomRadius:Number($('keyboardBloomRadius').value),velocityContrast:Number($('keyboardVelocityContrast').value),
+       lightingMode:$('keyboardLightingMode').value,baseBrightness:Number($('keyboardBaseBrightness').value),
+       sensitivity:Number($('keyboardLightingSensitivity').value),brightnessOffset:Number($('keyboardBrightnessOffset').value),
+       temperatureSync:$('keyboardTemperatureSync').checked,whiteBrightness:Number($('keyboardWhiteBrightness').value),
+       blackBrightness:Number($('keyboardBlackBrightness').value),reflectionStrength:Number($('keyboardReflectionStrength').value),
+       boundaryLight:{style:$('keyboardBoundaryStyle').value,strength:Number($('keyboardBoundaryStrength').value),
+         thickness:Number($('keyboardBoundaryThickness').value),reaction:Number($('keyboardBoundaryReaction').value),
+         speed:Number($('keyboardBoundarySpeed').value),
+         colorMode:$('keyboardBoundaryColorMode').value,color:$('keyboardBoundaryColor').value}},
      cinematic:{on:$('gpuCinematicOn').checked,strength:Number($('gpuCinematicStrength').value),
        reaction:Number($('gpuMusicReaction').value)},
      glow:{core:{strength:Number($('gpuCoreStrength').value),radius:Number($('gpuCoreRadius').value)},
@@ -236,13 +273,31 @@
    await stage?.setSettings(previewConfig());
  }
  function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));}
+ function useGpuRenderer(){
+   const select=$('fxRenderer');
+   for(const option of select.options)option.disabled=option.value!=='pixi';
+   select.value='pixi';
+ }
  function restoreSettings(){try{
    const data=JSON.parse(localStorage.getItem(storeKey)||'{}');
    if(data.fxMode==='aurora'&&!data.lightColorMode){data.fxMode='bloom';data.lightColorMode='aurora';}
    for(const id of persistent){const node=$(id);if(data[id]===undefined)continue;if(node.type==='checkbox')node.checked=!!data[id];else node.value=data[id];}
+   for(const id of ['scoreFxPreset','scoreColorPreset','keyboardFxPreset'])
+     if(data[id]===undefined)$(id).value='custom';
+   // Existing saved projects with no horizon-light setting retain the original hitline.
+   if(data.keyboardBoundaryStyle===undefined&&Object.keys(data).length) $('keyboardBoundaryStyle').value='none';
+   if(data.keyboardColorPreset===undefined){
+     const legacy=Object.keys(data).length>0;
+     $('keyboardColorPreset').value=legacy?'linked':'project';
+     if(legacy)$('keyboardPaletteLink').checked=true;
+   }
    if(data.minimalNoteColor===undefined)recommendMinimalColors();
+   window.ScoreFxGroups?.syncBoundaryUi();
+   window.ScoreFxGroups?.syncLightingUi();
+   window.ScoreFxGroups?.syncCustomColors();
+   window.ScoreFxGroups?.syncPreview();
    migrateOutputSize(data);
- }catch(e){syncOutputSize();}updateLabels();resizePreview();}
+ }catch(e){syncOutputSize();}useGpuRenderer();updateLabels();resizePreview();}
  const videoPresetStoreKey='scorevideo_named_video_presets_v1';
  function readVideoPresets(){try{const items=JSON.parse(localStorage.getItem(videoPresetStoreKey)||'[]');return Array.isArray(items)?items.filter(x=>x&&x.id&&x.name&&x.projectId&&x.settings):[];}catch(_){return[];}}
  function refreshVideoPresets(selectedId=''){
@@ -293,6 +348,7 @@
        const node=$(id),value=preset.settings[id];if(value===undefined)continue;
        if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
      }
+     useGpuRenderer();
      if(preset.settings.minimalMode===undefined)$('minimalMode').checked=false;
      if(preset.settings.minimalNoteColor===undefined)recommendMinimalColors();
      migrateOutputSize(preset.settings);
@@ -337,6 +393,9 @@
    if(velocities.length){
      const lo=velocities.reduce((a,b)=>Math.min(a,b),127),hi=velocities.reduce((a,b)=>Math.max(a,b),1);
      $('velocityRangeInfo').textContent=`현재 MIDI: ${lo}~${hi} · 절대값은 1~127, 상대값은 이 범위 전체를 사용`;
+     $('keyboardVelocityRangeInfo').textContent=lo===hi
+       ? `MIDI 벨로시티가 모두 ${lo}로 동일합니다. 음표별 색상 변화가 불가능합니다.`
+       : `현재 MIDI ${lo}~${hi} · 상대값에서는 약한 타건 ${lo}부터 강한 타건 ${hi}까지 색상 전체를 사용합니다.`;
      if($('lightColorMode').value==='aurora'&&lo===hi){
        uniformWarning.textContent=`이 MIDI의 모든 음표가 벨로시티 ${lo}로 같습니다. 강약 차이가 없어 Aurora 색상도 변하지 않습니다. 색 변화를 원하면 벨로시티가 다른 MIDI를 사용하세요.`;
        uniformWarning.hidden=false;
@@ -347,12 +406,13 @@
    $('backgroundTrack').style.background=`linear-gradient(90deg,${$('sceneStartColor').value},${$('sceneEndColor').value})`;
    $('trailOptions').hidden=$('fxMode').value!=='trail';
    $('cameraPointTools').hidden=$('cameraMode').value!=='points';
+   window.ScoreWorkspaceUi?.syncCards();
  }
  function resizePreview(){
    const {width:w,height:h}=exportGeometry?config():previewConfig();
    const surround=$('previewSurround'),frame=$('stageFrame'),viewport=$('scoreViewport');
    const avail=Math.max(140,surround.clientWidth-24);
-   const desktop=window.matchMedia('(min-width:951px)').matches;
+   const desktop=window.matchMedia('(min-width:701px)').matches;
    const inFullscreen=document.fullscreenElement===$('playerDock');
    const heightLimit=inFullscreen?Math.max(125,surround.clientHeight-12):desktop?Math.max(125,surround.clientHeight-20)
      :Math.max(180,Math.min(window.innerHeight*.5,570));
@@ -366,7 +426,7 @@
  function queueApply(){
    revision++;
    const myRevision=revision,setting=previewConfig();
-   saveSettings();updateLabels();resizePreview();
+   saveSettings();saveProjectEffects();updateLabels();resizePreview();
    if(!stage){$('scoreViewport').style.backgroundColor=setting.paper_color;return;}
    $('previewInfo').textContent='설정을 미리보기에 적용 중…';
    applySerial=applySerial.catch(()=>{}).then(async()=>{
@@ -395,12 +455,24 @@
    if(reason)$('fxRendererStatus').removeAttribute('data-i18n');
    else $('fxRendererStatus').setAttribute('data-i18n',actual==='pixi'?'effects.rendererActive':'effects.rendererDefault');
    $('fxRendererStatus').textContent=reason
-     ?window.ScoreI18n?.t('effects.rendererFallback',{reason})||`GPU 실패: ${reason} · Canvas2D 사용`
+     ?(window.ScoreI18n?.t('effects.rendererError',{reason})||`GPU renderer error: ${reason}`)
      :actual==='pixi'?(window.ScoreI18n?.t('effects.rendererActive')||'현재 사용: PixiJS GPU')
        :(window.ScoreI18n?.t('effects.rendererDefault')||'현재 사용: 기존 Canvas2D');
  });
+ $('scoreViewport').addEventListener('score-keyboard-renderer',event=>{
+   const {actual,reason}=event.detail||{};
+   if(actual==='dynamic'||actual==='legacy'){
+     const key=actual==='dynamic'?'effects.rendererDynamic':'effects.rendererDefault';
+     $('fxRendererStatus').setAttribute('data-i18n',key);
+     $('fxRendererStatus').textContent=window.ScoreI18n?.t(key)||
+       (actual==='dynamic'?'현재 사용: Dynamic FX v1.6':'현재 사용: 기존 건반');
+   }else if(actual==='error'){
+     $('fxRendererStatus').removeAttribute('data-i18n');
+     $('fxRendererStatus').textContent=window.ScoreI18n?.t('effects.rendererError',{reason})||reason;
+   }
+ });
  for(const id of persistent){
-   if(['sceneTemplate','themeColor','auroraPreset','auroraLow','auroraHigh','zoom','scorePosX','scorePosY','aspectRatio','outputQuality','resolution'].includes(id))continue;
+   if(['sceneTemplate','themeColor','paletteTheme','auroraPreset','auroraLow','auroraHigh','zoom','scorePosX','scorePosY','aspectRatio','outputQuality','resolution'].includes(id))continue;
    $(id).addEventListener('input',queueApply);
    $(id).addEventListener('change',queueApply);
  }
@@ -587,7 +659,6 @@
    if(!validImage(file,paletteMessage))return;
    const serial=++paletteSerial;
    paletteSourceFile=file;
-   $('paletteResults').hidden=true;
    $('paletteSetBackground').disabled=false;
    paletteMessage('이미지에서 색상 조합을 찾고 있습니다…');
    if(paletteArtworkURL)URL.revokeObjectURL(paletteArtworkURL);
@@ -603,32 +674,100 @@
      if(serial!==paletteSerial)return;
      window.ScoreImagePaletteUI.chips(result.palette);
      window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>void applyPaletteScheme(scheme,result.primary));
+     $('paletteColorsTitle').setAttribute('data-i18n','palette.imageColors');
+     $('paletteColorsTitle').textContent=window.ScoreI18n?.t('palette.imageColors')||'추출된 대표 색상';
      $('paletteResults').hidden=false;
      paletteMessage(`${result.palette.length}개 주요 색상과 ${result.schemes.length}개 악보 조합을 찾았어요. 영상 배경은 변경하지 않았습니다.`);
    }catch(error){if(serial===paletteSerial){
-     $('paletteResults').hidden=true;
      paletteMessage('색상 추출 실패: '+error.message,true);
    }}
  }
+ async function showThemePalette(){
+   const serial=++paletteSerial,theme=$('paletteTheme').value;
+   try{
+     const response=await fetch(`/api/palette/themes?theme=${encodeURIComponent(theme)}`);
+     if(!response.ok)throw Error(`HTTP ${response.status}`);
+     const result=await response.json();
+     if(serial!==paletteSerial)return;
+     window.ScoreImagePaletteUI.chips(result.palette);
+     window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>void applyPaletteScheme(scheme,result.primary));
+     $('paletteColorsTitle').setAttribute('data-i18n','palette.themeColors');
+     $('paletteColorsTitle').textContent=window.ScoreI18n?.t('palette.themeColors')||'테마 대표 색상';
+     $('paletteResults').hidden=false;
+     paletteMessage('테마 색상을 선택했습니다. 아래 추천 악보 디자인을 바로 적용할 수 있어요.');
+   }catch(error){if(serial===paletteSerial)paletteMessage('테마 색상 불러오기 실패: '+error.message,true);}
+ }
+ $('paletteTheme').addEventListener('change',()=>{saveSettings();saveProjectEffects();void showThemePalette();});
  async function applyPaletteScheme(scheme,primary){
    const c=scheme?.colors;if(!c)return;
+   const valid=color=>/^#[0-9a-f]{6}$/i.test(color||'');
+   // Apply the recommended design as one coherent score + light palette.
+   // Do not alter the user's video background image or FX intensity presets.
    for(const [id,key] of Object.entries({paperColor:'paper',inkColor:'ink',staffColor:'staff',accentColor:'accent',glowColor:'glow',cursorColor:'cursor',
      trailUpperColor:'trail_upper',trailLowerColor:'trail_lower',auroraLow:'aurora_low',auroraHigh:'aurora_high',scorePanelColor:'panel'})){
-       if(/^#[0-9a-f]{6}$/i.test(c[key]||''))$(id).value=c[key];
+       if(valid(c[key]))$(id).value=c[key];
    }
-   if(/^#[0-9a-f]{6}$/i.test(primary||''))$('themeColor').value=primary;
-   $('sceneStartColor').value=c.paper;$('sceneEndColor').value=c.paper;
-   $('sceneStartGlow').value=c.glow;$('sceneEndGlow').value=c.glow;
+   if(valid(primary))$('themeColor').value=primary;
+   const background=valid(c.background)?c.background:$('paperColor').value;
+   $('sceneStartColor').value=background;$('sceneEndColor').value=background;
+   $('animateBackground').checked=true;
+   $('sceneStartGlow').value=$('glowColor').value;$('sceneEndGlow').value=$('glowColor').value;
    $('auroraPreset').value='custom';
-   $('animateBackground').checked=false;
+   // Previously only the Aurora endpoints changed; solid mode ignored them.
+   // A recommendation should show the selected light colors immediately.
+   $('lightColorMode').value='aurora';
    $('inverted').checked=false;
-   // Keep scene effects/velocity scale/user font choices, but ensure the
-   // recommended score colors are not overridden by animated background.
+   // A recommended panel is a translucent surface, not an opaque rectangle.
+   // Balance the scheme's preferred look with readable ink/staves on the
+   // composite. For photos, test bright/dark image regions at the user's
+   // current image opacity without changing the actual video background.
    const hasPhoto=Boolean(project?.background_filename||pendingBackgroundFile);
-   $('scorePanelOpacity').value=hasPhoto?String(Math.round(Number(scheme.panel_opacity||.65)*100/5)*5):'0';
+   const clamp01=x=>Math.max(0,Math.min(1,x));
+   const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+   const brightness=channels=>channels.map(v=>{
+     const x=v/255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4;
+   }).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+   const contrast=(a,b)=>{const x=brightness(a),y=brightness(b);
+     return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+   const panel=$('scorePanelColor').value;
+   const sceneBackground=valid(c.background)?c.background:$('paperColor').value;
+   const photoOpacity=hasPhoto?clamp01(Number($('backgroundOpacity').value)||0):0;
+   const baseRgb=rgb(sceneBackground);
+   const possibleBackgrounds=[baseRgb];
+   if(photoOpacity>0){
+     // Known flat scene color remains visible through the photograph.
+     for(const extreme of [0,255])possibleBackgrounds.push(baseRgb.map(v=>
+       extreme*photoOpacity+v*(1-photoOpacity)));
+   }
+   const recommended=Number(scheme.panel_opacity);
+   const base=Number.isFinite(recommended)?clamp01(recommended):.75;
+   // Less masking when the scene is flat, slightly more for busy photographs.
+   const preferred=Math.max(hasPhoto?.55:.40,Math.min(hasPhoto?.85:.75,base-(hasPhoto?.10:.20)));
+   const noteRgb=rgb($('inkColor').value),staffRgb=rgb($('staffColor').value);
+   let panelOpacity=Math.round(preferred*20)/20;
+   // Readable engraved notes/staff lines; only increase opacity as necessary.
+   // Never force 100%, even for a challenging background image.
+   while(panelOpacity<.90&&possibleBackgrounds.some(bg=>{
+     const panelRgb=rgb(panel).map((v,i)=>v*panelOpacity+bg[i]*(1-panelOpacity));
+     return contrast(noteRgb,panelRgb)<7||contrast(staffRgb,panelRgb)<3;
+   }))panelOpacity=Math.round((panelOpacity+.05)*20)/20;
+   $('scorePanelOpacity').value=String(Math.round(Math.min(.90,panelOpacity)*100));
+   // Link the keyboard to the selected Aurora colors; the same palette drives
+   // WebGL fall bars, key strikes and particles. This is only done on click:
+   // users can independently customize either side afterward.
+   $('keyboardColorLow').value=$('auroraLow').value;
+   $('keyboardColorHigh').value=$('auroraHigh').value;
+   $('keyboardColorPreset').value='linked';
+   $('keyboardPaletteLink').checked=true;
+   $('keyboardVelocityColor').checked=true;
+   // Keep existing keyboard brightness offsets available for manual edits.
+   if($('keyboardLightingMode').value==='manual')$('keyboardFxPreset').value='custom';
+   $('keyboardLightingMode').value='auto';
+   window.ScoreFxGroups?.syncLightingUi();
    recommendMinimalColors();
+   document.dispatchEvent(new CustomEvent('score-palette-applied',{detail:{...c,projectId:project?.id}}));
    queueApply();
-   paletteMessage(`${scheme.name} 디자인을 적용했습니다. 배경 이미지는 그대로 유지됩니다. 색상은 개별 수정할 수 있어요.`);
+   paletteMessage(`${scheme.name} 디자인을 적용했습니다. 악보 영역은 가독성에 맞춘 ${$('scorePanelOpacity').value}% 반투명 패널입니다. 빛·건반 색상은 함께 적용하고 영상 배경 이미지는 유지됩니다.`);
  }
  $('paletteImageFile').addEventListener('change',()=>{
    const file=$('paletteImageFile').files?.[0];
@@ -719,6 +858,7 @@
 
  function refreshBackground(){
    const hasBackground=Boolean(project?.background_filename);
+   $('paletteThemeControls').hidden=hasBackground||Boolean(pendingBackgroundFile);
    $('removeBackground').hidden=!hasBackground&&!pendingBackgroundFile;
    $('paletteFromBackground').hidden=!hasBackground;
    $('backgroundName').textContent=hasBackground?`현재 영상 배경 · ${project.background_original_name||project.background_filename}`:
@@ -744,6 +884,17 @@
    window.ScoreVisualEditor?.setEditing(false);
    $('scoreEditOverlay').hidden=true;
    project=meta;mp4MeasuredFps=0;experimentalOptIn=false;$('downloadName').value='';selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();
+   for(const [id,value] of Object.entries(meta.effect_settings||{})){
+     if(!effectSettingIds.includes(id))continue;
+     const node=$(id);if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
+   }
+   if(meta.background_filename){
+     ++paletteSerial;
+     $('paletteResults').hidden=true;
+   }else if(!paletteSourceFile)void showThemePalette();
+   window.ScoreFxGroups?.syncLightingUi();
+   window.ScoreFxGroups?.syncCustomColors();
+   window.ScoreFxGroups?.syncPreview();
    $('downloadLink').hidden=true;
    if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;void window.ScoreOfflineExport.release();}
    if(webmDownloadUrl){URL.revokeObjectURL(webmDownloadUrl);void webmRelease?.();webmDownloadUrl=null;webmRelease=null;$('webmDownloadLink').hidden=true;}
@@ -796,6 +947,8 @@
      message(`악보/MIDI 음표 매칭 ${Math.round(meta.score_alignment.coverage*100)}% — 일치하지 않는 음표가 있어 영상 싱크를 확인해 주세요.`,true);
    }else if(meta.repeat_info?.mode==='unfolded'){
      message(`되돌이표를 MIDI 연주 순서로 전개했습니다 (${meta.repeat_info.source_measures}→${meta.repeat_info.playback_measures}마디). 미리보기·MP4에 동일 적용됩니다.`);
+   }else if(meta.repeat_info?.warning){
+     message(`되돌이표 확인: ${meta.repeat_info.warning}`,true);
    }else if(!hasScore)message('MIDI 건반 영상 준비 완료. Salamander 피아노 음원과 MP4 출력에 동일하게 적용됩니다.');
    else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
  }
@@ -947,13 +1100,13 @@
        activeDownloadJob=null;
        void fetch(`/api/projects/${projectId}/render-diagnostics`).then(r=>r.ok?r.json():null).then(report=>{if(project?.id===projectId&&Number(report?.frame_processing_fps)>0){mp4MeasuredFps=Number(report.frame_processing_fps);updateExportUi();}}).catch(()=>{});
        setRenderUi(false);
-       window.ScoreVisualEditor?.selectTab(project.has_score===false?'design':'score');
+       window.ScoreVisualEditor?.selectTab(project.has_score===false?'scene':'score');
      }
      else if(s.state==='cancelled'){
        activeDownloadJob=null;$('downloadLink').hidden=true;
        setRenderUi(false);
        if(cancelReturnTime!==null){seekTo(cancelReturnTime);cancelReturnTime=null;}
-       window.ScoreVisualEditor?.selectTab(project.has_score===false?'design':'score');
+       window.ScoreVisualEditor?.selectTab(project.has_score===false?'scene':'score');
        message('렌더링을 취소했습니다. 편집을 계속할 수 있습니다.');
      }else{activeDownloadJob=null;$('downloadLink').hidden=true;setRenderUi(false);message('MP4 출력 실패: '+s.message,true);}
      renderUiJob=null;updateExportUi();
@@ -1008,7 +1161,7 @@
      if(token===offlineEpoch){offlineActive=false;offlineCancelPending=false;$('cancelRenderButton').hidden=true;
        $('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';
        setRenderUi(false);updateExportUi();seekTo(offlineReturnTime);
-       window.ScoreVisualEditor?.selectTab(project?.has_score===false?'design':'score');}
+       window.ScoreVisualEditor?.selectTab(project?.has_score===false?'scene':'score');}
    }
  }
  $('exportButton').addEventListener('click',async()=>{
@@ -1091,7 +1244,7 @@
  });
  window.ScoreVisualEditor=window.createScoreVisualEditor({
    frame:$('stageFrame'),overlay:$('scoreEditOverlay'),box:$('scoreEditBox'),
-   editButton:$('editScoreAreaButton'),centerButton:$('centerScoreAreaButton'),
+   editButton:$('editScoreAreaButton'),
    controls:{x:$('scoreAreaX'),width:$('scoreAreaWidth'),height:$('scoreAreaHeight'),
      top:$('scoreMarginTop'),bottom:$('scoreMarginBottom')},
    getResolution:()=>({width:config().width,height:config().height}),
@@ -1137,7 +1290,7 @@
  $('fps').addEventListener('change',()=>{experimentalOptIn=false;void refreshOfflineSupport();});
  $('videoBitrate').addEventListener('change',()=>{void refreshOfflineSupport();});
  for(const id of ['drawScore','zoom'])$(id).addEventListener('change',()=>{experimentalOptIn=false;updateExportUi();});
- refreshVideoPresets();restoreSettings();void refreshOfflineSupport();window.addEventListener('resize',resizePreview);
+ refreshVideoPresets();restoreSettings();void showThemePalette();void refreshOfflineSupport();window.addEventListener('resize',resizePreview);
  if(typeof ResizeObserver!=='undefined'){
    let lastWidth=0,lastHeight=0;
    new ResizeObserver(entries=>{

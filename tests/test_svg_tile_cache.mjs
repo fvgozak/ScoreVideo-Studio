@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const context={window:{}};
+vm.createContext(context);
+vm.runInContext(readFileSync('static/gpu-composer.js','utf8'),context);
+const {tileRange,TILE_PX,MAX_TILE_BYTES}=context.window.ScoreGpuComposer._test;
+assert.equal(TILE_PX,1024);
+assert.equal(MAX_TILE_BYTES,128*1024*1024);
+const full={left:-200,top:0,width:45000,height:500};
+const rect=(left,right)=>({left,right,top:0,bottom:400});
+const a=tileRange(full,rect(0,700),1,1);
+const b=tileRange({...full,left:-400},rect(0,700),1,1);
+const c=tileRange({...full,left:-600},rect(0,700),1,1);
+assert.equal(a.length,1);
+assert.equal(b.length,2);
+assert.equal(c.length,2);
+assert.equal(a[0].ix,0);
+assert.equal(b[0].ix,0);
+assert.equal(b[1].ix,1);
+assert.equal(c[1].ix,1);
+assert.equal(a[0].visible.left,-200);
+assert.equal(a[0].visible.width,1024);
+const vertical=tileRange({left:0,top:-800,width:100,height:5000},
+ {left:0,right:100,top:0,bottom:750},1,1);
+assert.equal(vertical.length,2);
+assert.deepEqual(Array.from(vertical,x=>x.iy),[0,1]);
+const scaled=tileRange({left:0,top:0,width:1200,height:400},
+ {left:0,right:500,top:0,bottom:400},2,1);
+assert.equal(scaled.length,1);
+assert.equal(scaled[0].visible.width,512);
+assert.equal(scaled[0].width,1024);
+console.log('Tile slicing, scrolling stability and output scaling passed');

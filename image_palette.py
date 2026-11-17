@@ -174,6 +174,7 @@ def _scheme(name,description,main,secondary,kind):
     h2,s2,_=_hsl(secondary)
     if kind=='paper':
         paper=_hsl_color(h, .12, .97)
+        background=_hsl_color(h, .25, .86)
         ink=_hsl_color(h, .18, .12)
         staff=_hsl_color(h, .16, .32)
         accent=_hsl_color(h, max(.6,s), .39)
@@ -182,6 +183,7 @@ def _scheme(name,description,main,secondary,kind):
         panel_opacity=.82
     elif kind=='dark':
         paper=_hsl_color(h,.27,.10)
+        background=_hsl_color(h,.32,.055)
         ink=_hsl_color(h,.12,.94)
         staff=_hsl_color(h,.19,.69)
         accent=_hsl_color(h,max(.65,s),.72)
@@ -190,6 +192,7 @@ def _scheme(name,description,main,secondary,kind):
         panel_opacity=.72
     elif kind=='muted':
         paper=_hsl_color(h2,.20,.90)
+        background=_hsl_color(h2,.28,.77)
         ink=_hsl_color(h,.25,.18)
         staff=_hsl_color(h,.18,.36)
         accent=_hsl_color(h,max(.48,s*.83),.41)
@@ -198,6 +201,7 @@ def _scheme(name,description,main,secondary,kind):
         panel_opacity=.76
     else:
         paper=_hsl_color(h,.32,.15)
+        background=_hsl_color(h,.36,.065)
         ink=_hsl_color(h2,.09,.96)
         staff=_hsl_color(h2,.14,.76)
         accent=_hsl_color(h,max(.75,s),.75)
@@ -211,11 +215,36 @@ def _scheme(name,description,main,secondary,kind):
     upper=_hsl_color(h,max(.72,s),.66 if _luminance(paper)<.5 else .45)
     lower=_hsl_color(h+145,max(.69,s2),.68 if _luminance(paper)<.5 else .43)
     return {'id':kind,'name':name,'description':description,
-        'colors':{'paper':paper,'ink':ink,'staff':staff,'accent':accent,'glow':glow,'cursor':accent,
+        'colors':{'paper':paper,'background':background,'ink':ink,'staff':staff,'accent':accent,'glow':glow,'cursor':accent,
                   'trail_upper':upper,'trail_lower':lower,
                   'aurora_low':_hsl_color(h+160,.80,.62),'aurora_high':_hsl_color(h-14,.86,.58),
                   'panel':panel},'panel_opacity':panel_opacity,
         'contrast':round(contrast_ratio(paper,ink),2)}
+
+
+def _recommendations(palette, main, secondary):
+    schemes=[_scheme('Gallery Paper','가독성 높은 밝은 악보',main,secondary,'paper'),
+             _scheme('Midnight','사진에 어울리는 어두운 악보',main,secondary,'dark'),
+             _scheme('Soft Canvas','절제된 색감과 따뜻한 질감',main,secondary,'muted'),
+             _scheme('Vivid Contrast','선명한 음표와 색채 대비',main,secondary,'vivid')]
+    return {'palette':palette,'schemes':schemes,'primary':main}
+
+
+THEME_COLORS={
+    'space': ('우주', '#4754A8', '#8E5EC9', '#1E274F'),
+    'sea': ('바다', '#247BA0', '#48B6C7', '#0F3B60'),
+    'forest': ('숲', '#367A55', '#94BA62', '#1F4536'),
+    'wood': ('나무', '#9A6640', '#C99661', '#593A2D'),
+}
+
+
+def propose_theme_palettes(theme='space'):
+    """Use the same four score harmonies when no source image is available."""
+    name,main,secondary,shadow=THEME_COLORS[theme]
+    palette=[{'name':f'{name} 기본', 'hex':main},
+             {'name':f'{name} 강조', 'hex':secondary},
+             {'name':f'{name} 그림자', 'hex':shadow}]
+    return _recommendations(palette,main,secondary)
 
 
 def propose_score_palettes(image):
@@ -225,8 +254,4 @@ def propose_score_palettes(image):
     main=(colorful or palette)[0]['hex']
     h,s,l=_hsl(main)
     secondary=colorful[1]['hex'] if len(colorful)>1 else _hsl_color(h+160,max(.7,s),.56)
-    schemes=[_scheme('Gallery Paper','가독성 높은 밝은 악보',main,secondary,'paper'),
-             _scheme('Midnight','사진에 어울리는 어두운 악보',main,secondary,'dark'),
-             _scheme('Soft Canvas','절제된 색감과 따뜻한 질감',main,secondary,'muted'),
-             _scheme('Vivid Contrast','선명한 음표와 색채 대비',main,secondary,'vivid')]
-    return {'palette':palette,'schemes':schemes,'primary':main}
+    return _recommendations(palette,main,secondary)

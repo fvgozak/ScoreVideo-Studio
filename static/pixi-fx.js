@@ -98,6 +98,10 @@
       strength:clamp(Number(value?.trails?.strength??cinematicBase.trails.strength),0,2),
       length:clamp(Math.round(Number(value?.trails?.length??cinematicBase.trails.length)),2,16),
       duration:clamp(Number(value?.trails?.duration??cinematicBase.trails.duration),.3,3)};
+    // These fields are consumed by Dynamic FX and travel with the same
+    // preview/export settings snapshot as the Pixi score effects.
+    result.groups=value?.groups&&typeof value.groups==='object'?value.groups:{};
+    result.keyboard=value?.keyboard&&typeof value.keyboard==='object'?value.keyboard:{};
     return result;
   }
   const tint=color=>Number.parseInt(/^#[0-9a-f]{6}$/i.test(color||'')?color.slice(1):'ffffff',16);
@@ -293,7 +297,7 @@
       const PIXI=await import(MODULE);
       const app=new PIXI.Application();
       await app.init({width:Math.max(1,host.clientWidth),height:Math.max(1,host.clientHeight),
-        resolution:1,autoStart:false,backgroundAlpha:0,preference:'webgl',powerPreference:'high-performance'});
+        resolution:1,autoStart:false,backgroundAlpha:0,preserveDrawingBuffer:true,preference:'webgl',powerPreference:'high-performance'});
       app.ticker.stop();return new Layer(PIXI,app,host,kind);
     }
     resize(width,height){

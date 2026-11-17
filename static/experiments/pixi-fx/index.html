@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ScoreVideo Studio · PixiJS Effects Lab</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,'Apple SD Gothic Neo',sans-serif;background:#0c1320;color:#eef4f8}
+*{box-sizing:border-box}body{margin:0;padding:18px 18px 32px}.shell{max-width:1450px;margin:auto}
+h1{font-size:23px;margin:5px 0}p{font-size:13px;color:#abbace;line-height:1.55}
+.toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:15px;background:#192434;border:1px solid #2e4357;border-radius:12px;margin:15px 0}
+label{font-size:12px;display:flex;flex-direction:column;gap:6px;color:#dbe7f3}select,button{font:inherit;color:#e9f8ff;background:#243a4c;border:1px solid #527384;padding:8px 10px;border-radius:7px}
+button{cursor:pointer}button:disabled{opacity:.55;cursor:default}.check{flex-direction:row;align-items:center;gap:5px}
+#viewWrap{position:relative;display:flex;justify-content:center;align-items:flex-start;background:#080d15;padding:12px;border:1px solid #263444;border-radius:12px;min-height:350px;overflow:hidden}
+#scene{position:relative;overflow:hidden;background:#0d1626;box-shadow:0 0 20px #0008;flex:none;transform-origin:top left}
+#scene canvas{position:absolute;left:0;top:0;display:block}#status{background:#202f3b;padding:10px;border-radius:8px;font-size:12px;white-space:pre-wrap;line-height:1.65}
+.meters{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.metric{background:#172331;padding:11px 13px;border:1px solid #304558;border-radius:9px;min-width:170px}.metric b{display:block;font-size:20px;color:#88e3d2}.metric span{font-size:11px;color:#aebdce}
+#out{white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.6;color:#cbd7e4}
+@media(max-width:700px){body{padding:10px}.toolbar{gap:8px}.metric{min-width:135px}}
+</style>
+</head>
+<body><main class="shell">
+<h1>ScoreVideo Studio — PixiJS Effects Lab</h1>
+<p>업로드된 Dream Journey MIDI로 <strong>Canvas2D 직접 발광</strong>과 <strong>PixiJS GPU 텍스처 발광</strong>을 비교하는 <strong>독립 실험판</strong>입니다. 실제 ScoreVideo 악보·건반·MP4 렌더러는 수정하지 않습니다. PixiJS는 로컬에 고정된 8.23.0 버전을 사용합니다.</p>
+<div class="toolbar">
+<label>효과 렌더러<select id="mode"><option value="canvas">기존 방식 — Canvas2D</option><option value="pixi">PixiJS GPU</option></select></label>
+<label>실험 해상도<select id="resolution"><option value="1280x720">1280×720</option><option value="1920x1080">1920×1080</option><option value="720x1280">720×1280</option></select></label>
+<label>음표 밀도<select id="density"><option value="1">기본 1배</option><option value="3">고밀도 3배</option><option value="6">극한 6배</option></select></label>
+<label>목표 재생<select id="fps"><option value="30">30fps</option><option value="60">60fps</option></select></label>
+<label class="check"><input type="checkbox" id="glow" checked/>발광</label>
+<label class="check"><input type="checkbox" id="particles" checked/>파티클</label>
+<button id="play">일시정지</button><button id="reset">처음부터</button><button id="bench">현재 설정 180프레임 측정</button>
+</div>
+<div class="meters"><div class="metric"><b id="fpsVal">—</b><span>실제 RAF 표시 갱신 횟수/초(추정)</span></div><div class="metric"><b id="msVal">—</b><span>JS 렌더 호출 시간 p95</span></div><div class="metric"><b id="noteVal">—</b><span>현재 화면의 활성 타건 수</span></div><div class="metric"><b id="timeVal">0:00</b><span>MIDI 시각</span></div></div>
+<div id="viewWrap"><div id="scene"><canvas id="base"></canvas><canvas id="effects"></canvas></div></div>
+<p id="status" role="status">실험용 MIDI 데이터를 읽는 중입니다.</p>
+<pre id="out"></pre>
+<p>비교 시에는 <strong>같은 해상도·밀도·시작 시각</strong>으로 각각 측정하세요. PixiJS의 `renderer.render()`는 GPU 완료를 동기적으로 기다리지 않으므로 호출 시간만으로 실제 GPU 성능을 판단하지 마세요. 이 실험의 발광은 현재 ScoreVideo 효과를 근사한 것으로 픽셀 동일성을 보장하지 않습니다.</p>
+</main><script type="module" src="./main.js"></script></body>
+</html>

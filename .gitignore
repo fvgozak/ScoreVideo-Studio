@@ -2,6 +2,8 @@
 __pycache__/
 data/
 static/vendor/*.js
+!static/vendor/three-0.187.0.module.js
+!static/vendor/three.core.js
 *.pyc
 .DS_Store
 experiments/mp4-prototype/node_modules/
