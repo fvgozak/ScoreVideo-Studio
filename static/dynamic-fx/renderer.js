@@ -1,5 +1,6 @@
 import {KEYBOARD,keyPosition} from './engine.js?v=aurora3';
-import {stageCamera,noteFallLane} from './stageCamera.js?v=dynamic16h';
+import {stageCamera,noteFallLane} from './stageCamera.js?v=keyboard24';
+import {normalizeNoteBarMode,risingNoteRect} from './note-bars.js?v=19';
 import {PortraitLookaheadController} from './lookaheadCamera.js?v=dynamic16h';
 import {colorFromVelocity} from './dynamics.js?v=aurora3';
 import {buildKeyboard,HIT_Y,FRONT_Y} from './keyboardMesh.js?v=dynamic16h';
@@ -69,7 +70,11 @@ function addLine(){const y=HIT_Y,z=.44;const width=KEYBOARD.totalWidth/2+.12;con
 }
 export class DynamicFXRenderer{
  constructor(canvas,settings){this.canvas=canvas;this.settings=settings;
-  const gl=canvas.getContext('webgl2',{alpha:true,antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+  // The final shader writes *straight* RGB + alpha. With the browser's
+  // default premultipliedAlpha:true, bright RGB behind a small alpha is
+  // incorrectly treated as premultiplied and bleaches photos underneath.
+  // Explicitly choose straight-alpha compositing for this full-stage layer.
+  const gl=canvas.getContext('webgl2',{alpha:true,premultipliedAlpha:false,antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
   if(!gl)throw Error('WebGL2를 지원하는 Chrome 또는 Safari가 필요합니다');
   this.gl=gl;this.programs={
    bg:makeProgram(gl,S.FULLSCREEN_VERT,S.BACKGROUND_FRAG),
@@ -162,8 +167,10 @@ export class DynamicFXRenderer{
   const smoothing=1-Math.exp(-dt*2.0);
   if(!predictive)this.cameraFocusX+=(focus-this.cameraFocusX)*smoothing;
   const camera=stageCamera(w,h,KEYBOARD.totalWidth,HIT_Y,FRONT_Y,
-    frame?{visibleWidth:frame.visibleWidth,tilt:this.settings.cameraTilt,focusX:frame.focusX}:
-      {zoom,tilt:this.settings.cameraTilt,focusX:this.cameraFocusX});
+    frame?{visibleWidth:frame.visibleWidth,tilt:this.settings.cameraTilt,focusX:frame.focusX,
+      verticalOffsetPct:this.settings.cameraVerticalOffsetPct}:
+      {zoom,tilt:this.settings.cameraTilt,focusX:this.cameraFocusX,
+        verticalOffsetPct:this.settings.cameraVerticalOffsetPct});
   this.lastFraming=frame;
   this.lastCamera=camera;
   const VP=camera.matrix;
@@ -211,20 +218,44 @@ export class DynamicFXRenderer{
   gl.uniform1f(gl.getUniformLocation(p.geometry,'uReflectionGain'),material.reflection);
   gl.uniform3fv(gl.getUniformLocation(p.geometry,'uSurfaceTint'),material.tint);
   gl.bindVertexArray(this.key.vao);gl.drawArrays(gl.TRIANGLES,0,this.key.count);
-  // Glowing falling notes (visualized independently of any MIDI vendor).
-  if(this.settings.showNotes){
+  // Note bars use only absolute MIDI time: export, scrubbing and preview
+  // produce the same shapes. Rise starts at note-on and leaves a moving tail
+  // after note-off; no per-frame animation state is accumulated.
+  const noteMode=normalizeNoteBarMode(this.settings.noteBarMode);
+  const noteBarData=[];
+  if(this.settings.showNotes&&noteMode!=='off'){
    const fallSeconds=Math.max(.1,Number(this.settings.noteFallSeconds)||2.8);
    const {speed,roof}=noteFallLane(camera,fallSeconds,portrait,HIT_Y);
-   const arr=[],tm=engine.time;
+   const riseSpeed=speed*Math.max(.35,Math.min(2,Number(this.settings.noteRiseSpeed)||1));
+   const riseTravel=(roof-HIT_Y)/riseSpeed;
+   const drawFall=noteMode==='fall'||noteMode==='both';
+   const drawRise=noteMode==='rise'||noteMode==='both';
+   const tm=engine.time;
    for(const n of engine.notes){
-    if(n.start>tm+fallSeconds+.1||n.end<tm-.05)continue;
+    const fallVisible=drawFall&&n.start<=tm+fallSeconds+.1&&n.end>=tm-.05;
+    const riseVisible=drawRise&&n.start<=tm&&n.end+riseTravel>=tm;
+    if(!fallVisible&&!riseVisible)continue;
     const k=keyPosition(n.midi);if(!k)continue;
-    const lo=Math.max(HIT_Y+.04,HIT_Y+(n.start-tm)*speed);
-    const hi=Math.min(roof,HIT_Y+(n.end-tm)*speed);
-    if(hi<lo+.018)continue;
-    addNote(arr,k.x,lo,hi,k.width*(k.black?.83:.82),colorFromVelocity(n.velocity,this.settings));
+    const color=colorFromVelocity(n.velocity,this.settings);
+    if(fallVisible){
+     const lo=Math.max(HIT_Y+.04,HIT_Y+(n.start-tm)*speed);
+     const hi=Math.min(roof,HIT_Y+(n.end-tm)*speed);
+     if(hi>lo+.018)addNote(noteBarData,k.x,lo,hi,k.width*(k.black?.83:.82),color);
+    }
+    if(riseVisible){
+     const shape=risingNoteRect(n,tm,{hitY:HIT_Y,roof,speed:riseSpeed});
+     if(shape){
+       // A narrower core helps visually distinguish simultaneously falling
+       // and rising bars without painting a bright rectangular glow.
+       const factor=noteMode==='both'?.58:.82;
+       addNote(noteBarData,k.x,shape.lo,shape.hi,k.width*factor,color);
+     }
+    }
    }
-   updateBuffer(gl,this.notes,new Float32Array(arr));
+  }
+  // Clear stale geometry when switching to Off or switching projects.
+  updateBuffer(gl,this.notes,new Float32Array(noteBarData));
+  if(this.notes.count){
    gl.useProgram(p.notes);gl.uniformMatrix4fv(gl.getUniformLocation(p.notes,'uVP'),false,VP);
    gl.uniform1f(gl.getUniformLocation(p.notes,'uEmissionMode'),0);
    gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);

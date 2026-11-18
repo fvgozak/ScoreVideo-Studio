@@ -6,12 +6,52 @@
   const basics=panel?.querySelector('.effect-basics'),legacy=panel?.querySelector('.effect-advanced');
   if(!basics||!legacy)return;
   const field=id=>$(id)?.closest('.field,.toggle-line,.trail-options');
+  // Color-only presets: independent of effect style, background, and keyboard
+  // material. Every pair is an actual low/high MIDI velocity gradient, shared
+  // by the score glow, note bars and keyboard effects when explicitly linked.
+  const lightPalettes=Object.freeze({
+    aurora:['#3ac7db','#aa80e8'],
+    warm:['#eabf78','#ff704e'],
+    space:['#5668d4','#d17bf2'],        // nebula / distant stars
+    forest:['#2c9279','#b6d779'],       // moss / sun through leaves
+    wood:['#986945','#e4b47d'],         // cedar / golden sunlight
+    ocean:['#207bb8','#47d5cb'],        // deep blue / sea foam
+    sky:['#559fe3','#c2e5fa'],          // clear sky / cloud light
+    deepsea:['#27528d','#55bdd6'],      // deep water / bioluminescence
+    moonlight:['#6175ab','#d0d8f1'],    // moon shadow / silver light
+    sunrise:['#7c9bd5','#ffcf94'],      // morning lavender / sun
+    sunset:['#bc709c','#ffa76a'],       // dusk mauve / orange
+    autumn:['#a36c45','#eac36f'],       // maple / gold
+    glacier:['#4aaac5','#b6f0ed'],      // ice blue / crystal
+    blossom:['#be7aaf','#ffc1d6'],      // flower pink / petals
+    meadow:['#4b9f83','#f0d57a']        // grass / warm yellow
+  });
+  const colorOptions=`<optgroup label="기본 색상">
+      <option value="project">프로젝트 팔레트</option>
+      <option value="aurora">Aurora · 청록 / 보라</option>
+      <option value="warm">Warm · 금빛 / 주황</option>
+    </optgroup><optgroup label="자연과 풍경">
+      <option value="space">우주 · 성운 / 별빛</option>
+      <option value="forest">숲 · 이끼 / 햇살</option>
+      <option value="wood">나무 · 삼나무 / 황금빛</option>
+      <option value="ocean">바다 · 푸른 물결 / 물보라</option>
+      <option value="sky">하늘 · 맑은 파랑 / 구름빛</option>
+      <option value="deepsea">심해 · 심해청 / 생물발광</option>
+      <option value="meadow">초원 · 풀잎 / 햇살</option>
+    </optgroup><optgroup label="시간과 계절">
+      <option value="moonlight">달빛 · 남색 / 은빛</option>
+      <option value="sunrise">새벽 · 연보라 / 해돋이</option>
+      <option value="sunset">노을 · 자주 / 주황</option>
+      <option value="autumn">가을 · 단풍 / 금빛</option>
+      <option value="glacier">빙하 · 얼음 / 수정빛</option>
+      <option value="blossom">벚꽃 · 분홍 / 꽃잎</option>
+    </optgroup>`;
   // Progressive disclosure: common changes remain visible; every legacy control
   // keeps its original ID, listeners and save/export semantics in one drawer.
   const section=(title,kind,presets)=>{
     const node=document.createElement('section');node.className='fx-group fx-quick-group';node.dataset.fxGroup=kind;
     const summary=kind==='score'?'음표의 발광·반짝임과 색상':'건반 타건광·낙하 노트·파티클';
-    node.innerHTML=`<div class="fx-group-heading"><h3>${title}</h3><small>${summary}</small></div><div class="field"><label for="${kind}FxPreset">효과 스타일</label><select id="${kind}FxPreset">${presets.map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}<option value="custom">직접 조정</option></select></div><div class="field"><label for="${kind}ColorPreset">빛 색상</label><select id="${kind}ColorPreset"><option value="project">프로젝트 팔레트</option><option value="aurora">Aurora</option><option value="warm">Warm</option>${kind==='keyboard'?'<option value="linked">악보 색상 연동</option>':''}<option value="custom">직접 선택</option></select></div><div class="fx-color-preview" aria-label="선택한 색상 미리보기"></div><div class="fx-basic"></div><div class="fx-custom-colors" hidden><small>약한 타건과 강한 타건의 색상을 지정합니다.</small></div>`;
+    node.innerHTML=`<div class="fx-group-heading"><h3>${title}</h3><small>${summary}</small></div><div class="field"><label for="${kind}FxPreset">효과 스타일</label><select id="${kind}FxPreset">${presets.map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}<option value="custom">직접 조정</option></select></div><div class="field"><label for="${kind}ColorPreset">빛 색상</label><select id="${kind}ColorPreset">${colorOptions}${kind==='keyboard'?'<option value="linked">악보 색상 연동</option>':''}<option value="custom">직접 선택</option></select><small>약한 음 → 강한 음으로 색이 변화합니다. 효과 스타일과 독립적으로 적용됩니다.</small></div><div class="fx-color-preview" aria-label="선택한 색상 미리보기"></div><div class="fx-basic"></div><div class="fx-custom-colors" hidden><small>약한 타건과 강한 타건의 색상을 지정합니다.</small></div>`;
     panel.insertBefore(node,legacy);return node;
   };
   const score=section('악보 효과 · Score FX','score',[
@@ -48,6 +88,28 @@
   legacy.querySelector('summary').textContent='기타 기존 효과 · 제목 · 장면 옵션';
   scoreAdvanced.body.append(legacy);
   keyboard.querySelector('.fx-basic').insertAdjacentHTML('beforeend','<label class="fx-check"><input id="keyboardVelocityColor" type="checkbox" checked> 벨로시티 색상 변화</label>');
+  // Music-reactive bars are a distinct choice from keyboard glow presets:
+  // "rise" grows from the struck key, complementing score-drawing animation.
+  keyboard.querySelector('.fx-basic').insertAdjacentHTML('beforeend',`<div class="field">
+    <label for="keyboardNoteBarMode">음표 바 애니메이션</label>
+    <select id="keyboardNoteBarMode">
+      <option value="fall">타건 전에 내려오기 · 기본</option>
+      <option value="rise">타건 후 건반에서 솟아오르기</option>
+      <option value="both">내려오기 + 솟아오르기</option>
+      <option value="off">음표 바 끄기</option>
+    </select>
+    <small>악보 그리기와 함께 사용하려면 '타건 후 건반에서 솟아오르기'를 선택하세요.</small>
+  </div>`);
+  keyboardAdvanced.body.insertAdjacentHTML('beforeend',`<div class="field">
+    <label for="keyboardNoteRiseSpeed">상승 바 속도</label>
+    <input id="keyboardNoteRiseSpeed" type="range" min="0.35" max="2" step="0.05" value="1">
+    <small>음표가 눌려 있는 동안 위로 성장하고, 손을 떼면 꼬리가 따라 올라갑니다.</small>
+  </div>`);
+  const syncNoteBarUi=()=>{
+    $('keyboardNoteRiseSpeed').disabled=!['rise','both'].includes($('keyboardNoteBarMode').value);
+  };
+  $('keyboardNoteBarMode').addEventListener('change',syncNoteBarUi);
+
   // Keyboard horizon glow: intentionally only two everyday controls; all
   // tuning lives in the existing Advanced Settings drawer.
   keyboard.querySelector('.fx-basic').insertAdjacentHTML('beforeend',`<div class="fx-boundary-quick">
@@ -109,9 +171,19 @@
     if(!values)return;set('pianoLight',values[0]);set('pianoLightStrength',values[1]);set('keyboardParticleDensity',values[2]);set('keyboardParticleLife',values[3]);
     set('keyboardGlowSize',values[4]);set('keyboardBloomStrength',values[5]);set('keyboardCurlStrength',values[6]);
   };
-  const colors={aurora:['#3ac7db','#aa80e8'],warm:['#eabf78','#ff704e']};
-  const syncPreview=()=>{for(const [kind,low,high] of [['score',$('auroraLow')?.value,$('auroraHigh')?.value],['keyboard',$('keyboardColorLow').value,$('keyboardColorHigh').value]])
-    $(kind+'ColorPreset').closest('.fx-group').querySelector('.fx-color-preview').style.background=`linear-gradient(90deg,${low||'#3ac7db'},${high||'#aa80e8'})`;};
+  const syncLinkedKeyboard=()=>{
+    if(!$('keyboardPaletteLink').checked&&$('keyboardColorPreset').value!=='linked')return;
+    set('keyboardColorLow',$('auroraLow').value);
+    set('keyboardColorHigh',$('auroraHigh').value);
+  };
+  const syncPreview=()=>{
+    syncLinkedKeyboard();
+    for(const [kind,low,high] of [['score',$('auroraLow')?.value,$('auroraHigh')?.value],['keyboard',$('keyboardColorLow').value,$('keyboardColorHigh').value]]){
+      const preview=$(kind+'ColorPreset').closest('.fx-group').querySelector('.fx-color-preview');
+      preview.style.background=`linear-gradient(90deg,${low||'#3ac7db'},${high||'#aa80e8'})`;
+      preview.title=`약한 음 ${low} → 강한 음 ${high}`;
+    }
+  };
   const onScoreInput=e=>{if(e.target.id==='scoreFxPreset'||e.target.id==='scoreColorPreset')return;
     if(['auroraLow','auroraHigh','glowColor','lightColorMode'].includes(e.target.id))set('scoreColorPreset','custom');
     else set('scoreFxPreset','custom');
@@ -120,8 +192,14 @@
     }
     syncPreview();syncCustomColors();};
   const onKeyboardInput=e=>{if(e.target.id==='keyboardFxPreset'||e.target.id==='keyboardColorPreset')return;
-    if(['keyboardColorLow','keyboardColorHigh','keyboardPaletteLink'].includes(e.target.id))set('keyboardColorPreset','custom');
-    else if(e.target.id!=='keyboardVelocityColor'&&!e.target.id.startsWith('keyboardBoundary'))set('keyboardFxPreset','custom');syncPreview();syncLightingUi();syncCustomColors();syncBoundaryUi();};
+    if(['keyboardColorLow','keyboardColorHigh'].includes(e.target.id)){
+      // Direct edits must detach the palette link, otherwise the next UI
+      // refresh immediately overwrites the selected colors.
+      set('keyboardPaletteLink',false);
+      set('keyboardColorPreset','custom');
+    }else if(e.target.id==='keyboardPaletteLink')set('keyboardColorPreset',$('keyboardPaletteLink').checked?'linked':'custom');
+    else if(!['keyboardVelocityColor','keyboardNoteBarMode','keyboardNoteRiseSpeed'].includes(e.target.id)&&!e.target.id.startsWith('keyboardBoundary'))set('keyboardFxPreset','custom');
+    syncPreview();syncLightingUi();syncCustomColors();syncBoundaryUi();};
   for(const group of [score,scoreAdvanced.node])group.addEventListener('input',onScoreInput);
   for(const group of [keyboard,keyboardAdvanced.node])group.addEventListener('input',onKeyboardInput);
   const syncCustomColors=()=>{
@@ -136,8 +214,15 @@
   for(const kind of ['score','keyboard'])$(kind+'ColorPreset').addEventListener('change',()=>{
     const value=$(kind+'ColorPreset').value;
     let project=null;try{project=JSON.parse(localStorage.getItem(paletteKey())||'null')}catch(_){}
-    const pair=colors[value]||(value==='project'&&project?[project.aurora_low||project.glow,project.aurora_high||project.accent]:null);
-    if(pair){set(kind==='score'?'auroraLow':'keyboardColorLow',pair[0]);set(kind==='score'?'auroraHigh':'keyboardColorHigh',pair[1]);}
+    const pair=lightPalettes[value]||(value==='project'&&project?[project.aurora_low||project.glow,project.aurora_high||project.accent]:null);
+    if(pair){
+      set(kind==='score'?'auroraLow':'keyboardColorLow',pair[0]);
+      set(kind==='score'?'auroraHigh':'keyboardColorHigh',pair[1]);
+      if(kind==='score'){
+        set('glowColor',value==='project'&&project?.glow?project.glow:pair[1]);
+        set('auroraPreset','custom');
+      }
+    }
     if(kind==='score')set('lightColorMode','aurora');
     else set('keyboardPaletteLink',value==='linked');
     syncPreview();syncCustomColors();
@@ -157,6 +242,6 @@
     if($('keyboardColorPreset').value==='project'||$('keyboardPaletteLink').checked){set('keyboardColorLow',c.aurora_low||c.glow||'#3ac7db');set('keyboardColorHigh',c.aurora_high||c.accent||'#aa80e8');}
     syncPreview();syncCustomColors();
   });
-  syncPreview();syncLightingUi();syncCustomColors();syncBoundaryUi();
-  window.ScoreFxGroups={syncPreview,syncLightingUi,syncCustomColors,syncBoundaryUi,applyScore,applyKeyboard};
+  syncPreview();syncLightingUi();syncCustomColors();syncBoundaryUi();syncNoteBarUi();
+  window.ScoreFxGroups={syncPreview,syncLightingUi,syncCustomColors,syncBoundaryUi,syncNoteBarUi,applyScore,applyKeyboard,lightPalettes};
 })();

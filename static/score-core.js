@@ -440,9 +440,9 @@
       this.container.style.position='relative';
       const background=document.createElement('div');background.className='score-background';
       const photo=document.createElement('div');photo.className='score-photo';background.appendChild(photo);
-      const texture=document.createElement('div');texture.className='score-texture';background.appendChild(texture);
+      // The retired background-pattern layer is no longer created.
       this.stageRoot.prepend(background);
-      this.bgLayer=background;this.photoLayer=photo;this.textureLayer=texture;
+      this.bgLayer=background;this.photoLayer=photo;
       const overlay=document.createElement('div');
       overlay.className='score-notes-overlay';
       this.container.appendChild(overlay);
@@ -478,8 +478,6 @@
       this.stageRoot.style.setProperty('--score-glow',glow);
       if(this.bgLayer){
         this.bgLayer.style.backgroundColor=paper;
-        window.ScoreBackgroundPattern?.render(this.textureLayer,this.effects.texture,
-          this.stageRoot.clientWidth,this.stageRoot.clientHeight);
         // Asset URL is a project-specific same-origin endpoint, not a user URL.
         const url=String(this.effects.backgroundUrl||'');
         this.photoLayer.style.backgroundImage=url.startsWith('/api/projects/')?'url('+JSON.stringify(url)+')':'none';

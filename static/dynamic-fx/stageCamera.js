@@ -27,9 +27,20 @@ export function stageCamera(width,height,keyboardWidth,hitY=-.81,frontY=-2.27,op
   const strikeScreenY=portrait
     ? Math.max(.58,Math.min(.9,desiredFrontScreenY-(hitY-frontY)*cosTilt/visibleHeight))
     : defaultStrikeScreenY;
-  const centerY=portrait
+  const initialCenterY=portrait
     ? frontY+(desiredFrontScreenY-.5)*visibleHeight/cosTilt
     : hitY+(strikeScreenY-.5)*visibleHeight/cosTilt;
+  // Attach the *playable white-key front*, not its decorative case lip, to
+  // the video bottom by default. The user offset is a percentage of frame
+  // height and moves the whole perspective (keys, falling/rising notes,
+  // strike line, particles and boundary light) without changing MIDI times.
+  // A small 0.9% inset avoids antialias clipping at the very last row.
+  const verticalOffsetPct=Math.max(-20,Math.min(20,Number(options.verticalOffsetPct)||0));
+  const targetFrontY=.991+verticalOffsetPct/100;
+  const frontZ=.038; // top surface of the white keys in keyboardMesh.js
+  const projectedFrontY=desiredFrontScreenY-frontZ*tilt*cosTilt/visibleHeight;
+  const shift=targetFrontY-projectedFrontY;
+  const centerY=initialCenterY+shift*visibleHeight/cosTilt;
   const viewMargin=Number.isFinite(requested)&&requested>0
     ? visibleWidth/2-.38 : visibleWidth*.45;
   const maxFocus=Math.max(0,keyboardWidth/2-viewMargin);
@@ -38,8 +49,9 @@ export function stageCamera(width,height,keyboardWidth,hitY=-.81,frontY=-2.27,op
   const cameraZ=24;
   const view=lookAt([focusX,centerY-cameraZ*tilt,cameraZ],[focusX,centerY,0]);
   return {matrix:mul4(projection,view),visibleWidth,visibleHeight,centerY,focusX,zoom,tilt,
-    keyFraction:keyboardWidth/visibleWidth,strikeScreenY,
-    frontScreenY:portrait?desiredFrontScreenY:strikeScreenY+(hitY-frontY)*cosTilt/visibleHeight};
+    keyFraction:keyboardWidth/visibleWidth,
+    strikeScreenY:strikeScreenY-frontZ*tilt*cosTilt/visibleHeight+shift,
+    frontScreenY:targetFrontY,verticalOffsetPct};
 }
 
 /** Match a portrait note's travel distance to the *current camera* viewport.

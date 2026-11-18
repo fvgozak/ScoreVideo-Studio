@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
-<title>ScoreMotion · 작업공간</title>
+<title data-i18n="app.title">ScoreMotion · 작업공간</title>
 <link href="/static/style.css?v=background1" rel="stylesheet"/><link href="/static/effects.css?v=background1" rel="stylesheet"/><link href="/static/stage.css?v=dynamic16h" rel="stylesheet"/><link href="/static/workspace-ui.css?v=fxui4" rel="stylesheet"/></head>
 <body><div class="app">
 <header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreMotion</strong><small>STUDIO 0.19.31</small></div></div>
-<div class="top-right"><button class="header-export" id="openExportTab" type="button" data-i18n="nav.exportAction">내보내기</button><label class="language-picker"><span data-i18n="common.language">언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option></select></label><span class="local-run"><span class="dot"></span> 이 컴퓨터에서만 실행</span> <span class="beta">v0.19.31</span></div></header>
+<div class="top-right"><button class="header-export" id="openExportTab" type="button" data-i18n="nav.exportAction">내보내기</button><label class="language-picker"><span data-i18n="common.language">언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option></select></label><span class="local-run"><span class="dot"></span> 이 컴퓨터에서만 실행</span> <span class="beta">v0.19.32</span></div></header>
 <main>
 <section class="intro compact-intro"><div class="eyebrow">SCORE / MIDI → PIANO VIDEO</div>
 <h1>연주를 따라 움직이는<br/><em>악보 영상</em>을 만들어보세요.</h1>
@@ -13,7 +13,7 @@
 </section>
 <div class="grid">
 <aside class="sidebar"><nav aria-label="작업 설정" class="editor-tabs"><button aria-pressed="true" class="editor-tab active" data-editor-tab="project" type="button" data-i18n-title="nav.file"><span class="tab-icon" aria-hidden="true">▣</span><span class="tab-label" data-i18n="nav.file">파일</span></button><button aria-pressed="false" class="editor-tab" data-editor-tab="score" type="button" data-i18n-title="nav.score"><span class="tab-icon" aria-hidden="true">♫</span><span class="tab-label" data-i18n="nav.score">악보</span></button><button aria-pressed="false" class="editor-tab" data-editor-tab="scene" type="button" data-i18n-title="nav.scene"><span class="tab-icon" aria-hidden="true">☷</span><span class="tab-label" data-i18n="nav.scene">장면</span></button><button aria-pressed="false" class="editor-tab" data-editor-tab="background" type="button" data-i18n-title="nav.background"><span class="tab-icon" aria-hidden="true">▧</span><span class="tab-label" data-i18n="nav.background">배경</span></button><button aria-pressed="false" class="editor-tab" data-editor-tab="effects" type="button" data-i18n-title="nav.effects"><span class="tab-icon" aria-hidden="true">✧</span><span class="tab-label" data-i18n="nav.effects">효과</span></button><button aria-pressed="false" class="editor-tab" data-editor-tab="export" type="button" data-i18n-title="nav.export"><span class="tab-icon" aria-hidden="true">▤</span><span class="tab-label" data-i18n="nav.export">출력</span></button></nav>
-<div class="editor-tab-panel" data-editor-panel="project"><section class="panel"><div class="panel-title"><h2>파일 불러오기</h2></div>
+<div class="editor-tab-panel" data-editor-panel="project"><section class="panel"><div class="panel-title file-upload-heading"><h2>파일 불러오기</h2><button class="subtle-button" id="resetProjectFilesButton" type="button" title="현재 파일·음원·배경·미리보기를 비우고 새 곡 시작" data-i18n-title="file.resetHelp"><span data-i18n="file.reset">↺ 초기화</span></button></div>
 <form id="uploadForm"><label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>MusicXML 악보</strong><small id="scoreName">.musicxml / .xml / .mxl</small></span><span class="choose">선택</span><input accept=".musicxml,.xml,.mxl" id="score" type="file"/></label>
 <label class="filebox"><span class="file-symbol">♬</span><span class="file-desc"><strong>MIDI 연주 정보 · 필수</strong><small id="midiName">.mid / .midi</small></span><span class="choose">선택</span><input accept=".mid,.midi" id="midi" type="file"/></label>
 <label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>완성 오디오</strong><small id="audioName">.mp3 / .wav / .m4a 등</small></span><span class="choose">선택</span><input accept="audio/*,.flac,.m4a,.aac" id="audio" type="file"/></label>
@@ -99,13 +99,11 @@
     <div class="palette-chips" id="paletteChips"></div>
     <div class="palette-subtitle">추천 악보 디자인 <span>선택하면 즉시 적용</span></div>
     <div class="palette-schemes" id="paletteSchemes"></div>
-    <p class="palette-footnote">디자인을 선택하면 악보·영역 배경·빛·건반 색상이 연동됩니다. 패널 투명도는 대비를 고려해 자동 추천하며, 원하는 값으로 다시 조절할 수 있어요.</p>
+    <p class="palette-footnote" data-i18n="palette.schemeHelp">디자인을 선택하면 악보·영역 배경·빛·건반 색상이 연동됩니다. 패널 투명도는 대비를 고려해 자동 추천하며, 원하는 값으로 다시 조절할 수 있어요.</p>
   </div>
 </section>
 <section class="panel video-background-panel"><div class="panel-title"><h2>영상 배경 조정</h2></div>
 <p class="palette-help">위에서 지정한 배경의 투명도, 화면 맞춤과 위치를 조절하세요. 미리보기와 MP4에 동일하게 적용됩니다.</p>
-<div class="field"><label for="texture" data-i18n="background.pattern">배경 바탕 패턴</label>
-<select id="texture"><option value="none">없음 · 단색</option><option value="paper">종이 질감</option><option value="parchment">양피지</option><option value="grain">잔잔한 입자</option><option value="linen">린넨</option><option value="dots">도트</option></select></div>
 <div class="field"><label for="backgroundOpacity">사진 투명도 <span id="backgroundOpacityVal">50%</span></label>
 <input id="backgroundOpacity" max="1" min="0" step="0.05" type="range" value="0.5"/></div>
 <div class="field"><label for="backgroundFit">배경 이미지 맞춤</label>
@@ -139,7 +137,7 @@
 <div><button class="subtle-button" id="cameraPointRemove" type="button">선택 삭제</button> <button class="subtle-button" id="cameraPointClear" type="button">모두 지우기</button></div>
 </div></div>
 <div class="field"><label for="fxMode">음표 발광 스타일</label><select id="fxMode"><option value="bloom">Soft Bloom · 번지는 빛</option><option value="glitter">Glitter Dust · 음표 반짝임</option><option value="trail">Light Trail · 손별 빛의 궤적</option><option value="resonance">Resonance · 확산 동심원</option><option value="none">없음</option></select></div>
-<div class="field"><label for="fxRenderer" data-i18n="effects.renderer">효과 렌더러</label><select id="fxRenderer"><option value="canvas" data-i18n="effects.rendererCanvas">기존 Canvas2D</option><option value="auto" data-i18n="effects.rendererAuto">자동 (Auto)</option><option value="pixi" data-i18n="effects.rendererPixi">PixiJS GPU</option></select><small id="fxRendererStatus" role="status" data-i18n="effects.rendererDefault">현재 사용: 기존 Canvas2D</small></div>
+<div class="field"><select id="fxRenderer" hidden><option selected value="pixi">PixiJS GPU</option></select><small id="fxRendererStatus" role="status" data-i18n="effects.rendererRunning">GPU 효과 엔진 사용 중</small></div>
 <details class="compact-details"><summary data-i18n="effects.gpuTitle">PixiJS 조명 조합</summary>
 <div class="field"><label><input id="gpuCinematicOn" type="checkbox" checked/> <span data-i18n="effects.cinematicOn">Cinematic Effects · GPU 조명</span></label></div>
 <div class="field"><label for="gpuPreset" data-i18n="effects.gpuPreset">조명 프리셋</label><select id="gpuPreset"><optgroup label="Cinematic Effects"><option value="aurora" data-i18n="effects.presetAurora">Aurora</option><option value="starlight" data-i18n="effects.presetStarlight">Starlight</option><option value="goldenHall" data-i18n="effects.presetGoldenHall">Golden Hall</option><option value="dreamscape" data-i18n="effects.presetDreamscape">Dreamscape</option><option value="minimalNoir" data-i18n="effects.presetMinimalNoir">Minimal Noir</option></optgroup><optgroup label="Legacy"><option value="classic">Classic</option><option value="dreamy">Dreamy</option><option value="sparkle">Sparkle</option><option value="luminous">Luminous</option></optgroup><option value="custom">Custom</option></select></div>
@@ -199,6 +197,9 @@
 <div class="toggle-line"><span data-i18n="effects.sustainAfterglow">Sustain Afterglow</span><input id="sustainAfterglow" type="checkbox" checked/></div>
 <div class="field"><label for="pianoLightStrength">건반 빛 강도 <span id="pianoLightStrengthVal">140%</span></label><input id="pianoLightStrength" max="4" min="0" step="0.1" type="range" value="1.4"/><div class="field-foot"><span>0%</span><span>400%</span></div></div>
 <div class="toggle-line"><span>세로 영상 건반 카메라 <small>앞 5초 음역을 따라 건반·낙하 노트가 함께 확대·축소</small></span><input id="pianoCamera" type="checkbox" checked/></div>
+<div class="field"><label for="pianoVerticalOffset"><span data-i18n="scene.pianoVerticalOffset">건반 세로 위치</span> <output id="pianoVerticalOffsetVal">0%</output></label>
+<input id="pianoVerticalOffset" type="range" min="-20" max="20" step="1" value="0"/>
+<small data-i18n="scene.pianoVerticalOffsetHelp">0%는 건반을 영상 하단에 맞춥니다. 음수는 위로, 양수는 아래로 이동하며 낙하·상승 바도 함께 이동합니다.</small></div>
 <small>악보·건반 타건 빛의 표시와 강도를 각각 조절합니다. 타건 시점과 빛 색상은 공유합니다.</small></details>
 <details class="compact-details"><summary>제목 · 텍스트 · 장면 전환 상세</summary><div class="field"><label for="titleText">영상 제목 · 파일명 자동 입력</label><input id="titleText" maxlength="120" placeholder="악보의 제목" type="text"/><button class="subtle-button" id="resetTitleButton" type="button">파일명 제목으로 되돌리기</button></div>
 <div class="field"><label for="titleFont">텍스트 글꼴</label><select id="titleFont">
@@ -219,7 +220,7 @@
 <p class="hint">모든 장면 효과는 재생 시간으로 계산하며, 미리보기와 MP4가 동일한 무대 엔진을 사용합니다.</p>
 </details></section></div><div class="editor-tab-panel" data-editor-panel="export" hidden=""><section class="panel export-mode-panel"><div class="panel-title"><h2>영상 내보내기</h2></div>
 <fieldset class="export-mode-choices"><legend>출력 방식</legend>
-<label class="export-mode-card"><input type="radio" name="exportMode" value="offline" checked/><span><strong>고속 오프라인 · MP4 <em>기본 선택</em></strong><small>브라우저에서 모든 프레임을 정확한 시각에 생성합니다. 4K·60fps는 기기와 인코더 지원 시 사용할 수 있으며, 전체 곡은 미검증입니다.</small></span></label>
+<label class="export-mode-card"><input type="radio" name="exportMode" value="offline" checked/><span><strong>고속 오프라인 · MP4 <em data-i18n="export.defaultChoice">기본 선택</em></strong><small data-i18n="export.offlineDescription">브라우저에서 모든 프레임을 정확한 시각에 생성합니다. 4K·60fps는 기기와 인코더 지원 시 사용할 수 있으며, 전체 곡은 미검증입니다.</small></span></label>
 <label class="export-mode-card"><input type="radio" name="exportMode" value="legacy"/><span><strong>호환 렌더링 · MP4</strong><small>기존 Chromium + FFmpeg 경로입니다. 브라우저 인코더가 없거나 신규 경로가 실패할 때 사용할 수 있습니다.</small></span></label>
 </fieldset>
 <p class="hint" id="exportEstimate" aria-live="polite"></p>
@@ -234,14 +235,14 @@
   <div class="preset-actions"><button class="secondary-button" id="loadVideoPreset" type="button" disabled>불러오기</button><button class="subtle-button" id="deleteVideoPreset" type="button" disabled>삭제</button></div>
   <small>화면비·해상도·레이아웃·색상·카메라·빛·제목을 저장합니다. 연결된 곡과 배경 이미지도 함께 불러옵니다.</small>
 </section>
-<p class="hint" id="exportAspectSummary">화면 비율은 위 미리보기에서 설정합니다.</p>
+<p class="hint" id="exportAspectSummary" data-i18n="export.aspectHelp">화면 비율은 위 미리보기에서 설정합니다.</p>
 <div class="field"><label for="outputQuality">출력 해상도 · 짧은 변 기준</label><select id="outputQuality">
 <option value="720">720p · HD</option><option selected value="1080">1080p · Full HD</option><option value="1440" data-i18n="export.outputQhd">1440p · QHD</option><option value="2160" data-i18n="export.outputUhd">2160p · 4K UHD</option>
 </select><small id="actualOutputSize" aria-live="polite">실제 출력 크기: 1920×1080</small><button class="subtle-button" hidden id="convertExactWide" type="button">정확한 21:9 · 2520×1080으로 전환</button><small>21:9는 정확히 2520×1080입니다. 이전 2560×1080은 약 2.37:1로 21:9보다 넓습니다.</small></div>
 <input id="resolution" type="hidden" value="1920x1080"/>
 <div class="field"><label for="fps">프레임 레이트</label><select id="fps"><option value="12">12 fps — 빠른 테스트용</option><option value="24">24 fps</option><option selected="" value="30">30 fps — 권장</option><option value="60">60 fps</option></select></div>
 <div class="field"><label for="videoQuality" data-i18n="export.videoQuality">고속 엔진 영상 품질</label><select id="videoQuality"><option value="medium">Medium</option><option selected value="high">High</option><option value="very-high">Very High</option></select></div>
-<div class="field"><label for="videoBitrate" data-i18n="export.videoBitrate">고속 엔진 비트레이트</label><select id="videoBitrate"><option selected value="auto">자동 · 품질 기준</option><option value="8">8 Mbps</option><option value="16">16 Mbps</option><option value="30">30 Mbps</option><option value="60">60 Mbps</option><option value="100">100 Mbps</option></select><small>호환 FFmpeg는 기존 자동 비트레이트 정책을 유지합니다.</small></div>
+<div class="field"><label for="videoBitrate" data-i18n="export.videoBitrate">고속 엔진 비트레이트</label><select id="videoBitrate"><option selected value="auto" data-i18n="export.autoQuality">자동 · 품질 기준</option><option value="8">8 Mbps</option><option value="16">16 Mbps</option><option value="30">30 Mbps</option><option value="60">60 Mbps</option><option value="100">100 Mbps</option></select><small data-i18n="export.ffmpegBitrateHelp">호환 FFmpeg는 기존 자동 비트레이트 정책을 유지합니다.</small></div>
 </section><section class="panel export-panel"><div class="panel-title"><h2>출력 파일</h2></div>
 <div id="mp4OnlyOptions" class="field"><label for="renderMode">MP4 인코딩 최적화</label><select id="renderMode">
 <option selected="" value="auto">Auto · 실행 PC에서 실측 후 자동 결정 (권장)</option>
@@ -263,10 +264,10 @@
 <div class="preview-zoom-bar" role="group" aria-label="악보 확대 및 동기화 조절">
   <div class="preview-aspect-control"><label for="aspectRatio" data-i18n="export.previewAspect">영상 화면 비율</label><select id="aspectRatio" aria-label="영상 화면 비율">
     <option selected value="16:9">16:9 · YouTube</option><option value="9:16">9:16 · Shorts / Reels</option>
-    <option value="1:1">1:1 · 정사각형</option><option value="4:5">4:5 · SNS 세로</option>
+    <option value="1:1">1:1 · 정사각형</option><option value="4:5" data-i18n="export.aspect45">4:5 · SNS 세로</option>
     <option value="3:4">3:4 · 세로 포스트</option><option value="4:3">4:3 · 가로 포스트</option>
     <option value="21:9">21:9 · 시네마 와이드</option><option value="custom" data-i18n="export.customAspect">사용자 지정</option>
-  </select><span id="customAspectControls" hidden><input id="customAspectWidth" type="number" min="1" max="100" value="16" aria-label="화면비 가로"/><span>:</span><input id="customAspectHeight" type="number" min="1" max="100" value="9" aria-label="화면비 세로"/></span></div>
+  </select><span id="customAspectControls" hidden><input id="customAspectWidth" type="number" min="1" max="100" value="16" aria-label="화면비 가로" data-i18n-aria-label="export.aspectWidth"/><span>:</span><input id="customAspectHeight" type="number" min="1" max="100" value="9" aria-label="화면비 세로" data-i18n-aria-label="export.aspectHeight"/></span></div>
   <label for="zoom"><icon aria-hidden="true">⌕</icon> 악보 확대</label>
   <button type="button" id="zoomOutButton" title="악보 축소" aria-label="악보 축소">−</button>
   <input id="zoom" type="range" min="0.55" max="2" step="0.05" value="0.9" aria-label="악보 확대 비율 (최대 200%)"/>
@@ -316,20 +317,20 @@
 <footer>ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.</footer>
 </div>
 <script src="/static/vendor-loader.js?v=0.19.12"></script>
-<script src="/static/i18n.js?v=0.20.0"></script>
+<script src="/static/i18n.js?v=0.23.2"></script>
 <script src="/static/theme.js?v=0.19.12"></script>
 <script src="/static/image-palette.js?v=background1"></script>
 <script src="/static/camera-auto.js?v=0.19.31"></script>
-<script src="/static/background-pattern.js?v=2"></script>
+
 <script src="/static/score-core.js?v=svgcache9"></script>
 <script src="/static/studio-scene.js?v=background1"></script>
 <script src="/static/piano-shadow-sprite.js?v=1"></script>
 <script src="/static/pixi-fx.js?v=11"></script>
 <script src="/static/pixi-notes.js?v=1"></script>
 <script src="/static/three-keyboard.js?v=1"></script>
-<script src="/static/piano-fall.js?v=boundary8"></script>
-<script src="/static/stage-runtime.js?v=background2"></script>
+<script src="/static/piano-fall.js?v=keyboard24"></script>
+<script src="/static/stage-runtime.js?v=keyboard24"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>
-<script src="/static/workspace-ui.js?v=3"></script><script src="/static/fx-groups.js?v=boundary8"></script><script src="/static/visual-editor.js?v=0.19.25"></script><script src="/static/gpu-composer.js?v=drawmask12"></script><script src="/static/webm-recorder.js?v=background2"></script><script src="/static/output-size.js?v=3"></script><script src="/static/offline-export.js?v=dynamic16h"></script><script src="/static/app.js?v=boundary8"></script>
+<script src="/static/workspace-ui.js?v=3"></script><script src="/static/fx-groups.js?v=fxi18n23"></script><script src="/static/visual-editor.js?v=0.19.25"></script><script src="/static/gpu-composer.js?v=drawmask12"></script><script src="/static/webm-recorder.js?v=background2"></script><script src="/static/output-size.js?v=3"></script><script src="/static/offline-export.js?v=dynamic16h"></script><script src="/static/browser-salamander.js?v=cloud25a"></script><script src="/static/app.js?v=cloud25a"></script>
 </body></html>

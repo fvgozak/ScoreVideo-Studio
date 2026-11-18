@@ -18,10 +18,13 @@ with sync_playwright() as playwright:
     page.wait_for_function('document.querySelector("label[for=scoreCropTop]").textContent.includes("Crop top")')
     assert page.locator('html').get_attribute('lang') == 'en'
     assert page.locator('#projectTitle').inner_text() == original_title
+    page.locator('#languageSelect').select_option('ja')
+    page.wait_for_function('document.querySelector("label[for=scoreCropTop]").textContent.includes("楽譜の上部")')
+    assert page.locator('#projectTitle').inner_text() == original_title
     page.locator('#languageSelect').select_option('ko')
     page.wait_for_function('document.querySelector("label[for=scoreCropTop]").textContent.includes("악보 상단 자르기")')
     assert page.locator('#projectTitle').inner_text() == original_title
     assert not errors, errors
-    print(json.dumps({'en_ko_switch': 'passed', 'project_title_preserved': original_title,
+    print(json.dumps({'ko_en_ja_switch': 'passed', 'project_title_preserved': original_title,
                       'page_errors': errors}, ensure_ascii=False))
     browser.close()

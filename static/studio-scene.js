@@ -86,9 +86,9 @@
     return {spread:lerp(1.65,.65,highness),focus:lerp(.78,1.3,highness)};
   }
   const presets={
-    illustrated:{label:'Illustrated Story',cameraMode:'follow',fxMode:'glitter',fxStrength:0.8,color:'#f0e8d6',glow:'#e3bd70',texture:'paper'},
-    cinematic:{label:'Cinematic Score',cameraMode:'cinematic',fxMode:'trail',fxStrength:1.15,color:'#151b32',glow:'#91d3ff',texture:'grain'},
-    minimal:{label:'Minimal Score',cameraMode:'follow',fxMode:'bloom',fxStrength:.45,color:'#f5f1e7',glow:'#b2a1dc',texture:'paper'}
+    illustrated:{label:'Illustrated Story',cameraMode:'follow',fxMode:'glitter',fxStrength:0.8,color:'#f0e8d6',glow:'#e3bd70'},
+    cinematic:{label:'Cinematic Score',cameraMode:'cinematic',fxMode:'trail',fxStrength:1.15,color:'#151b32',glow:'#91d3ff'},
+    minimal:{label:'Minimal Score',cameraMode:'follow',fxMode:'bloom',fxStrength:.45,color:'#f5f1e7',glow:'#b2a1dc'}
   };
   function normalize(value={}){
     const x=(value&&typeof value==='object')?value:{};

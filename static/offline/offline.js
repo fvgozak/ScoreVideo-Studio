@@ -1,8 +1,6 @@
 /* Shared deterministic MP4 engine; experiment and production call this module. */
 import {Output, Mp4OutputFormat, BufferTarget, StreamTarget, CanvasSource, Quality} from './mediabunny.min.mjs';
 import {decodeProjectAudio,createAacSource,encodeAudioSamples} from './offline-audio.js';
-import {createScoreGlowOverlay} from './score-glow-overlay.js?v=top-crop-1';
-import {createStaticScoreHeads} from './score-static-heads.js?v=pedal-colors-1';
 
 const average=items=>items.reduce((sum,item)=>sum+item,0)/Math.max(1,items.length);
 function summary(items){const sorted=[...items].sort((a,b)=>a-b);return {totalMs:Math.round(items.reduce((sum,item)=>sum+item,0)),avgMs:+average(items).toFixed(3),p95Ms:+(sorted[Math.min(sorted.length-1,Math.ceil(sorted.length*.95)-1)]||0).toFixed(3)};}
@@ -22,65 +20,19 @@ window.ScoreOfflinePrototype={
   // Inspect a live export frame without finishing the full song. This is the
   // actual GPU compositor canvas used by CanvasSource, not the editor preview.
   window.__scoreExportFrameCanvas=canvas;
-  const scoreOverlay=composer&&!composer.gpu&&scoreGlow?createScoreGlowOverlay(stage,canvas):null;
-  let staticHeads=null;
   const context=mode==='simple'?canvas.getContext('2d',{alpha:false}):null;
   let frameCount=Math.round(seconds*fps);
   const times={scene:[],compose:[],scoreOverlay:[],encode:[],background:[],piano:[],score:[],effects:[],svgDecode:[],pianoPaint:[],pianoCopy:[]};
   let svgDecodes=0,svgCacheHits=0,visibleSvgTiles=0,rasterCachePeakBytes=0,pianoLayerInfo=[],keyboardCamera=null,keyboardPixelProbe=null;
   let output=null,source=null,completed=0,finalized=false,opfs=null,audioInfo=null,audioTrack=null,audioTask=null;
   let audioEncodeError=null,audioEncodeStats=null,audioEncodeMs=0,audioWaitMs=0;
-  let pianoCalls=0,pianoDrawInfo=null,pianoResizes=0,pianoCopiedPixels=0;
-  const piano=mode==='simple'?null:stage?.piano,domPianoCanvas=piano?.canvas;
-  const compositeContext=composer?.canvas.getContext('2d');
-  const originalDrawImage=compositeContext?.drawImage;
-  const originalFillText=compositeContext?.fillText;
-  const hadOwnFillText=Boolean(compositeContext&&Object.hasOwn(compositeContext,'fillText'));
-  let titleDrawIndex=0,titleDrawCalls=0,titleSkipped=0;
-  const deferredTitles=[];
-  const hadOwnCompositeDrawImage=Boolean(compositeContext&&Object.hasOwn(compositeContext,'drawImage'));
-  const Cache=window.ScorePianoShadowSprite?.ShadowSpriteCache;
-  const originalPianoCache=piano?.shadowCache,originalOnDrawMeasured=piano?.onDrawMeasured;
-  const pianoOptimizationApplied=Boolean(pianoMode==='shadow-sprite'&&piano&&Cache&&typeof OffscreenCanvas!=='undefined');
-  const exportCache=pianoOptimizationApplied?new Cache():null;
-  if(piano){
-    // The export uses its own cache. Preview cache contents and hit counters
-    // remain untouched, and no Canvas methods are replaced.
-    piano.shadowCache=exportCache;
-    piano.onDrawMeasured=(ms,resized)=>{times.pianoPaint.push(ms);if(resized)pianoResizes++;};
-  }
-  if(compositeContext){
-    compositeContext.drawImage=function(...args){
-      if(args[0]!==domPianoCanvas)return originalDrawImage.apply(this,args);
-      const [source,dx,dy,dw,dh]=args;
-      if(!pianoDrawInfo)pianoDrawInfo={sourceWidth:source.width,sourceHeight:source.height,
-        outputWidth:canvas.width,outputHeight:canvas.height,dx,dy,dw,dh};
-      pianoCalls++;
-      const start=performance.now();
-      pianoCopiedPixels+=source.width*source.height;
-      try{return originalDrawImage.apply(this,args);}
-      finally{times.pianoCopy.push(performance.now()-start);}
-    };
-    compositeContext.fillText=function(...args){
-      const titleBox=stage.viewport.querySelector('.studio-titles');
-      const title=[...(titleBox?.children||[])].filter(element=>element.textContent)[titleDrawIndex++];
-      const boxStyle=titleBox&&getComputedStyle(titleBox),style=title&&getComputedStyle(title);
-      if(!title||!boxStyle||!style||title.hidden||titleBox.hidden||
-        boxStyle.display==='none'||style.display==='none'||
-        boxStyle.visibility==='hidden'||style.visibility==='hidden'||
-        Number(boxStyle.opacity)<=0||Number(style.opacity)<=0){titleSkipped++;return;}
-      titleDrawCalls++;
-      // The DOM title is above both the score and its glow; draw it last.
-      deferredTitles.push({args,alpha:this.globalAlpha,font:this.font,color:this.fillStyle,
-        align:this.textAlign,baseline:this.textBaseline,shadow:this.shadowColor,blur:this.shadowBlur});
-    };
-  }
+  // Export uses a GPU compositor, even in minimal mode. The earlier
+  // Canvas2D drawImage/fillText interceptors and shadow-sprite cache were
+  // unreachable after the GPU migration. Their diagnostic return fields
+  // remain present below for older benchmark consumers.
   const started=performance.now();
   const jsHeapStart=performance.memory?.usedJSHeapSize||null;let jsHeapPeak=jsHeapStart||0;
   try{
-    // Draw-score animation intentionally uses live SVG rather than a static
-    // engraving cache; only split noteheads on the cached-score path.
-    if(scoreOverlay&&!stage.settings.effects.drawScore)staticHeads=await createStaticScoreHeads(stage,canvas);
     if(audioMode==='source'){
       audioInfo=await decodeProjectAudio(stage.meta,abortController.signal);
       if(fullSong){seconds=Math.max(Number(stage.meta.audio_duration_sec)||0,audioInfo.buffer.duration);
@@ -125,22 +77,12 @@ window.ScoreOfflinePrototype={
       }else{stage.seek(time);}
       times.scene.push(performance.now()-before);
       before=performance.now();
-      titleDrawIndex=0;deferredTitles.length=0;
       if(composer){const metrics=await composer.compose(time);times.background.push(metrics.backgroundMs||0);times.piano.push(metrics.pianoMs||0);times.score.push(metrics.scoreMs||0);times.effects.push(metrics.effectsMs||0);times.svgDecode.push(metrics.svgDecodeMs||0);svgDecodes+=metrics.svgDecodes||0;
         svgCacheHits+=metrics.tileCacheHits||0;visibleSvgTiles+=metrics.visibleTiles||0;
         rasterCachePeakBytes=Math.max(rasterCachePeakBytes,metrics.rasterCacheBytes||0);
         if(frame===0){pianoLayerInfo=metrics.pianoLayerInfo||[];keyboardCamera=metrics.keyboardCamera||null;
           keyboardPixelProbe=metrics.keyboardPixelProbe||null;}}
       times.compose.push(performance.now()-before);
-      staticHeads?.draw();
-      if(scoreOverlay){before=performance.now();await scoreOverlay.draw();times.scoreOverlay.push(performance.now()-before);}
-      for(const title of deferredTitles){
-        compositeContext.save();compositeContext.globalAlpha=title.alpha;
-        compositeContext.font=title.font;compositeContext.fillStyle=title.color;
-        compositeContext.textAlign=title.align;compositeContext.textBaseline=title.baseline;
-        compositeContext.shadowColor=title.shadow;compositeContext.shadowBlur=title.blur;
-        originalFillText.apply(compositeContext,title.args);compositeContext.restore();
-      }
       before=performance.now();
       if(source)await source.add(time,1/fps);
       times.encode.push(performance.now()-before);
@@ -166,29 +108,24 @@ window.ScoreOfflinePrototype={
     if(capturePixels&&composer)throw Error('GPU 합성에서는 Canvas2D 픽셀 캡처를 지원하지 않습니다.');
     if(output){window.__offlineResult=resultFile||new Blob([output.target.buffer],{type:'video/mp4'});
       if(opfs){const {directory,name}=opfs;releaseResult=()=>directory.removeEntry(name);}}
-    const spriteStats=exportCache?.stats();
     const fxRequested=stage?.settings?.piano?.fxRenderer||'canvas';
     const fxPiano=stage?.piano?.dynamic&&!stage?.settings?.effects?.minimalMode?'dynamic-webgl2':stage?.piano?.gpu?'pixi':'canvas';
     const fxScore=stage?.scoreGpu?'pixi':'canvas';
-    return {mode,pianoMode,pianoOptimizationApplied,scoreGlow,startSeconds,width,height,fps,seconds,frames:completed,bytes,
+    return {mode,pianoMode,pianoOptimizationApplied:false,scoreGlow,startSeconds,width,height,fps,seconds,frames:completed,bytes,
       fxRendererRequested:fxRequested,fxRendererPiano:fxPiano,fxRendererScore:fxScore,
       fxPianoStats:stage?.piano?.gpu?.stats()||null,fxScoreStats:stage?.scoreGpu?.stats()||null,
       audioMode,storage:opfs?'opfs':'memory',audioInputBytes:audioInfo?.inputBytes||0,
       audioFetchMs:+(audioInfo?.fetchMs||0).toFixed(2),audioDecodeMs:+(audioInfo?.decodeMs||0).toFixed(2),
       audioEncodeMs:+audioEncodeMs.toFixed(2),audioWaitMs:+audioWaitMs.toFixed(2),
       audioEncodedPackets:audioTrack?.packetCount||0,audio:audioEncodeStats,
-      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:scoreOverlay?.stats()||null,staticHeads:staticHeads?.stats()||null,titleDrawCalls,titleSkipped,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls,pianoResizes,pianoCopiedPixels,pianoDrawInfo,spriteCreates:spriteStats?.creates||0,spriteHits:spriteStats?.hits||0,spriteBuildMs:spriteStats?.buildMs||0,peakSpriteBytes:spriteStats?.peakBytes||0,spriteEvictions:spriteStats?.evictions||0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,svgCacheHits,visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
+      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:null,staticHeads:null,titleDrawCalls:0,titleSkipped:0,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls:0,pianoResizes:0,pianoCopiedPixels:0,pianoDrawInfo:null,spriteCreates:0,spriteHits:0,spriteBuildMs:0,peakSpriteBytes:0,spriteEvictions:0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,svgCacheHits,visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
   }catch(error){cancelRequested=true;if(output&&!finalized)try{await output.cancel();}catch(_){}
     if(audioTask)await audioTask;
     if(opfs)try{await opfs.directory.removeEntry(opfs.name);}catch(_){}
     throw error;}
   finally{
     activeAbort=null;audioInfo=null;
-    if(piano){piano.shadowCache=originalPianoCache;piano.onDrawMeasured=originalOnDrawMeasured;}
-    exportCache?.clear();
-    if(compositeContext){if(hadOwnCompositeDrawImage)compositeContext.drawImage=originalDrawImage;else delete compositeContext.drawImage;
-      if(hadOwnFillText)compositeContext.fillText=originalFillText;else delete compositeContext.fillText;}
-    staticHeads?.close();scoreOverlay?.close();composer?.close();window.__offlineProgress=null;
+    composer?.close();window.__offlineProgress=null;
     if(window.__scoreExportFrameCanvas===canvas)window.__scoreExportFrameCanvas=null;
   }
 }};

@@ -57,7 +57,6 @@
      this.svgIds=new WeakMap();this.nextSvgId=0;this.frameNumber=0;
      this.retiredImages=[];this.smallSvgEntries=new Set();
      this.titleCache=new Map();this.photo=null;this.photoKey='';
-     this.pattern=new PIXI.Graphics();this.patternKey='';
      this.placed=[];this.isClosed=false;
    }
    static async create(stage,width,height){
@@ -266,12 +265,6 @@
        dw=photo.width*fit,dh=photo.height*fit;
        this.place(photo,{x:(w-dw)*settings.effects.backgroundPositionX/100,
          y:(h-dh)*settings.effects.backgroundPositionY/100,width:dw,height:dh},this.root,settings.effects.backgroundOpacity);
-     }
-     const patternMode=stage.follower?.textureLayer?.dataset.texture;
-     if(patternMode&&patternMode!=='none'&&(!stage.piano?.dynamic||stage.piano.dynamic.canvas.style.display==='none')){
-       const key=`${patternMode}:${w}x${h}`;
-       if(key!==this.patternKey){root.ScoreBackgroundPattern.drawGpu(this.pattern,patternMode,w,h);this.patternKey=key;}
-       this.root.addChild(this.pattern);
      }
      metrics.backgroundMs=performance.now()-t0;
      const pianoStart=performance.now();

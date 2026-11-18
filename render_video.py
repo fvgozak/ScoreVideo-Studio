@@ -304,6 +304,9 @@ def export_mp4(folder: Path, meta: dict, settings, on_progress: Callable[[int, s
             try:
                 page = browser.new_page(viewport={'width': settings.width, 'height': settings.height},
                                         device_scale_factor=1, reduced_motion='reduce')
+                proxy_secret = os.environ.get('SCOREMOTION_PROXY_SECRET')
+                if proxy_secret:
+                    page.set_extra_http_headers({'x-scoremotion-proxy-secret': proxy_secret})
                 page.goto(url, wait_until='domcontentloaded', timeout=30_000)
                 deadline = time.perf_counter() + 90
                 while True:

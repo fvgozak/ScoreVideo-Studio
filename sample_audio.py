@@ -39,8 +39,8 @@ def decode_sample(name: str) -> np.ndarray:
     return np.frombuffer(process.stdout, dtype="<f4").reshape(-1, 2).copy()
 
 
-def render_salamander(timing: dict, output: Path) -> float:
-    """Write a 16-bit stereo WAV and return its duration in seconds."""
+def salamander_duration(timing: dict) -> float:
+    """Duration shared by browser synthesis and legacy server rendering."""
     events = timing.get("note_events") or []
     if not events:
         raise ValueError("No MIDI notes to synthesize")
@@ -48,6 +48,13 @@ def render_salamander(timing: dict, output: Path) -> float:
     duration = max(float(timing.get("midi_duration_sec") or 0), last_note) + 1.5
     if duration > 600:
         raise ValueError("Automatic piano audio is limited to 10 minutes; supply an audio file for longer pieces")
+    return duration
+
+
+def render_salamander(timing: dict, output: Path) -> float:
+    """Write a 16-bit stereo WAV and return its duration in seconds."""
+    events = timing.get("note_events") or []
+    duration = salamander_duration(timing)
     frames = int(np.ceil(duration * SAMPLE_RATE))
     mix = np.zeros((frames, 2), dtype=np.float32)
     cache: dict[str, np.ndarray] = {}

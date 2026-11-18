@@ -142,8 +142,6 @@
    const start=measure?performance.now():0;
    ctx.fillStyle=stage.follower?.bgLayer?.style.backgroundColor||effects.paper;ctx.fillRect(0,0,width,height);
    drawPhoto(ctx,photo,stage);
-   const texture=stage.follower?.textureLayer?.querySelector('canvas.score-texture-canvas');
-   if(texture&&!texture.hidden&&(!stage.piano?.dynamic||stage.piano.dynamic.canvas.style.display==='none'))ctx.drawImage(texture,0,0,width,height);
    drawAtmosphere(ctx,stage,t);
    if(measure)measure.backgroundMs=performance.now()-start;
    const pianoStart=measure?performance.now():0;

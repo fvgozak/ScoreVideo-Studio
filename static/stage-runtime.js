@@ -7,11 +7,11 @@
  function pianoOnlyFollower(meta,settings,viewport){
    const bg=document.createElement('div');bg.className='score-background';
    const photo=document.createElement('div');photo.className='score-photo';bg.appendChild(photo);
-   const texture=document.createElement('div');texture.className='score-texture';bg.appendChild(texture);viewport.prepend(bg);
+   viewport.prepend(bg);
    const velocities=(meta.note_events||[]).map(note=>Number(note.velocity)).filter(Number.isFinite);
    const range=velocities.reduce((result,velocity)=>({min:Math.min(result.min,velocity),max:Math.max(result.max,velocity)}),{min:127,max:1});
    return {
-     stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,textureLayer:texture,
+     stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,
      noteEvents:meta.note_events||[],pedalEvents:meta.pedal_events||[],noteTriggers:[],tieContinuations:[],timestamps:[0,meta.audio_duration_sec||0],measureStarts:[],
      tempoMap:meta.tempo_map||[{beat:0,second:0,tempo_us:500000}],audioDuration:meta.audio_duration_sec,
      offsetSec:settings.offsetSec,sync:meta.sync,effects:{...settings.effects,velocityScale:settings.scene.velocityScale},scene:settings.scene,velocityRange:range,
@@ -33,7 +33,7 @@
        photo.style.backgroundSize=e.backgroundFit==='contain'?'contain':'cover';
        photo.style.backgroundPosition=`${e.backgroundPositionX}% ${e.backgroundPositionY}%`;
        photo.style.opacity=String(e.backgroundOpacity);
-       root.ScoreBackgroundPattern?.render(texture,e.texture,viewport.clientWidth,viewport.clientHeight);},
+       },
      setOffset(value){this.offsetSec=value;},setSync(value){this.sync=value;},setCameraPoints(){},setCameraPointPicking(){},seek(){},
    };
  }
@@ -43,7 +43,7 @@
      paper:hex(s.paper_color,'#fffdf6'),ink:hex(s.ink_color,'#181b22'),
      staff:hex(s.staff_color,'#323a43'),glow:hex(s.glow_color,'#68ddfa'),
      cursor:hex(s.cursor_color,'#2ec9d3'),cursorVisible:s.cursor_visible!==false,cursorMotion:s.cursor_motion==='step'?'step':'smooth',accent:hex(s.accent_color,'#2ec9d3'),
-     texture:s.texture||'none',inverted:Boolean(s.inverted),
+     texture:'none',inverted:Boolean(s.inverted),
      backgroundUrl:meta.background_filename?`/api/projects/${meta.id}/background?v=${encodeURIComponent(meta.background_version||meta.background_filename)}`: '',
      backgroundOpacity:clamp(number(s.background_opacity,.5),0,1),backgroundFit:s.background_fit||'cover',
      backgroundPositionX:clamp(number(s.background_position_x,50),0,100),backgroundPositionY:clamp(number(s.background_position_y,50),0,100),
@@ -85,6 +85,7 @@
        scoreLighting:{panelColor:hex(s.score_panel_color,'#0c1120'),
          panelOpacity:clamp(number(s.score_panel_opacity,0),0,1),scoreVisible:meta.has_score!==false&&s.score_visible!==false},
        camera:s.piano_camera!==false,portrait:height>width,
+       verticalOffsetPct:clamp(number(s.piano_vertical_offset_pct,0),-20,20),
        keyStyle:['auto','dark','classic','custom'].includes(s.piano_key_style)?s.piano_key_style:'auto',
        whiteKeyColor:hex(s.piano_white_key_color,'#5a6576'),blackKeyColor:hex(s.piano_black_key_color,'#141b27'),
        strength:clamp(number(s.piano_light_strength,1.4),0,4),
@@ -365,8 +366,6 @@
      if(this.layer)this.layer.gpuEffects=this.settings.gpuEffects;
      this.layer?.draw(this.time,this.follower);
      this.piano?.draw(this.time);
-   if(this.follower.textureLayer)this.follower.textureLayer.style.display=
-     !this.piano?.dynamic||this.piano.dynamic.canvas.style.display==='none'?'':'none';
      this.drawScoreGpu();
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}

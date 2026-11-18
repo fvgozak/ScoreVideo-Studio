@@ -12,6 +12,16 @@ export function linearColor(value,fallback='#202838'){
 }
 export const luminance=color=>color[0]*.2126+color[1]*.7152+color[2]*.0722;
 
+// The stage's photo layer is rendered below the full-screen Dynamic FX canvas.
+// A second WebGL background over the photo used to wash out light-palette
+// images even when the score panel opacity was lowered (v17). Only the
+// keyboard, falling notes and their emissive effects should cover the photo.
+export function fxBackdropAlpha(effects={}){
+  const url=String(effects?.backgroundUrl||'');
+  const imageVisible=url.startsWith('/api/projects/')&&clamp(Number(effects?.backgroundOpacity??0))>0;
+  return imageVisible?0:.94;
+}
+
 const images=new Map();
 export function loadBackdropImage(url){
   if(!url)return Promise.resolve(null);

@@ -4,9 +4,10 @@ export const DEFAULTS=Object.freeze({
   releaseSeconds:0.68,curlStrength:1.05,densityAuto:true,densityResponse:0.8,
   densityWindowSec:10,densityShortWindowSec:2,densityFastWeight:0.35,densityAttack:0.45,densityRelease:2.3,
   particleDensity:1.0,glowBloom:.70,noteFallSeconds:2.8,
+  noteBarMode:'fall',noteRiseSpeed:1,
   showNotes:true,showParticles:true,showGlow:true,showHitline:true,
   maxParticles:3300,colorMode:'aurora',audioReactive:false,masterGlow:1.0,
-  cameraZoom:1.0,cameraTilt:.27,cameraFollow:true,
+  cameraZoom:1.0,cameraTilt:.27,cameraFollow:true,cameraVerticalOffsetPct:0,
   aspectMode:'landscape',portraitAutoFrame:true,cameraLeadSeconds:5,cameraSmoothness:1,
 });
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));

@@ -1,0 +1,3965 @@
+{
+  "summary": {
+    "total_candidates": 565,
+    "previously_catalogued": 471,
+    "needs_manual_extraction": 94,
+    "scope": "Potential Korean UI string literals; false positives include error diagnostics and templates"
+  },
+  "items": [
+    {
+      "file": "static/index.html",
+      "line": 4,
+      "kind": "text",
+      "text": "ScoreMotion · 작업공간",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 8,
+      "kind": "text",
+      "text": "내보내기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 8,
+      "kind": "text",
+      "text": "언어",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 8,
+      "kind": "attribute:aria-label",
+      "text": "언어 선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 8,
+      "kind": "text",
+      "text": "한국어",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 8,
+      "kind": "text",
+      "text": "이 컴퓨터에서만 실행",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 11,
+      "kind": "text",
+      "text": "연주를 따라 움직이는",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 11,
+      "kind": "text",
+      "text": "악보 영상",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 11,
+      "kind": "text",
+      "text": "을 만들어보세요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 12,
+      "kind": "text",
+      "text": "MIDI로 건반 영상을 만들고, MusicXML을 함께 올리면 악보도 표시합니다. 완성 음원은 선택 사항입니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "attribute:aria-label",
+      "text": "작업 설정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "text",
+      "text": "파일",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "text",
+      "text": "악보",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "text",
+      "text": "장면",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "text",
+      "text": "배경",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "text",
+      "text": "효과",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 15,
+      "kind": "text",
+      "text": "출력",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 16,
+      "kind": "text",
+      "text": "파일 불러오기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 16,
+      "kind": "attribute:title",
+      "text": "현재 파일·음원·배경·미리보기를 비우고 새 곡 시작",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 16,
+      "kind": "text",
+      "text": "↺ 초기화",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 17,
+      "kind": "text",
+      "text": "MusicXML 악보",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 17,
+      "kind": "text",
+      "text": "선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 18,
+      "kind": "text",
+      "text": "MIDI 연주 정보 · 필수",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 18,
+      "kind": "text",
+      "text": "선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 19,
+      "kind": "text",
+      "text": "완성 오디오",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 19,
+      "kind": "text",
+      "text": ".mp3 / .wav / .m4a 등",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 19,
+      "kind": "text",
+      "text": "선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 20,
+      "kind": "text",
+      "text": "프로젝트 만들기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 22,
+      "kind": "text",
+      "text": "▶ Dream Journey 예제 바로 체험하기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 23,
+      "kind": "text",
+      "text": "샘플 악보·MIDI·음원과 커버 이미지를 불러옵니다. 파일을 직접 선택하지 않아도 돼요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 24,
+      "kind": "text",
+      "text": "MIDI는 필수입니다. MusicXML을 함께 올리면 악보가 표시되고, MIDI만 올리면 건반 전용 영상이 됩니다. 오디오는 없으면 Salamander 피아노로 만듭니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 25,
+      "kind": "text",
+      "text": "MusicXML 악보 음표와 MIDI의 실제 타건을 음고·순서로 정렬합니다. 페르마타 뒤 정박 어긋남도 보정합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 26,
+      "kind": "text",
+      "text": "악보 레이아웃 · 시각 효과",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 26,
+      "kind": "text",
+      "text": "악보 영역은 화면에서 직접 편집",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 26,
+      "kind": "text",
+      "text": "미리보기의",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 26,
+      "kind": "text",
+      "text": "영역 편집",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 26,
+      "kind": "text",
+      "text": "을 누르고 끌어 위치를 바꾸세요. 가장자리 핸들로 너비·높이를 조절할 수 있어요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 26,
+      "kind": "text",
+      "text": "▢ 미리보기에서 영역 편집",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 27,
+      "kind": "text",
+      "text": "레이아웃",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 28,
+      "kind": "text",
+      "text": "페이지 레이아웃 · Page Layout",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 28,
+      "kind": "text",
+      "text": "싱글라인 · Single Line Follow",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 29,
+      "kind": "text",
+      "text": "페이지 레이아웃은 한 줄에 적절한 마디 수로 내려가며, 싱글라인은 가능한 한 한 줄로 길게 펼쳐 카메라가 따라갑니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 30,
+      "kind": "text",
+      "text": "악보 기보 스타일",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 31,
+      "kind": "text",
+      "text": "클래식 · 기본 조판",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 31,
+      "kind": "text",
+      "text": "모던 · 또렷한 음표",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 31,
+      "kind": "text",
+      "text": "재즈 · 카피스트 느낌",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 31,
+      "kind": "text",
+      "text": "손사보 · 부드러운 스케치",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 32,
+      "kind": "text",
+      "text": "음표 머리·기둥·오선과 기호의 획을 바꿉니다. 음악 글꼴 자체를 교체하는 기능은 아니며, 미리보기와 MP4에 동일하게 적용됩니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 33,
+      "kind": "text",
+      "text": "악보 내용 위치 X",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 34,
+      "kind": "text",
+      "text": "악보 영역은 그대로 두고 안의 악보를 가로로 이동합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 35,
+      "kind": "text",
+      "text": "악보 내용 위치 Y",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 37,
+      "kind": "text",
+      "text": "악보 영역은 그대로 두고 안의 악보를 세로로 이동합니다. 페이지와 싱글라인 모두 적용됩니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 38,
+      "kind": "text",
+      "text": "수치로 정밀 조정 · 영역 / 여백 / 배경",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 38,
+      "kind": "text",
+      "text": "악보 영역 가로 위치",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 39,
+      "kind": "text",
+      "text": "영상 전체와 분리된 창을 지정합니다. 음악을 재생하면 악보만 이 영역 안에서 움직입니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 40,
+      "kind": "text",
+      "text": "표시 영역 너비",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 41,
+      "kind": "text",
+      "text": "표시 영역 높이",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 42,
+      "kind": "text",
+      "text": "악보 상단 자르기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 42,
+      "kind": "attribute:aria-label",
+      "text": "악보 상단 자르기 비율",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 42,
+      "kind": "text",
+      "text": "악보의 크기와 위치는 유지하고, 영역의 위쪽만 투명하게 가립니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 43,
+      "kind": "text",
+      "text": "위쪽 여백",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 43,
+      "kind": "text",
+      "text": "0%는 영상의 맨 위에서 악보 표시 영역이 시작됩니다. 제목과 겹치면 여백을 직접 늘리세요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 44,
+      "kind": "text",
+      "text": "아래쪽 여백",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 45,
+      "kind": "text",
+      "text": "악보 영역 배경색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 46,
+      "kind": "text",
+      "text": "패널 불투명도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 47,
+      "kind": "text",
+      "text": "✦ 사진용 가독성 프리셋 · 검정 55%",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 48,
+      "kind": "text",
+      "text": "패널은 악보 표시 영역 안에만 적용됩니다. 배경 사진은 영상 전체에 그대로 남습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 50,
+      "kind": "text",
+      "text": "악보 색상 · 커서 · 음표 반응",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 50,
+      "kind": "text",
+      "text": "테마 기준색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 50,
+      "kind": "text",
+      "text": "Auto 팔레트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 51,
+      "kind": "text",
+      "text": "✦ 색상 자동 설정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 52,
+      "kind": "text",
+      "text": "기준색과 어울리는 배경·오선·음표·커서·발광 색상을 자동으로 제안합니다. 이후 각 색을 개별 수정할 수 있습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 53,
+      "kind": "text",
+      "text": "색상 반전",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 53,
+      "kind": "text",
+      "text": "배경 ↔ 음표 기본색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 55,
+      "kind": "text",
+      "text": "악보 바탕색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 56,
+      "kind": "text",
+      "text": "오선색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 57,
+      "kind": "text",
+      "text": "음표색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 58,
+      "kind": "text",
+      "text": "커서색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 59,
+      "kind": "text",
+      "text": "강조색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 60,
+      "kind": "text",
+      "text": "빛 색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 62,
+      "kind": "text",
+      "text": "커서 표시",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 62,
+      "kind": "text",
+      "text": "영상과 미리보기에서 재생 위치를 표시",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 64,
+      "kind": "text",
+      "text": "커서 이동",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 66,
+      "kind": "text",
+      "text": "부드럽게 · 다음 음표 직전에 이동",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 67,
+      "kind": "text",
+      "text": "즉시 · 음표마다 이동",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 69,
+      "kind": "text",
+      "text": "음표 타건 시점은 그대로 두고, 커서의 시각적 이동만 보간합니다. 행이 바뀔 때는 연결하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 71,
+      "kind": "text",
+      "text": "글리터",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 71,
+      "kind": "text",
+      "text": "악보 위 미세한 빛 입자",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 72,
+      "kind": "text",
+      "text": "연주 음표 반짝임",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 72,
+      "kind": "text",
+      "text": "현재 연주 중인 음표만 강조",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 73,
+      "kind": "text",
+      "text": "MIDI 벨로시티 반응",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 73,
+      "kind": "text",
+      "text": "강약에 따라 빛과 움직임이 달라져요",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 74,
+      "kind": "text",
+      "text": "연주 음표 미세 움직임",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 74,
+      "kind": "text",
+      "text": "타건 시 부드럽게 확대·상승 후 복귀",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 75,
+      "kind": "text",
+      "text": "음표 반응 세기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 77,
+      "kind": "text",
+      "text": "0%에서는 벨로시티 효과가 적용되지 않습니다. 오선과 음표 사이의 간격은 변하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 80,
+      "kind": "text",
+      "text": "✦ 악보 색상 조합",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 81,
+      "kind": "text",
+      "text": "테마를 바로 선택하거나 앨범 커버·사진에서 색상을 추출할 수 있어요. 영상 배경은 별도로 지정합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 83,
+      "kind": "attribute:alt",
+      "text": "선택한 이미지 미리보기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 84,
+      "kind": "text",
+      "text": "▧ 색상 추출용 이미지 선택 또는 드래그 앤 드롭",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 84,
+      "kind": "text",
+      "text": "PNG · JPG · WebP · 최대 20MB",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 87,
+      "kind": "text",
+      "text": "이 이미지를 영상 배경으로 지정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 89,
+      "kind": "text",
+      "text": "영상 배경 · 색상과 별도로 선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 90,
+      "kind": "attribute:alt",
+      "text": "현재 영상 배경 미리보기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 90,
+      "kind": "text",
+      "text": "선택된 배경 이미지 없음",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 91,
+      "kind": "text",
+      "text": "배경 이미지 지정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 91,
+      "kind": "text",
+      "text": "배경 이미지만 제거",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 92,
+      "kind": "text",
+      "text": "현재 영상 배경에서 색상 추출",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 95,
+      "kind": "text",
+      "text": "색상 추출용 이미지는 영상 배경을 자동으로 바꾸지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 96,
+      "kind": "text",
+      "text": "테마 · 배경 이미지 없이 색상 선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 96,
+      "kind": "text",
+      "text": "우주",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 96,
+      "kind": "text",
+      "text": "바다",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 96,
+      "kind": "text",
+      "text": "나무",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 98,
+      "kind": "text",
+      "text": "테마 대표 색상",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 100,
+      "kind": "text",
+      "text": "추천 악보 디자인",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 100,
+      "kind": "text",
+      "text": "선택하면 즉시 적용",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 102,
+      "kind": "text",
+      "text": "디자인을 선택하면 악보·영역 배경·빛·건반 색상이 연동됩니다. 패널 투명도는 대비를 고려해 자동 추천하며, 원하는 값으로 다시 조절할 수 있어요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 105,
+      "kind": "text",
+      "text": "영상 배경 조정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 106,
+      "kind": "text",
+      "text": "위에서 지정한 배경의 투명도, 화면 맞춤과 위치를 조절하세요. 미리보기와 MP4에 동일하게 적용됩니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 107,
+      "kind": "text",
+      "text": "사진 투명도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 109,
+      "kind": "text",
+      "text": "배경 이미지 맞춤",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 110,
+      "kind": "text",
+      "text": "화면 채우기 (잘릴 수 있음)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 110,
+      "kind": "text",
+      "text": "전체 표시 (여백 가능)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 111,
+      "kind": "text",
+      "text": "배경 가로 위치",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 112,
+      "kind": "text",
+      "text": "배경 세로 위치",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 114,
+      "kind": "text",
+      "text": "장면 · 카메라 · 빛",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 115,
+      "kind": "text",
+      "text": "미니멀 모드",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 115,
+      "kind": "text",
+      "text": "빛과 낙하 노트 대신 색상과 명암으로 연주를 표현합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 116,
+      "kind": "text",
+      "text": "미니멀 색상",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 117,
+      "kind": "text",
+      "text": "색상 추천 방식",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 118,
+      "kind": "text",
+      "text": "음표머리",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 118,
+      "kind": "text",
+      "text": "흰 건반",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 118,
+      "kind": "text",
+      "text": "검은 건반",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 118,
+      "kind": "text",
+      "text": "페달 표시",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 119,
+      "kind": "text",
+      "text": "악보 그리기 애니메이션",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 119,
+      "kind": "text",
+      "text": "오선은 펼쳐지고 음표는 MIDI 타건 순서로 그려져요",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 120,
+      "kind": "text",
+      "text": "영상 스타일",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 121,
+      "kind": "text",
+      "text": "Minimal Score · 종이 질감과 절제된 빛",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 122,
+      "kind": "text",
+      "text": "Illustrated Story · 따뜻한 일러스트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 123,
+      "kind": "text",
+      "text": "Cinematic Score · 오로라와 잔광",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "카메라",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "Follow · 연주 위치를 따라가기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "Cinematic · 유려한 카메라",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "Follow + Impact · 강약 반응",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "Interactive View · 자동/수동 음표 포인트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "Fixed · 카메라 고정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 125,
+      "kind": "text",
+      "text": "Interactive View는 자동 제안과 수동 포인트를 하나의 부드러운 카메라 경로로 연결합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 127,
+      "kind": "text",
+      "text": "✦ 인터랙티브 뷰 · 자동 포인트 생성",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 128,
+      "kind": "text",
+      "text": "프레이즈 시작, 화성, 강세와 음역 변화를 골라 부드러운 카메라 경로를 제안합니다. 수동 포인트는 유지됩니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 129,
+      "kind": "text",
+      "text": "＋ 프리뷰에서 음표 포인트 찍기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 129,
+      "kind": "text",
+      "text": "현재 위치 음표 추가",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 130,
+      "kind": "text",
+      "text": "Points 모드를 선택하고 버튼을 켠 뒤, 미리보기 음표를 눌러 포인트를 추가하세요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 134,
+      "kind": "text",
+      "text": "지속 시간",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 134,
+      "kind": "text",
+      "text": "1.6초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 135,
+      "kind": "text",
+      "text": "줌 시작 시점",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 135,
+      "kind": "text",
+      "text": "0.6초 먼저",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 135,
+      "kind": "text",
+      "text": "음표 타건 기준: 음수는 먼저 시작, 양수는 타건 후 시작",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 136,
+      "kind": "text",
+      "text": "떨림",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 137,
+      "kind": "text",
+      "text": "선택 삭제",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 137,
+      "kind": "text",
+      "text": "모두 지우기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 139,
+      "kind": "text",
+      "text": "음표 발광 스타일",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 139,
+      "kind": "text",
+      "text": "Soft Bloom · 번지는 빛",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 139,
+      "kind": "text",
+      "text": "Glitter Dust · 음표 반짝임",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 139,
+      "kind": "text",
+      "text": "Light Trail · 손별 빛의 궤적",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 139,
+      "kind": "text",
+      "text": "Resonance · 확산 동심원",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 139,
+      "kind": "text",
+      "text": "없음",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 140,
+      "kind": "text",
+      "text": "GPU 효과 엔진 사용 중",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 141,
+      "kind": "text",
+      "text": "PixiJS 조명 조합",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 142,
+      "kind": "text",
+      "text": "Cinematic Effects · GPU 조명",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 143,
+      "kind": "text",
+      "text": "조명 프리셋",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 144,
+      "kind": "text",
+      "text": "전체 강도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 145,
+      "kind": "text",
+      "text": "음악 반응 강도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 153,
+      "kind": "text",
+      "text": "Volumetric Light · 방향성 광선",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 154,
+      "kind": "text",
+      "text": "Chromatic Aberration · 빛 가장자리 색 분리",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 155,
+      "kind": "text",
+      "text": "Light Trails · 선율 궤적",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 156,
+      "kind": "text",
+      "text": "Light Trails · 강도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 157,
+      "kind": "text",
+      "text": "Light Trails · 음표 수",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 158,
+      "kind": "text",
+      "text": "Light Trails · 지속시간",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 168,
+      "kind": "text",
+      "text": "오른손 · 윗오선",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 168,
+      "kind": "text",
+      "text": "왼손 · 아랫오선",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 168,
+      "kind": "text",
+      "text": "✦ 테마색으로 궤적 2색 Auto",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 168,
+      "kind": "text",
+      "text": "오선별로 색을 고정합니다. 행이 바뀌면 이전 궤적을 끊고 새 행의 첫 음에서 다시 시작합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 169,
+      "kind": "text",
+      "text": "Trail 길이 · 음표 수",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 170,
+      "kind": "text",
+      "text": "Trail 밝기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 171,
+      "kind": "text",
+      "text": "Trail 두께",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 172,
+      "kind": "text",
+      "text": "Trail 지속시간",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 173,
+      "kind": "text",
+      "text": "빛 컨트롤 · 색상 반응",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 174,
+      "kind": "text",
+      "text": "고정 색상 · 벨로시티는 밝기/강도만 반영",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 174,
+      "kind": "text",
+      "text": "Aurora · 벨로시티에 따라 빛 색상 변화",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 175,
+      "kind": "text",
+      "text": "발광 스타일(Bloom · Glitter · Light Trail · Resonance)과 별개입니다. 어떤 스타일에도 색상 반응을 조합할 수 있습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 177,
+      "kind": "text",
+      "text": "Aurora · 강약별 색상 프리셋",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 178,
+      "kind": "text",
+      "text": "Polar · 약한 음 파랑 / 강한 음 빨강",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 179,
+      "kind": "text",
+      "text": "Sunset · 청록 / 주황",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 180,
+      "kind": "text",
+      "text": "Orchid · 남보라 / 분홍",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 181,
+      "kind": "text",
+      "text": "Forest · 청록 / 황금",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 182,
+      "kind": "text",
+      "text": "Theme Auto · 테마 색상 기반",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 183,
+      "kind": "text",
+      "text": "직접 선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 185,
+      "kind": "text",
+      "text": "약한 타건 (pp)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 186,
+      "kind": "text",
+      "text": "강한 타건 (ff)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 187,
+      "kind": "text",
+      "text": "강약 색상 기준",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 187,
+      "kind": "text",
+      "text": "절대값 · MIDI 1~127",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 187,
+      "kind": "text",
+      "text": "상대값 · 이 MIDI의 최저~최고",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 187,
+      "kind": "text",
+      "text": "상대값은 이 곡의 실제 벨로시티 범위를 색상 전체에 배분합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 187,
+      "kind": "text",
+      "text": "벨로시티는 빛 색상을, 음높이는 빛의 형태를 바꿉니다. 낮은 음은 넓게 퍼지고 높은 음은 작고 선명하게 빛납니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 189,
+      "kind": "text",
+      "text": "빛 효과 강도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 190,
+      "kind": "text",
+      "text": "피아노 낙하 노트 · 악보/건반 빛",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 191,
+      "kind": "text",
+      "text": "건반 색상",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 191,
+      "kind": "text",
+      "text": "자동 · 악보 배경 밝기에 맞춤",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 191,
+      "kind": "text",
+      "text": "어두운 건반",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 191,
+      "kind": "text",
+      "text": "클래식 흰 건반",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 191,
+      "kind": "text",
+      "text": "직접 선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 191,
+      "kind": "text",
+      "text": "악보 바탕색이 어두우면 건반도 차분해집니다. 사진 배경에는 직접 선택할 수 있습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 192,
+      "kind": "text",
+      "text": "흰 건반 색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 192,
+      "kind": "text",
+      "text": "검은 건반 색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 193,
+      "kind": "text",
+      "text": "악보 음표 타건 빛",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 193,
+      "kind": "text",
+      "text": "건반과 같은 MIDI 타건 시점·색상으로 반응",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 194,
+      "kind": "text",
+      "text": "악보 음표 빛 강도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 195,
+      "kind": "text",
+      "text": "건반 타건 빛",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 195,
+      "kind": "text",
+      "text": "악보 음표 빛과 같은 색상·MIDI 타이밍 사용",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 198,
+      "kind": "text",
+      "text": "건반 빛 강도",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 199,
+      "kind": "text",
+      "text": "세로 영상 건반 카메라",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 199,
+      "kind": "text",
+      "text": "앞 5초 음역을 따라 건반·낙하 노트가 함께 확대·축소",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 200,
+      "kind": "text",
+      "text": "악보·건반 타건 빛의 표시와 강도를 각각 조절합니다. 타건 시점과 빛 색상은 공유합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 201,
+      "kind": "text",
+      "text": "제목 · 텍스트 · 장면 전환 상세",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 201,
+      "kind": "text",
+      "text": "영상 제목 · 파일명 자동 입력",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 201,
+      "kind": "attribute:placeholder",
+      "text": "악보의 제목",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 201,
+      "kind": "text",
+      "text": "파일명 제목으로 되돌리기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 202,
+      "kind": "text",
+      "text": "텍스트 글꼴",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 203,
+      "kind": "text",
+      "text": "Sans · 현대적인 고딕",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 203,
+      "kind": "text",
+      "text": "Serif · 클래식 명조",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 204,
+      "kind": "text",
+      "text": "Rounded · 부드러운 제목",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 205,
+      "kind": "text",
+      "text": "Mono · 타자기 글꼴",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 205,
+      "kind": "text",
+      "text": "Korean · 한글 가독성",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 207,
+      "kind": "text",
+      "text": "제목과 악보 사이 여백",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 209,
+      "kind": "text",
+      "text": "영상의 실제 픽셀 기준. 변경 시 미리보기 악보도 다시 배치합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 210,
+      "kind": "text",
+      "text": "아티스트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 211,
+      "kind": "text",
+      "text": "엔딩 크레딧",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 212,
+      "kind": "text",
+      "text": "영상 내 제목/크레딧 표시",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 213,
+      "kind": "text",
+      "text": "배경색 키프레임 전환",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 213,
+      "kind": "text",
+      "text": "선택할 때만 기본 배경색보다 우선 적용",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 214,
+      "kind": "text",
+      "text": "시작 배경색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 214,
+      "kind": "text",
+      "text": "종료 배경색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 215,
+      "kind": "text",
+      "text": "시작 빛색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 215,
+      "kind": "text",
+      "text": "종료 빛색",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 216,
+      "kind": "text",
+      "text": "색상 전환 종료 시점",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 216,
+      "kind": "text",
+      "text": "20초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 217,
+      "kind": "text",
+      "text": "모든 장면 효과는 재생 시간으로 계산하며, 미리보기와 MP4가 동일한 무대 엔진을 사용합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 218,
+      "kind": "text",
+      "text": "영상 내보내기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 219,
+      "kind": "text",
+      "text": "출력 방식",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 220,
+      "kind": "text",
+      "text": "고속 오프라인 · MP4",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 220,
+      "kind": "text",
+      "text": "기본 선택",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 220,
+      "kind": "text",
+      "text": "브라우저에서 모든 프레임을 정확한 시각에 생성합니다. 4K·60fps는 기기와 인코더 지원 시 사용할 수 있으며, 전체 곡은 미검증입니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 221,
+      "kind": "text",
+      "text": "호환 렌더링 · MP4",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 221,
+      "kind": "text",
+      "text": "기존 Chromium + FFmpeg 경로입니다. 브라우저 인코더가 없거나 신규 경로가 실패할 때 사용할 수 있습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 224,
+      "kind": "text",
+      "text": "선택한 출력 엔진: 고속 오프라인",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 225,
+      "kind": "text",
+      "text": "브라우저 인코더·저장 공간 지원 여부 확인 중",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 226,
+      "kind": "text",
+      "text": "고속 엔진 지원 다시 확인",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 227,
+      "kind": "text",
+      "text": "영상 설정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 228,
+      "kind": "attribute:aria-label",
+      "text": "저장한 영상 설정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 229,
+      "kind": "text",
+      "text": "설정 이름",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 229,
+      "kind": "attribute:placeholder",
+      "text": "예: A곡 · Shorts",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 230,
+      "kind": "text",
+      "text": "현재 설정 저장",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 231,
+      "kind": "text",
+      "text": "저장한 설정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 231,
+      "kind": "text",
+      "text": "저장한 설정 없음",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 232,
+      "kind": "text",
+      "text": "불러오기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 232,
+      "kind": "text",
+      "text": "삭제",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 233,
+      "kind": "text",
+      "text": "화면비·해상도·레이아웃·색상·카메라·빛·제목을 저장합니다. 연결된 곡과 배경 이미지도 함께 불러옵니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 235,
+      "kind": "text",
+      "text": "화면 비율은 위 미리보기에서 설정합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 236,
+      "kind": "text",
+      "text": "출력 해상도 · 짧은 변 기준",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 238,
+      "kind": "text",
+      "text": "실제 출력 크기: 1920×1080",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 238,
+      "kind": "text",
+      "text": "정확한 21:9 · 2520×1080으로 전환",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 238,
+      "kind": "text",
+      "text": "21:9는 정확히 2520×1080입니다. 이전 2560×1080은 약 2.37:1로 21:9보다 넓습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 240,
+      "kind": "text",
+      "text": "프레임 레이트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 240,
+      "kind": "text",
+      "text": "12 fps — 빠른 테스트용",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 240,
+      "kind": "text",
+      "text": "30 fps — 권장",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 241,
+      "kind": "text",
+      "text": "고속 엔진 영상 품질",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 242,
+      "kind": "text",
+      "text": "고속 엔진 비트레이트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 242,
+      "kind": "text",
+      "text": "자동 · 품질 기준",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 242,
+      "kind": "text",
+      "text": "호환 FFmpeg는 기존 자동 비트레이트 정책을 유지합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 243,
+      "kind": "text",
+      "text": "출력 파일",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 244,
+      "kind": "text",
+      "text": "MP4 인코딩 최적화",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 245,
+      "kind": "text",
+      "text": "Auto · 실행 PC에서 실측 후 자동 결정 (권장)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 246,
+      "kind": "text",
+      "text": "고화질 · 무손실 PNG 캡처 우선",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 247,
+      "kind": "text",
+      "text": "속도 우선 · JPEG 96 캡처",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 248,
+      "kind": "text",
+      "text": "GPU 인코더는 실제로 작동하는지 시험합니다. 사용 가능한 인코더 중 처리 속도가 유리한 방식을 고르고, 하드웨어 실패 시 CPU로 다시 출력합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 249,
+      "kind": "text",
+      "text": "다운로드 파일명",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 249,
+      "kind": "attribute:placeholder",
+      "text": "비워두면 악보 원본 파일명 사용",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 250,
+      "kind": "text",
+      "text": "녹화 길이",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 250,
+      "kind": "text",
+      "text": "전체 곡",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 251,
+      "kind": "text",
+      "text": "MP4로 내보내기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 252,
+      "kind": "text",
+      "text": "WebM 녹화 실행",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 253,
+      "kind": "text",
+      "text": "WebM 다시 다운로드 ↓",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 254,
+      "kind": "text",
+      "text": "대기 중",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 255,
+      "kind": "text",
+      "text": "완성된 영상 다운로드 ↓",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 256,
+      "kind": "text",
+      "text": "화질은 출력 방식보다 해상도·비트레이트·코덱 및 실제 재생 성능의 영향을 받습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 258,
+      "kind": "text",
+      "text": "악보 미리보기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 258,
+      "kind": "text",
+      "text": "MIDI를 선택해 주세요. MusicXML은 선택 사항입니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 259,
+      "kind": "text",
+      "text": "영상 렌더링 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 259,
+      "kind": "text",
+      "text": "실행 엔진 확인 중",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 259,
+      "kind": "text",
+      "text": "준비 중",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 259,
+      "kind": "text",
+      "text": "남은 시간 계산 중",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 259,
+      "kind": "text",
+      "text": "렌더링 취소",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 260,
+      "kind": "attribute:aria-label",
+      "text": "항상 보이는 미리보기 플레이어",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 261,
+      "kind": "attribute:aria-label",
+      "text": "악보 확대 및 동기화 조절",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 262,
+      "kind": "text",
+      "text": "영상 화면 비율",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 262,
+      "kind": "attribute:aria-label",
+      "text": "영상 화면 비율",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 264,
+      "kind": "text",
+      "text": "1:1 · 정사각형",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 264,
+      "kind": "text",
+      "text": "4:5 · SNS 세로",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 265,
+      "kind": "text",
+      "text": "3:4 · 세로 포스트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 265,
+      "kind": "text",
+      "text": "4:3 · 가로 포스트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 266,
+      "kind": "text",
+      "text": "21:9 · 시네마 와이드",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 266,
+      "kind": "text",
+      "text": "사용자 지정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 267,
+      "kind": "attribute:aria-label",
+      "text": "화면비 가로",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 267,
+      "kind": "attribute:aria-label",
+      "text": "화면비 세로",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 268,
+      "kind": "text",
+      "text": "악보 확대",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 269,
+      "kind": "attribute:title",
+      "text": "악보 축소",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 269,
+      "kind": "attribute:aria-label",
+      "text": "악보 축소",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 270,
+      "kind": "attribute:aria-label",
+      "text": "악보 확대 비율 (최대 200%)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 271,
+      "kind": "attribute:title",
+      "text": "악보 확대",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 271,
+      "kind": "attribute:aria-label",
+      "text": "악보 확대",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 273,
+      "kind": "attribute:title",
+      "text": "악보 확대를 100%로 초기화",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 273,
+      "kind": "text",
+      "text": "100% 복원",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 274,
+      "kind": "attribute:aria-label",
+      "text": "동기화",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 275,
+      "kind": "attribute:title",
+      "text": "악보와 MIDI 음표 매칭 상태",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 275,
+      "kind": "text",
+      "text": "매칭 —",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 276,
+      "kind": "attribute:title",
+      "text": "첫 소리 자동 싱크 상태",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 276,
+      "kind": "text",
+      "text": "첫 소리 대기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 277,
+      "kind": "attribute:title",
+      "text": "MIDI의 첫 타건과 음원의 첫 소리를 자동으로 맞춥니다",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 277,
+      "kind": "text",
+      "text": "✦ 첫 소리 싱크",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 279,
+      "kind": "text",
+      "text": "미세 조정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 281,
+      "kind": "text",
+      "text": "악보 ↔ 소리",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 281,
+      "kind": "text",
+      "text": "0.00초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 282,
+      "kind": "attribute:aria-label",
+      "text": "악보와 소리 미세 조정 값, 초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 283,
+      "kind": "text",
+      "text": "-5초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 283,
+      "kind": "text",
+      "text": "+5초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 284,
+      "kind": "text",
+      "text": "건반 ↔ 소리",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 284,
+      "kind": "text",
+      "text": "0.00초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 285,
+      "kind": "attribute:aria-label",
+      "text": "건반과 소리 미세 조정 값, 초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 286,
+      "kind": "text",
+      "text": "-5초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 286,
+      "kind": "text",
+      "text": "+5초",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 287,
+      "kind": "text",
+      "text": "자동 싱크는 공통 기준입니다. +는 화면을 늦추고 −는 앞당깁니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 288,
+      "kind": "text",
+      "text": "자동 싱크 초기화",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 293,
+      "kind": "text",
+      "text": "악보 또는 건반이 여기에 표시됩니다",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 293,
+      "kind": "text",
+      "text": "MIDI를 업로드해 시작하세요. MusicXML과 음원은 선택 사항입니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 293,
+      "kind": "attribute:aria-label",
+      "text": "악보 표시 영역 드래그 및 크기 조절",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 293,
+      "kind": "text",
+      "text": "악보 영역 · 끌어서 이동",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 294,
+      "kind": "attribute:aria-label",
+      "text": "미리보기 재생 조작",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 295,
+      "kind": "attribute:aria-label",
+      "text": "이전 마디",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 295,
+      "kind": "attribute:title",
+      "text": "이전 마디 (, 키)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 296,
+      "kind": "attribute:aria-label",
+      "text": "재생",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 296,
+      "kind": "attribute:title",
+      "text": "재생/일시정지 (Space)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 297,
+      "kind": "attribute:aria-label",
+      "text": "다음 마디",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 297,
+      "kind": "attribute:title",
+      "text": "다음 마디 (. 키)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 299,
+      "kind": "attribute:aria-label",
+      "text": "재생 위치",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 301,
+      "kind": "text",
+      "text": "마디 —",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 302,
+      "kind": "attribute:aria-label",
+      "text": "처음으로",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 302,
+      "kind": "attribute:title",
+      "text": "처음으로",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 304,
+      "kind": "text",
+      "text": "재생/일시정지",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 304,
+      "kind": "text",
+      "text": "이전·다음 마디",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 304,
+      "kind": "text",
+      "text": "5초 이동",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "attribute:aria-label",
+      "text": "영상 레이어 표시",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "레이어 표시",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "악보",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "건반 · 낙하 노트",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "▢ 악보 영역 편집",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "attribute:title",
+      "text": "악보 영역의 위쪽 여백을 4%로 줄입니다",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "위 여백 4%",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "attribute:title",
+      "text": "악보 탭의 영역 배경색 설정으로 이동합니다",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "악보 영역 배경색 ↗",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "녹화 취소하고 편집하기",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "attribute:aria-label",
+      "text": "전체화면 미리보기 (F 키)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "attribute:title",
+      "text": "전체화면 미리보기 (F 키)",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "⛶ 전체화면",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "미리보기 재설정",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "설정은 미리보기와 MP4에 같은 값으로 적용됩니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 305,
+      "kind": "text",
+      "text": "악보는 항상 건반 위에 표시됩니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 307,
+      "kind": "text",
+      "text": "장면 타임라인",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 307,
+      "kind": "text",
+      "text": "음원 · 악보",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 307,
+      "kind": "text",
+      "text": "카메라",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 307,
+      "kind": "text",
+      "text": "배경 전환",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 307,
+      "kind": "text",
+      "text": "발광 효과",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 309,
+      "kind": "text",
+      "text": "동기화 방식",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 309,
+      "kind": "text",
+      "text": "자동 싱크는 MIDI 첫 타건과 음원 첫 유효한 소리를 맞춥니다. 뒤쪽 구간에서 루바토가 달라지면 별도 정렬이 필요할 수 있습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/index.html",
+      "line": 314,
+      "kind": "text",
+      "text": "ScoreVideo Local · 파일은 로컬 작업 폴더에 저장되며 외부로 업로드되지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/render.html",
+      "line": 4,
+      "kind": "text",
+      "text": "악보 렌더링 준비 중...",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 51,
+      "kind": "js-literal",
+      "text": "MediaRecorder에서 오디오 포함 WebM 코덱을 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 52,
+      "kind": "js-literal",
+      "text": "오디오·영상 스트림을 만들 Web Audio API를 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 53,
+      "kind": "js-literal",
+      "text": "Canvas 화면 녹화를 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 54,
+      "kind": "js-literal",
+      "text": "Canvas 2D 화면 합성을 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 54,
+      "kind": "js-literal",
+      "text": "Canvas 화면 합성을 사용할 수 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 68,
+      "kind": "js-literal",
+      "text": "실제 출력 크기: ${width}×${height} · 짧은 변 ${Math.min(width,height)}p${preserveLegacyWide?' · 이전 2560×1080 유지 (비율 또는 해상도를 변경하면 정확한 21:9로 전환)':''}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 69,
+      "kind": "js-literal",
+      "text": "미리보기 화면 비율: ${aspect==='custom'?",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 69,
+      "kind": "js-literal",
+      "text": ":aspect} · 최종 ${width}×${height}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 92,
+      "kind": "js-literal",
+      "text": "브라우저 인코더·모듈 확인 중",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 93,
+      "kind": "js-literal",
+      "text": "원본 오디오가 없는 프로젝트는 기존 FFmpeg 경로를 사용합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 101,
+      "kind": "js-literal",
+      "text": "${offlineSupport===null?'확인 중':'고속 오프라인 MP4 사용 불가'}: ${reason}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 102,
+      "kind": "js-literal",
+      "text": "${width}×${height} · ${fps}fps${highZoom?' · 150% 이상 악보 확대':''} 전체 곡은 미검증입니다. 실패하거나 메모리가 부족하면 호환 렌더링을 선택하세요.",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 103,
+      "kind": "js-literal",
+      "text": "WebCodecs H.264/AAC · OPFS 사용 가능 · 720p 전체 곡 검증 완료",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 104,
+      "kind": "js-literal",
+      "text": "${offline?'고속 오프라인':'호환 렌더링'} MP4 시작 <span>↗</span>",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 106,
+      "kind": "js-literal",
+      "text": "출력 예정: ${ratioLabel} · ${width}×${height} · ${fps}fps · ${offline?'고속 오프라인 (WebCodecs)':'호환 렌더링 (FFmpeg)'}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 109,
+      "kind": "js-literal",
+      "text": "${fmt(seconds)} 분량을 실제 재생 없이 프레임별로 생성합니다. 출력 시간은 컴퓨터 성능에 따라 달라집니다.",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 110,
+      "kind": "js-literal",
+      "text": "예상 시간: ${mp4MeasuredFps&&seconds?fmt(Math.ceil(seconds*fps/mp4MeasuredFps)):'첫 FFmpeg 출력 후 측정 가능'}${mp4MeasuredFps?",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 110,
+      "kind": "js-literal",
+      "text": ":''} · 기존 Chromium + FFmpeg 경로",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 124,
+      "kind": "js-literal",
+      "text": "실행 엔진: ${status.engine==='webcodecs'||offlineActive?'고속 WebCodecs':'호환 FFmpeg'}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 125,
+      "kind": "js-literal",
+      "text": "영상 녹화 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 125,
+      "kind": "js-literal",
+      "text": "영상 렌더링 중입니다. 완료될 때까지 창이나 탭을 닫지 마세요.",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 126,
+      "kind": "js-literal",
+      "text": "렌더링 취소 중...",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 126,
+      "kind": "js-literal",
+      "text": "렌더링 준비 중",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 126,
+      "kind": "js-literal",
+      "text": "영상 렌더링 중",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 130,
+      "kind": "js-literal",
+      "text": "남은 시간 ${clock[1]}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 131,
+      "kind": "js-literal",
+      "text": "남은 시간 ${fmtHms(Number(minuteSeconds[1])*60+Number(minuteSeconds[2]))}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 132,
+      "kind": "js-literal",
+      "text": "남은 시간 ${fmtHms(seconds[1])}",
+      "covered": false
+    },
+    {
+      "file": "static/app.js",
+      "line": 132,
+      "kind": "js-literal",
+      "text": "남은 시간 계산 중",
+      "covered": true
+    },
+    {
+      "file": "static/app.js",
+      "line": 1363,
+      "kind": "js-literal",
+      "text": "이전 프로젝트 복원 실패:",
+      "covered": false
+    },
+    {
+      "file": "static/camera-auto.js",
+      "line": 38,
+      "kind": "js-literal",
+      "text": "화성",
+      "covered": true
+    },
+    {
+      "file": "static/camera-auto.js",
+      "line": 38,
+      "kind": "js-literal",
+      "text": "프레이즈",
+      "covered": true
+    },
+    {
+      "file": "static/camera-auto.js",
+      "line": 38,
+      "kind": "js-literal",
+      "text": "음역 변화",
+      "covered": true
+    },
+    {
+      "file": "static/camera-auto.js",
+      "line": 38,
+      "kind": "js-literal",
+      "text": "강세",
+      "covered": true
+    },
+    {
+      "file": "static/dynamic-fx/renderer.js",
+      "line": 35,
+      "kind": "js-literal",
+      "text": "WebGL 프레임버퍼 생성 실패",
+      "covered": false
+    },
+    {
+      "file": "static/dynamic-fx/renderer.js",
+      "line": 50,
+      "kind": "js-literal",
+      "text": "WebGL MSAA 프레임버퍼 생성 실패",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 213,
+      "kind": "js-literal",
+      "text": "PixiJS 8.23.0 로컬 모듈과 WebGL 렌더러를 초기화하는 중…",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 222,
+      "kind": "js-literal",
+      "text": "PixiJS WebGL 실험 준비 완료. 미리보기는 현재 PixiJS 효과 렌더러를 사용합니다. MP4 출력과 연결하지 않았습니다.",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 226,
+      "kind": "js-literal",
+      "text": "PixiJS 초기화 실패:",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 226,
+      "kind": "js-literal",
+      "text": "\\n로컬 모듈과 브라우저 WebGL 지원을 확인하세요. Canvas2D로 복귀합니다.",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 282,
+      "kind": "js-literal",
+      "text": "\\n\\n주의: WebGL 제출 시간은 GPU 완료 시간이 아닙니다. 실제 표시 프레임과 함께 비교하세요.",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 298,
+      "kind": "js-literal",
+      "text": "일시정지",
+      "covered": true
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 298,
+      "kind": "js-literal",
+      "text": "재생",
+      "covered": true
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 308,
+      "kind": "js-literal",
+      "text": "${data.title}\\n${state.notes.length}개 MIDI 타건 · ${fmtTime(state.duration)}\\n현재 Canvas2D 기준 모드. GPU 모드를 선택하면 PixiJS를 로드합니다.",
+      "covered": false
+    },
+    {
+      "file": "static/experiments/pixi-fx/main.js",
+      "line": 310,
+      "kind": "js-literal",
+      "text": "실험 MIDI 로드 실패:",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 53,
+      "kind": "js-literal",
+      "text": "음표의 발광·반짝임과 색상",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 53,
+      "kind": "js-literal",
+      "text": "건반 타건광·낙하 노트·파티클",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 54,
+      "kind": "js-literal",
+      "text": "<div class=\"fx-group-heading\"><h3>${title}</h3><small>${summary}</small></div><div class=\"field\"><label for=\"${kind}FxPreset\">효과 스타일</label><select id=\"${kind}FxPreset\">${presets.map(([id,name])=>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 57,
+      "kind": "js-literal",
+      "text": "악보 효과 · Score FX",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 59,
+      "kind": "js-literal",
+      "text": "건반 효과 · Keyboard FX",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 63,
+      "kind": "js-literal",
+      "text": "<summary>고급 설정 · 세부 조정</summary><p class=\"fx-advanced-help\">기본 화면에서는 자주 사용하는 옵션만 표시합니다. 세부 발광·입자·밝기와 기존 설정은 이곳에서 조정할 수 있습니다.</p>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 73,
+      "kind": "js-literal",
+      "text": "악보 효과 · 상세 설정",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 74,
+      "kind": "js-literal",
+      "text": "건반 효과 · 상세 설정",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 82,
+      "kind": "js-literal",
+      "text": "<div class=\"fx-advanced-heading\">악보 발광 · 색상 반응</div>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 88,
+      "kind": "js-literal",
+      "text": "기타 기존 효과 · 제목 · 장면 옵션",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 90,
+      "kind": "js-literal",
+      "text": "<label class=\"fx-check\"><input id=\"keyboardVelocityColor\" type=\"checkbox\" checked> 벨로시티 색상 변화</label>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 103,
+      "kind": "js-literal",
+      "text": "<div class=\"field\">\n    <label for=\"keyboardNoteRiseSpeed\">상승 바 속도</label>\n    <input id=\"keyboardNoteRiseSpeed\" type=\"range\" min=\"0.35\" max=\"2\" step=\"0.05\" value=\"1\">\n    <small>음표가 눌려 있는 동안 위로 성장하고, 손을 떼면 꼬리가 따라 올라갑니다.</small>\n  </div>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 155,
+      "kind": "js-literal",
+      "text": "<div class=\"color-grid\"><label>약한 타건<input id=\"keyboardColorLow\" type=\"color\" value=\"#3ac7db\"></label><label>강한 타건<input id=\"keyboardColorHigh\" type=\"color\" value=\"#ffbf71\"></label></div>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 156,
+      "kind": "js-literal",
+      "text": "<label class=\"fx-check\"><input id=\"keyboardPaletteLink\" type=\"checkbox\"> 악보 팔레트와 연동</label><small id=\"keyboardVelocityRangeInfo\">MIDI 데이터를 불러오면 색상 분포를 표시합니다.</small>",
+      "covered": false
+    },
+    {
+      "file": "static/fx-groups.js",
+      "line": 184,
+      "kind": "js-literal",
+      "text": "약한 음 ${low} → 강한 음 ${high}",
+      "covered": false
+    },
+    {
+      "file": "static/hex-colors.js",
+      "line": 24,
+      "kind": "js-literal",
+      "text": "HEX 값",
+      "covered": false
+    },
+    {
+      "file": "static/offline/offline.js",
+      "line": 108,
+      "kind": "js-literal",
+      "text": "GPU 합성에서는 Canvas2D 픽셀 캡처를 지원하지 않습니다.",
+      "covered": false
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 11,
+      "kind": "js-literal",
+      "text": "없음",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 19,
+      "kind": "js-literal",
+      "text": "없음",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 23,
+      "kind": "js-literal",
+      "text": "고속 엔진 모듈 로딩 실패${failures.length?",
+      "covered": false
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 28,
+      "kind": "js-literal",
+      "text": "출력 크기는 200~8192 범위의 짝수 픽셀이어야 합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 29,
+      "kind": "js-literal",
+      "text": "보안 컨텍스트(로컬호스트 또는 HTTPS)가 필요합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 30,
+      "kind": "js-literal",
+      "text": "WebCodecs H.264/AAC 인코더를 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 32,
+      "kind": "js-literal",
+      "text": "오디오 디코딩 또는 Canvas 합성을 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 33,
+      "kind": "js-literal",
+      "text": "장시간 MP4를 저장할 OPFS를 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 44,
+      "kind": "js-literal",
+      "text": "${width}×${height} · ${fps}fps에서 H.264 또는 AAC 인코더를 사용할 수 없습니다.",
+      "covered": false
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 46,
+      "kind": "js-literal",
+      "text": "OPFS 저장 공간에 접근할 수 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 48,
+      "kind": "js-literal",
+      "text": "WebCodecs H.264/AAC · OPFS 사용 가능",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 49,
+      "kind": "js-literal",
+      "text": "인코더 확인 실패: ${error.message}",
+      "covered": false
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 58,
+      "kind": "js-literal",
+      "text": "오프라인 MP4 모듈을 불러오지 못했습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 63,
+      "kind": "js-literal",
+      "text": "다른 오프라인 MP4 출력이 진행 중입니다.",
+      "covered": true
+    },
+    {
+      "file": "static/offline-export.js",
+      "line": 73,
+      "kind": "js-literal",
+      "text": "완성된 MP4 파일이 유효하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/piano-fall.js",
+      "line": 215,
+      "kind": "js-literal",
+      "text": "PixiJS 필수 모듈이 누락되었습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/piano-fall.js",
+      "line": 379,
+      "kind": "js-literal",
+      "text": "Dynamic FX v1.6 초기화 실패: ${this.dynamicError}",
+      "covered": false
+    },
+    {
+      "file": "static/score-core.js",
+      "line": 600,
+      "kind": "js-literal",
+      "text": "&&systems.length>1){\n        throw Error(`싱글라인 렌더링이 ${systems.length}개 행으로 분할됐습니다. MusicXML 강제 개행/OSMD 렌더링 제한을 확인해야 합니다.`);\n      }\n      // Measure the rendered notation before capturing noteheads and cursor geometry.\n      if(this.scrollMode===",
+      "covered": false
+    },
+    {
+      "file": "static/stage-runtime.js",
+      "line": 172,
+      "kind": "js-literal",
+      "text": "PixiJS 효과 모듈이 로드되지 않았습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/studio-scene.js",
+      "line": 20,
+      "kind": "js-literal",
+      "text": "Polar · 푸른빛 → 붉은빛",
+      "covered": true
+    },
+    {
+      "file": "static/studio-scene.js",
+      "line": 21,
+      "kind": "js-literal",
+      "text": "Sunset · 청록 → 주황",
+      "covered": true
+    },
+    {
+      "file": "static/studio-scene.js",
+      "line": 22,
+      "kind": "js-literal",
+      "text": "Orchid · 남보라 → 분홍",
+      "covered": true
+    },
+    {
+      "file": "static/studio-scene.js",
+      "line": 23,
+      "kind": "js-literal",
+      "text": "Forest · 청록 → 황금",
+      "covered": true
+    },
+    {
+      "file": "static/visual-editor.js",
+      "line": 82,
+      "kind": "js-literal",
+      "text": "✓ 영역 편집 완료",
+      "covered": true
+    },
+    {
+      "file": "static/visual-editor.js",
+      "line": 82,
+      "kind": "js-literal",
+      "text": "▢ 악보 영역 편집",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 22,
+      "kind": "js-literal",
+      "text": "WebM 임시 저장 실패${error?.name==='QuotaExceededError'?' (저장 공간 부족)':''}: ${error?.message||error}. 디스크 여유 공간을 확인한 뒤 다시 시도하세요.",
+      "covered": false
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 34,
+      "kind": "js-literal",
+      "text": "WebM 임시 저장 기록이 인코딩 속도를 따라가지 못합니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 44,
+      "kind": "js-literal",
+      "text": "임시 저장소를 사용할 수 없어 WebM 메모리 한도(256MB)를 넘었습니다. 디스크 여유 공간과 브라우저 저장소 권한을 확인하세요.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 156,
+      "kind": "js-literal",
+      "text": "GPU 합성 모듈이 로드되지 않았습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 175,
+      "kind": "js-literal",
+      "text": "이 브라우저는 오디오가 포함된 WebM MediaRecorder를 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 178,
+      "kind": "js-literal",
+      "text": "녹화가 취소되었습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 180,
+      "kind": "js-literal",
+      "text": "WebM 저장 공간이 부족할 수 있습니다. 예상 필요 공간 ${Math.ceil(needed/1048576)}MB, 사용 가능 약 ${Math.floor(free/1048576)}MB.",
+      "covered": false
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 180,
+      "kind": "js-literal",
+      "text": "WebM 저장 공간",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 185,
+      "kind": "js-literal",
+      "text": "녹화가 취소되었습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 196,
+      "kind": "js-literal",
+      "text": "WebM 인코딩 오류",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 234,
+      "kind": "js-literal",
+      "text": "WebM 녹화가 시작되지 않았습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 241,
+      "kind": "js-literal",
+      "text": "녹화 화면 또는 오디오가 끝까지 기록되지 않았습니다. 불완전한 파일은 다운로드하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/webm-recorder.js",
+      "line": 244,
+      "kind": "js-literal",
+      "text": "브라우저가 유효한 WebM 데이터를 생성하지 못했습니다.",
+      "covered": true
+    },
+    {
+      "file": "static/workspace-ui.js",
+      "line": 22,
+      "kind": "js-literal",
+      "text": "<div class=\"panel-title\"><h2 data-i18n=\"nav.scene\">장면</h2></div>",
+      "covered": false
+    },
+    {
+      "file": "static/workspace-ui.js",
+      "line": 35,
+      "kind": "js-literal",
+      "text": "효과",
+      "covered": true
+    },
+    {
+      "file": "static/workspace-ui.js",
+      "line": 55,
+      "kind": "js-literal",
+      "text": "<summary data-i18n=\"effects.advanced\">고급 효과 설정</summary>",
+      "covered": false
+    },
+    {
+      "file": "static/workspace-ui.js",
+      "line": 92,
+      "kind": "js-literal",
+      "text": "<summary data-i18n=\"nav.fileHelp\">파일 안내</summary>",
+      "covered": false
+    },
+    {
+      "file": "app.py",
+      "line": 676,
+      "kind": "python-literal",
+      "text": "완료",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 280,
+      "kind": "python-literal",
+      "text": "되돌이표는 있으나 MIDI 반복 연주가 확인되지 않아 원본 순서를 사용합니다.",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 495,
+      "kind": "python-literal",
+      "text": "이미지는 PNG, JPG, WebP, BMP 또는 GIF여야 합니다.",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 283,
+      "kind": "python-literal",
+      "text": "반복기호 자동 전개 제한:",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 499,
+      "kind": "python-literal",
+      "text": "이미지는 20MB 이하로 업로드해 주세요.",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 508,
+      "kind": "python-literal",
+      "text": "이미지를 읽지 못했습니다:",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 716,
+      "kind": "python-literal",
+      "text": "렌더링을 취소했습니다",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 770,
+      "kind": "python-literal",
+      "text": "렌더링 취소 중...",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 502,
+      "kind": "python-literal",
+      "text": "이미지 해상도가 너무 큽니다.",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 504,
+      "kind": "python-literal",
+      "text": "지원하지 않는 이미지 형식입니다.",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 718,
+      "kind": "python-literal",
+      "text": "렌더링을 취소했습니다",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 727,
+      "kind": "python-literal",
+      "text": "렌더링을 취소했습니다",
+      "covered": true
+    },
+    {
+      "file": "app.py",
+      "line": 278,
+      "kind": "python-literal",
+      "text": "되돌이표를 실제 MIDI 연주 순서로 전개했습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 21,
+      "kind": "python-literal",
+      "text": "독립적인 시간축을 가진 MIDI Type 2는 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 32,
+      "kind": "python-literal",
+      "text": "MIDI에서 연주 음표를 찾지 못했습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 46,
+      "kind": "python-literal",
+      "text": "오디오가 너무 짧아 첫 타건을 찾지 못했습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 61,
+      "kind": "python-literal",
+      "text": "첫 소리를 감지하기에 오디오가 너무 짧습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 72,
+      "kind": "python-literal",
+      "text": "음원에서 충분한 신호를 찾지 못했습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 84,
+      "kind": "python-literal",
+      "text": "음원의 첫 유효한 소리를 감지하지 못했습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 140,
+      "kind": "python-literal",
+      "text": "음원 길이가 올바르지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "auto_sync.py",
+      "line": 43,
+      "kind": "python-literal",
+      "text": "오디오 시작점 분석 실패:",
+      "covered": true
+    },
+    {
+      "file": "image_palette.py",
+      "line": 41,
+      "kind": "python-literal",
+      "text": "분홍색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 28,
+      "kind": "python-literal",
+      "text": "붉은색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 30,
+      "kind": "python-literal",
+      "text": "주황색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 32,
+      "kind": "python-literal",
+      "text": "노란색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 34,
+      "kind": "python-literal",
+      "text": "초록색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 36,
+      "kind": "python-literal",
+      "text": "청록색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 38,
+      "kind": "python-literal",
+      "text": "파란색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 40,
+      "kind": "python-literal",
+      "text": "보라색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 45,
+      "kind": "python-literal",
+      "text": "붉은색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 234,
+      "kind": "python-literal",
+      "text": "우주",
+      "covered": true
+    },
+    {
+      "file": "image_palette.py",
+      "line": 235,
+      "kind": "python-literal",
+      "text": "바다",
+      "covered": true
+    },
+    {
+      "file": "image_palette.py",
+      "line": 237,
+      "kind": "python-literal",
+      "text": "나무",
+      "covered": true
+    },
+    {
+      "file": "image_palette.py",
+      "line": 49,
+      "kind": "python-literal",
+      "text": "파란색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 226,
+      "kind": "python-literal",
+      "text": "가독성 높은 밝은 악보",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 227,
+      "kind": "python-literal",
+      "text": "사진에 어울리는 어두운 악보",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 228,
+      "kind": "python-literal",
+      "text": "절제된 색감과 따뜻한 질감",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 229,
+      "kind": "python-literal",
+      "text": "선명한 음표와 색채 대비",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 244,
+      "kind": "python-literal",
+      "text": "기본",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 245,
+      "kind": "python-literal",
+      "text": "강조",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 246,
+      "kind": "python-literal",
+      "text": "그림자",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 53,
+      "kind": "python-literal",
+      "text": "청록색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 119,
+      "kind": "python-literal",
+      "text": "밝은 중성색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 131,
+      "kind": "python-literal",
+      "text": "중성 회색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 253,
+      "kind": "python-literal",
+      "text": "중성",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 125,
+      "kind": "python-literal",
+      "text": "밝은 중성색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 58,
+      "kind": "python-literal",
+      "text": "노란색",
+      "covered": false
+    },
+    {
+      "file": "image_palette.py",
+      "line": 58,
+      "kind": "python-literal",
+      "text": "주황색",
+      "covered": false
+    },
+    {
+      "file": "render_adaptive.py",
+      "line": 180,
+      "kind": "python-literal",
+      "text": "환경 분석: 실제 악보 프레임 캡처 성능 측정 중",
+      "covered": false
+    },
+    {
+      "file": "render_adaptive.py",
+      "line": 188,
+      "kind": "python-literal",
+      "text": "환경 분석:  인코더 작동·속도 측정 중",
+      "covered": false
+    },
+    {
+      "file": "render_adaptive.py",
+      "line": 188,
+      "kind": "python-literal",
+      "text": "환경 분석:",
+      "covered": false
+    },
+    {
+      "file": "render_adaptive.py",
+      "line": 188,
+      "kind": "python-literal",
+      "text": "인코더 작동·속도 측정 중",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 391,
+      "kind": "python-literal",
+      "text": "완료:  /  · 평균  fps",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 391,
+      "kind": "python-literal",
+      "text": "완료:",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 391,
+      "kind": "python-literal",
+      "text": "· 평균",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 94,
+      "kind": "python-literal",
+      "text": "·  |  fps · 남은 시간 약 분 초",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 232,
+      "kind": "python-literal",
+      "text": "· CDP JPEG |  fps · 남은 시간 약 분 초",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 331,
+      "kind": "python-literal",
+      "text": "자동 선택:  +  · 프레임 처리 시작",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 94,
+      "kind": "python-literal",
+      "text": "fps · 남은 시간 약",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 232,
+      "kind": "python-literal",
+      "text": "fps · 남은 시간 약",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 331,
+      "kind": "python-literal",
+      "text": "자동 선택:",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 331,
+      "kind": "python-literal",
+      "text": "· 프레임 처리 시작",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 368,
+      "kind": "python-literal",
+      "text": "중단 →  소프트웨어 인코딩으로 재시도",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 368,
+      "kind": "python-literal",
+      "text": "중단 →",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 368,
+      "kind": "python-literal",
+      "text": "소프트웨어 인코딩으로 재시도",
+      "covered": false
+    },
+    {
+      "file": "render_video.py",
+      "line": 353,
+      "kind": "python-literal",
+      "text": "CDP 캡처 불일치/실패 → 기존 스크린샷 경로로 전체 재시도",
+      "covered": false
+    },
+    {
+      "file": "score_alignment.py",
+      "line": 308,
+      "kind": "python-literal",
+      "text": "음표·MIDI 타건 시점을 연결했습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_alignment.py",
+      "line": 309,
+      "kind": "python-literal",
+      "text": "MusicXML과 MIDI의 음표가 일부 불일치합니다. 반복·전조·아르페지오 구간을 확인해 주세요.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 51,
+      "kind": "python-literal",
+      "text": "반복 펼치기는 score-partwise 악보에서만 지원합니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 118,
+      "kind": "python-literal",
+      "text": "시작 되돌이표에 대응하는 끝 되돌이표가 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 133,
+      "kind": "python-literal",
+      "text": "악보에 파트가 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 136,
+      "kind": "python-literal",
+      "text": "악보에 마디가 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 139,
+      "kind": "python-literal",
+      "text": "파트마다 마디 개수가 달라 반복을 펼칠 수 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 154,
+      "kind": "python-literal",
+      "text": "같은 마디에서 시작하는 복수의 되돌이표를 자동 해석할 수 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 125,
+      "kind": "python-literal",
+      "text": "겹쳐진 되돌이표 구조는 자동 해석할 수 없습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 145,
+      "kind": "python-literal",
+      "text": "D.C., D.S., Coda 이동은 아직 자동 반복 전개를 지원하지 않습니다.",
+      "covered": true
+    },
+    {
+      "file": "score_repeats.py",
+      "line": 172,
+      "kind": "python-literal",
+      "text": "반복 전개가 10,000마디를 초과합니다.",
+      "covered": true
+    }
+  ]
+}

@@ -4,9 +4,17 @@ import {AudioSample,AudioSampleSource,Quality} from './mediabunny.min.mjs';
 export async function decodeProjectAudio(meta,signal){
   if(!meta?.id||!meta.audio_filename)throw Error('This project has no source audio file.');
   const fetchStart=performance.now();
-  const response=await fetch(`/api/projects/${encodeURIComponent(meta.id)}/audio`,{signal});
-  if(!response.ok)throw Error(`Source audio unavailable (HTTP ${response.status}).`);
-  const bytes=await response.arrayBuffer(),fetchMs=performance.now()-fetchStart,inputBytes=bytes.byteLength;
+  const local=window.ScoreBrowserSalamander?.get(meta.id);
+  let bytes;
+  if(local){
+    // Fast offline MP4 reads the exact WAV used by the preview/WebM player.
+    bytes=await local.blob.arrayBuffer();
+  }else{
+    const response=await fetch(`/api/projects/${encodeURIComponent(meta.id)}/audio`,{signal});
+    if(!response.ok)throw Error(`Source audio unavailable (HTTP ${response.status}).`);
+    bytes=await response.arrayBuffer();
+  }
+  const fetchMs=performance.now()-fetchStart,inputBytes=bytes.byteLength;
   if(signal.aborted)throw Error('Cancelled');
   const context=new AudioContext({sampleRate:48000});
   try{

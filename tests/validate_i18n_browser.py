@@ -17,7 +17,7 @@ if not BROWSER:
 html = (BASE / 'index.html').read_text()
 html = re.sub(r'<script\s+src="[^"]+"\s*>\s*</script>', '', html)
 html = html.replace('<head>', '<head><base href="http://scorevideo.local/">', 1)
-packs = {code: json.loads((BASE / 'locales' / f'{code}.json').read_text()) for code in ('ko', 'en')}
+packs = {code: json.loads((BASE / 'locales' / f'{code}.json').read_text()) for code in ('ko', 'en', 'ja')}
 with sync_playwright() as browser:
     chromium = browser.chromium.launch(headless=True, executable_path=BROWSER, args=['--no-sandbox', '--disable-dev-shm-usage'])
     page = chromium.new_page()
@@ -46,6 +46,15 @@ with sync_playwright() as browser:
         projectTitle.textContent='악보';  // User-authored project name; not a UI string.
         document.querySelector('#osmdContainer').innerHTML='<svg><text>악보</text></svg>';
     }""")
+    # Japanese must preserve the same semantic IDs and variable interpolation.
+    page.locator('#languageSelect').select_option('ja')
+    page.wait_for_function('document.querySelector("label[for=scoreCropTop]").textContent.includes("楽譜の上部")')
+    assert page.locator('html').get_attribute('lang') == 'ja'
+    assert page.evaluate('ScoreI18n.t("export.progress",{percent:50})') == 'レンダリング中... 50%'
+    assert page.locator('label.language-picker').inner_text().startswith('言語')
+    assert page.locator('#projectTitle').inner_text() == '악보'
+    assert page.evaluate('ScoreI18n.translate("파일 불러오기")') == 'ファイルを読み込む'
+    assert page.evaluate('ScoreI18n.translate("Load files")') == 'ファイルを読み込む'
     page.locator('#languageSelect').select_option('ko')
     page.wait_for_function('document.querySelector("#message").textContent === "렌더링 취소 중..."')
     assert page.locator('#projectTitle').inner_text() == '악보'
@@ -63,5 +72,5 @@ with sync_playwright() as browser:
     }""")
     assert not remaining, f'Untranslated UI text: {remaining}'
     assert not errors, f'Page errors: {errors}'
-    print('i18n browser OK: ko ↔ en, static/attribute/dynamic UI, musical SVG and project title preserved')
+    print('i18n browser OK: ko ↔ en ↔ ja, static/attribute/dynamic UI, musical SVG and project title preserved')
     chromium.close()

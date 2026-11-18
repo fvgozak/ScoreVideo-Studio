@@ -11,21 +11,22 @@ import subprocess
 import sys
 import threading
 import re
+import secrets
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from PIL import Image, UnidentifiedImageError
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from midi_timing import read_timing
 from score_alignment import align_score_to_midi, extract_score_ties
 from score_repeats import unfold_musicxml
-from sample_audio import render_salamander
+from sample_audio import render_salamander, salamander_duration
 from auto_sync import first_attack_sync
 from image_palette import THEME_COLORS, propose_score_palettes, propose_theme_palettes
 from musical_salience import load_or_build as load_salience_features, reweight as reweight_salience
@@ -39,8 +40,25 @@ DATA.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="ScoreVideo Studio", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+
+@app.middleware("http")
+async def verify_cloudflare_proxy(request: Request, call_next):
+    """When deployed publicly, only the Pages proxy or authorized render worker may call APIs.
+
+    This is origin protection, not per-user authentication. Public beta access
+    still needs quotas, cleanup and project ownership before scaling up.
+    """
+    secret = os.environ.get("SCOREMOTION_PROXY_SECRET", "")
+    if secret and (request.url.path.startswith("/api/") or request.url.path.startswith("/render/")):
+        supplied = request.headers.get("x-scoremotion-proxy-secret", "")
+        if not secrets.compare_digest(supplied, secret):
+            return JSONResponse({"detail": "API origin access denied"}, status_code=403)
+    return await call_next(request)
+
+
 # Rendering tasks are limited to one export at a time to avoid exhausting a laptop.
 render_lock = threading.Lock()
+audio_generation_lock = threading.Lock()
 state_lock = threading.Lock()
 active_project: str | None = None
 jobs: dict[str, dict] = {}
@@ -91,6 +109,9 @@ class RenderRequest(BaseModel):
     piano_light: bool = True
     piano_light_strength: float = Field(default=1.4, ge=0.0, le=4.0)
     piano_camera: bool = True
+    # Vertical camera framing, as a percentage of video height. The default
+    # anchors the white-key front near the bottom in preview and exports.
+    piano_vertical_offset_pct: float = Field(default=0.0, ge=-20, le=20)
     layout_mode: str = Field(default="page", pattern=r"^(page|singleline|vertical|horizontal)$")
     scroll_mode: str = Field(default="vertical", pattern=r"^(vertical|horizontal|page)$")
     score_position_x: float = Field(default=38.0, ge=0, le=100)
@@ -309,9 +330,14 @@ def dream_journey_example(asset: str):
 
 @app.post("/api/projects")
 async def create_project(score: UploadFile | None = File(None), midi: UploadFile | None = File(None),
-                         audio: UploadFile | None = File(None)):
+                         audio: UploadFile | None = File(None), audio_engine: str = Form("server")):
     if midi is None:
         raise HTTPException(400, "MIDI file is required; MusicXML alone is not supported")
+    # Keep direct Python callers/tests that omit this new form field compatible.
+    if not isinstance(audio_engine, str):
+        audio_engine = "server"
+    if audio_engine not in {"server", "browser"}:
+        raise HTTPException(400, "audio_engine must be server or browser")
     score_ext = Path(score.filename or "").suffix.lower() if score else ""
     midi_ext = Path(midi.filename or "").suffix.lower() if midi else ""
     audio_ext = Path(audio.filename or "").suffix.lower() if audio else ""
@@ -345,6 +371,10 @@ async def create_project(score: UploadFile | None = File(None), midi: UploadFile
         if audio:
             await save_limited(audio, audio_file, 250 * 1024 * 1024)
             duration = audio_duration(audio_file)
+        elif audio_engine == "browser":
+            # Keep note_events, duration, alignment and settings on the API,
+            # but synthesize the actual audio on the user's device.
+            duration = salamander_duration(timing)
         else:
             duration = render_salamander(timing, audio_file)
         if score:
@@ -358,6 +388,8 @@ async def create_project(score: UploadFile | None = File(None), midi: UploadFile
             "has_score": bool(score),
             "generated_midi": False,
             "generated_audio": audio is None,
+            "audio_generation_mode": ("browser" if audio is None and audio_engine == "browser"
+                                      else "server" if audio is None else "uploaded"),
             "score_name": Path(score.filename or "").name if score else "",
             "musicxml_title": document_title,
             "midi_name": Path(midi.filename or "").name,
@@ -596,6 +628,35 @@ def get_score(project_id: str):
     return FileResponse(folder / selected, media_type="application/xml")
 
 
+def ensure_server_audio(project_id: str) -> dict:
+    """Explicit fallback for browsers without OfflineAudioContext and legacy FFmpeg exports."""
+    folder = project_path(project_id)
+    with audio_generation_lock:
+        meta_file = folder / "meta.json"
+        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        path = folder / meta["audio_filename"]
+        if not path.exists():
+            if meta.get("audio_generation_mode") != "browser":
+                raise HTTPException(404, "Source audio is missing")
+            pending = folder / "audio.pending.wav"
+            try:
+                duration = render_salamander(meta, pending)
+                pending.replace(path)
+            finally:
+                pending.unlink(missing_ok=True)
+            meta["audio_generation_mode"] = "server_fallback"
+            meta["audio_duration_sec"] = duration
+            pending_meta = folder / "meta-audio.pending.json"
+            pending_meta.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+            pending_meta.replace(meta_file)
+        return meta
+
+
+@app.post("/api/projects/{project_id}/audio/fallback")
+def generate_fallback_audio(project_id: str):
+    return ensure_server_audio(project_id)
+
+
 @app.get("/api/projects/{project_id}/audio")
 def get_audio(project_id: str):
     folder = project_path(project_id)
@@ -604,6 +665,8 @@ def get_audio(project_id: str):
     media = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".flac": "audio/flac",
              ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".aac": "audio/aac"}
     path = folder / meta["audio_filename"]
+    if not path.is_file():
+        raise HTTPException(404, "Audio has not been generated on the server; use browser audio or POST /audio/fallback")
     return FileResponse(path, media_type=media.get(path.suffix, "application/octet-stream"))
 
 
@@ -677,6 +740,9 @@ def run_render(project_id: str, settings: RenderRequest, python: str, cancel_eve
     try:
         folder = DATA / project_id
         meta = json.loads((folder / "meta.json").read_text(encoding="utf-8"))
+        if meta.get("audio_generation_mode") == "browser":
+            update_job(project_id, state="rendering", progress=0, message="Preparing piano audio")
+            meta = ensure_server_audio(project_id)
         # Freeze the settings as a per-export snapshot. The render-only page
         # uses this exact JSON, rather than reconstructing options from a URL.
         settings_file = folder / "render-config.json"

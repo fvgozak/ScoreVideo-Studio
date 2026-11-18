@@ -1,8 +1,22 @@
 /* ScoreMotion clock/data adapter for the Dynamic FX v1.6 visual modules. */
 import {DEFAULTS} from './dynamics.js?v=aurora3';
 import {MidiFXEngine,ParticleField} from './engine.js?v=aurora3';
-import {DynamicFXRenderer} from './renderer.js?v=boundary8';
-import {keyboardMaterialAt,loadBackdropImage} from './adaptive-lighting.js?v=background1';
+import {DynamicFXRenderer} from './renderer.js?v=keyboard24';
+// Namespace import is intentionally tolerant of an older cached lighting module.
+// v18 initially imported fxBackdropAlpha as a *required* named export, which
+// crashed the whole Dynamic FX renderer when Chromium retained background1.
+import * as AdaptiveLighting from './adaptive-lighting.js?v=photoalpha181';
+const {keyboardMaterialAt,loadBackdropImage}=AdaptiveLighting;
+function fxBackdropAlpha(effects={}){
+  if(typeof AdaptiveLighting.fxBackdropAlpha==='function')
+    return AdaptiveLighting.fxBackdropAlpha(effects);
+  // Same rule as v18. Protect existing sessions if the helper's module is
+  // cached from a previous version or a deployment was only partly updated.
+  const opacity=Number(effects?.backgroundOpacity??0);
+  const visible=String(effects?.backgroundUrl||'').startsWith('/api/projects/')&&
+    Number.isFinite(opacity)&&opacity>0;
+  return visible?0:.94;
+}
 import {normalizeBoundaryLight} from './boundary-light.js?v=boundary8';
 
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -84,9 +98,11 @@ export class ScoreDynamicFX {
       glowSize:clamp(Number(keyboard.glowSize??1),.5,2),
       bloomRadius:clamp(Number(keyboard.bloomRadius??1),.5,2),
       keyColors,
-      textureMode:({paper:1,parchment:2,grain:3,linen:4,dots:5})[follower?.effects?.texture]||0,
-      backgroundAlpha:follower?.effects?.backgroundUrl?
-        clamp(.94-.9*Number(follower.effects.backgroundOpacity??.5),.18,.94):.94,
+      textureMode:0, // legacy background patterns are retired
+      // A user-selected photo is the actual video background. The WebGL
+      // fullscreen studio shader stays transparent over it while the key
+      // geometry, falling notes, hitline and bloom remain independently drawn.
+      backgroundAlpha:fxBackdropAlpha(follower?.effects),
       showGlow:pianoSettings.light!==false,
       showParticles:pianoSettings.light!==false,
       particleDensity:clamp(Number(keyboard.particleDensity??1),0,3),
@@ -94,9 +110,12 @@ export class ScoreDynamicFX {
       glowBloom:clamp(Number(keyboard.bloomStrength??.7),0,2),
       masterGlow:clamp(Number(pianoSettings.strength??1.4),0,4),
       cameraZoom:1,cameraFollow:false,
+      cameraVerticalOffsetPct:clamp(Number(pianoSettings.verticalOffsetPct??0),-20,20),
       portraitAutoFrame:pianoSettings.portrait&&pianoSettings.camera!==false,
       cameraLeadSeconds:5,cameraSmoothness:1,
       showNotes:true,
+      noteBarMode:['fall','rise','both','off'].includes(keyboard.noteBarMode)?keyboard.noteBarMode:'fall',
+      noteRiseSpeed:clamp(Number(keyboard.noteRiseSpeed??1)||1,.35,2),
       boundaryLight:normalizeBoundaryLight(keyboard.boundaryLight),
     });
     this.lightingScene=pianoSettings.lightingScene||{};
@@ -164,6 +183,8 @@ export class ScoreDynamicFX {
       lastDrawWall:this.lastDrawWall??null,noteOnCount:this.noteOnCount,lastNoteOn:this.lastNoteOn,
       particles:this.field?.particles.length||0,material:this.renderer.material,
       backgroundSampleReady:!this.lightingEffects?.backgroundUrl||!!this.lightingImage,
+      backgroundAlpha:this.settings.backgroundAlpha,
+      premultipliedAlpha:gl.getContextAttributes()?.premultipliedAlpha,
       glError:gl.getError()};
   }
   dispose(){this.renderer.dispose();this.canvas.remove();this.engine=null;this.field=null;}

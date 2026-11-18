@@ -46,39 +46,32 @@ class StaticStrings(HTMLParser):
 
 def main() -> int:
     errors: list[str] = []
+    locales=("ko","en","ja")
     try:
-        packs = {code: json.loads((PACK / f"{code}.json").read_text(encoding="utf-8")) for code in ("ko", "en")}
+        packs={code:json.loads((PACK/f"{code}.json").read_text(encoding="utf-8")) for code in locales}
     except (OSError, ValueError) as exc:
-        print("i18n: invalid JSON language pack:", exc, file=sys.stderr)
+        print("i18n: invalid JSON language pack:",exc,file=sys.stderr)
         return 1
-    ko, en = packs["ko"], packs["en"]
+    ko=packs['ko']
     for code, data in packs.items():
-        if data.get("locale") != code:
-            errors.append(f"{code}: locale must be {code!r}")
-    for section in ("messages", "legacy"):
-        keys_ko, keys_en = set(ko[section]), set(en[section])
-        for key in sorted(keys_ko - keys_en):
-            errors.append(f"en.json missing {section} key: {key}")
-        for key in sorted(keys_en - keys_ko):
-            errors.append(f"ko.json missing {section} key: {key}")
-        for key in sorted(keys_ko & keys_en):
-            if not isinstance(ko[section][key], str) or not ko[section][key].strip():
-                errors.append(f"ko.json blank {section} value: {key}")
-            if not isinstance(en[section][key], str) or not en[section][key].strip():
-                errors.append(f"en.json blank {section} value: {key}")
-            if section == "messages" and set(PARAM.findall(ko[section][key])) != set(PARAM.findall(en[section][key])):
-                errors.append(f"placeholder mismatch: {key}")
-    ids_ko = [rule["id"] for rule in ko["patterns"]]
-    ids_en = [rule["id"] for rule in en["patterns"]]
-    if ids_ko != ids_en:
-        errors.append("pattern identifiers/order differ between language packs")
-    for rule in en["patterns"]:
-        try:
-            re.compile(rule["pattern"])
-        except re.error as err:
-            errors.append(f"invalid pattern {rule['id']}: {err}")
-        if not rule.get("template"):
-            errors.append(f"empty pattern template: {rule['id']}")
+        if data.get('locale')!=code:errors.append(f"{code}: invalid locale header")
+        for section in ('messages','legacy'):
+            ref=set(ko[section]);actual=set(data.get(section,{}))
+            for key in sorted(ref-actual):errors.append(f"{code}: missing {section}: {key}")
+            for key in sorted(actual-ref):errors.append(f"{code}: unexpected {section}: {key}")
+            for key in sorted(ref&actual):
+                value=data[section][key]
+                if not isinstance(value,str) or not value.strip():
+                    errors.append(f"{code}: empty/invalid {section}: {key}")
+                if section=='messages' and set(PARAM.findall(value))!=set(PARAM.findall(ko[section][key])):
+                    errors.append(f"{code}: placeholder mismatch: {key}")
+        ko_patterns=ko['patterns'];loc_patterns=data.get('patterns',[])
+        if [r['id'] for r in ko_patterns]!=[r['id'] for r in loc_patterns]:
+            errors.append(f"{code}: pattern IDs or order mismatch")
+        for rule in loc_patterns:
+            try:re.compile(rule['pattern'])
+            except re.error as exc:errors.append(f"{code}: invalid dynamic regex {rule['id']}: {exc}")
+            if not rule.get('template'):errors.append(f"{code}: missing dynamic template {rule['id']}")
     parser = StaticStrings()
     parser.feed((BASE / "static" / "index.html").read_text(encoding="utf-8"))
     # Users can always identify their language by its native label.
@@ -86,19 +79,19 @@ def main() -> int:
         if HANGUL.search(value) and value not in ko["legacy"] and value not in ko["messages"].values():
             errors.append(f"HTML has untranslated literal: {value[:150]}")
     for key in sorted(set(parser.semantic)):
-        if key not in ko["messages"] or key not in en["messages"]:
+        if any(key not in packs[code]["messages"] for code in locales):
             errors.append(f"HTML references missing semantic key: {key}")
     for path in [BASE / "static" / "i18n.js", BASE / "static" / "app.js"]:
         source = path.read_text(encoding="utf-8")
         for key in re.findall(r"\bScoreI18n\.t\(\s*['\"]([^'\"]+)", source):
-            if key not in ko["messages"] or key not in en["messages"]:
+            if any(key not in packs[code]["messages"] for code in locales):
                 errors.append(f"{path.name} references missing semantic key: {key}")
     if errors:
         for item in errors:
             print("ERROR:", item, file=sys.stderr)
         print(f"i18n validation failed: {len(errors)} issue(s)", file=sys.stderr)
         return 1
-    print(f"i18n OK: {len(ko['messages'])} semantic messages, {len(ko['legacy'])} legacy phrases, {len(ko['patterns'])} dynamic patterns; HTML covered")
+    print(f"i18n OK: {len(locales)} locales, {len(ko['messages'])} semantic messages, {len(ko['legacy'])} legacy phrases, {len(ko['patterns'])} dynamic patterns; HTML covered")
     return 0
 
 

@@ -50,6 +50,9 @@ main{max-width:none;padding:16px 18px 12px}
 .editor-tab-panel>.panel:last-child{margin-bottom:0;border-bottom:0}
 .editor-tab-panel>.panel .panel-title{margin:0 0 16px}
 .editor-tab-panel>.panel .panel-title h2{font-size:15px;font-weight:700;letter-spacing:-.02em}
+.file-upload-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.file-upload-heading .subtle-button{margin:0;padding:6px 9px;font-size:11px;white-space:nowrap}
+.file-upload-heading .subtle-button:disabled{opacity:.4;cursor:not-allowed}
 .editor-tab-panel .field{margin-bottom:17px}
 .editor-tab-panel .field label{font-size:12px;margin-bottom:8px;color:#e8eff4}
 .editor-tab-panel .field small,.editor-tab-panel .hint,.editor-tab-panel .palette-help{

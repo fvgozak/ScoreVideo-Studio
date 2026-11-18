@@ -3,7 +3,7 @@
 (function(root){
   'use strict';
   let modulePromise=null,cancelled=false,running=false,moduleAttempt=0;
-  const modulePaths=['offline.js','offline-audio.js','score-glow-overlay.js','score-static-heads.js','mediabunny.min.mjs'];
+  const modulePaths=['offline.js','offline-audio.js','mediabunny.min.mjs'];
   async function moduleFailure(error,requestedPath){
     const failures=[];
     try{
@@ -67,7 +67,7 @@
       const api=await engine();
       if(cancelled)throw Error('Cancelled');
       const metrics=await api.run('full',{fps,fullSong:true,audioMode:'source',storage:'opfs',
-        pianoMode:'shadow-sprite',scoreGlow:true,videoQuality:quality,videoBitrate:bitrate});
+        pianoMode:'baseline',videoQuality:quality,videoBitrate:bitrate});
       if(cancelled){await api.release();throw Error('Cancelled');}
       const file=root.__offlineResult;
       if(!(file instanceof Blob)||file.size<4096){await api.release();throw Error('완성된 MP4 파일이 유효하지 않습니다.');}

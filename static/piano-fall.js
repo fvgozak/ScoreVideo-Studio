@@ -170,7 +170,7 @@
         },250);
       }
       this.notesReady=Promise.resolve();this.keyboardReady=Promise.resolve();
-      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=boundary8').then(({ScoreDynamicFX})=>{
+      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=keyboard24').then(({ScoreDynamicFX})=>{
         if(this.viewport!==viewport||viewport.__scorePianoFall!==this)return;
         this.dynamic=new ScoreDynamicFX(viewport);
         if(this.follower)this.dynamic.load(this,this.follower);

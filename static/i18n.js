@@ -1,5 +1,5 @@
 /* ScoreVideo Studio localization runtime.
- * Translatable copy lives in /static/locales/{ko,en}.json, NOT in this file.
+ * Translatable copy lives in /static/locales/{ko,en,ja}.json, NOT in this file.
  *
  * New UI: use ScoreI18n.t('score.zoom') or <span data-i18n="score.zoom">.
  * Existing UI: legacy text and dynamically generated messages remain supported.
@@ -7,11 +7,13 @@
  */
 (function(root){
   'use strict';
-  const languages=['ko','en'];
+  const languages=['ko','en','ja'];
   const attributes=['title','aria-label','aria-description','aria-valuetext','placeholder','alt'];
   const storageKey='scorevideo_language';
   const packs=Object.create(null);
   const patterns=Object.create(null);
+  const englishSources=new Map();
+  const untranslated=new Set();
   const textHistory=new WeakMap();
   const attributeHistory=new WeakMap();
   let applying=false;
@@ -22,7 +24,7 @@
 
   // User data and musical notation must never be interpreted as interface copy.
   function ignored(element){
-    return !!(element?.closest?.('script,style,textarea,pre,code,svg,#osmdContainer,[contenteditable],[data-i18n-ignore]'));
+    return !!(element?.closest?.('script,style,pre,code,svg,#osmdContainer,#languageSelect,[contenteditable],[data-i18n-ignore]'));
   }
   function interpolate(template,values={}){
     return String(template).replace(/\{([\w.]+)\}/g,(match,key)=>
@@ -36,18 +38,26 @@
     }
     return interpolate(item,values);
   }
+  // The legacy dictionary uses original Korean literals as stable lookup keys.
+  // Many older screens also have English-only markup. Map those *known UI*
+  // phrases back to the source key so ja/ko switching also handles them.
   function translate(source){
     const content=String(source??'');
-    if(locale==='ko'||!packs[locale])return content;
     const trimmed=content.trim();
-    if(!trimmed)return content;
-    const entry=packs[locale].legacy?.[trimmed];
-    if(entry!==undefined)return content.replace(trimmed,entry);
+    if(!trimmed||!packs.ko)return content;
+    const key=Object.prototype.hasOwnProperty.call(packs.ko.legacy,trimmed)
+      ?trimmed:englishSources.get(trimmed);
+    if(key!==undefined){
+      const item=locale==='ko'?packs.ko.legacy[key]:packs[locale]?.legacy?.[key];
+      if(item!==undefined)return content.replace(trimmed,item);
+      untranslated.add(locale+':'+key);
+      return content.replace(trimmed,packs.en?.legacy?.[key]??key);
+    }
+    // For dynamically constructed Korean error/status messages, keep the
+    // existing localized regular expressions, never touch filenames or SVG.
     for(const rule of patterns[locale]||[]){
-      // An anchored Korean source pattern translates variable UI messages;
-      // dynamically injected filenames/titles are never treated as message IDs.
       if(rule.regex.test(trimmed)){
-        return content.replace(trimmed,trimmed.replace(rule.regex,rule.template));
+        return content.replace(trimmed,trimmed.replace(rule.regex,rule.template==='$0'?'$&':rule.template));
       }
     }
     return content;
@@ -87,6 +97,9 @@
   function processElement(el,mutation=false){
     if(ignored(el))return;
     for(const attr of attributes)if(el.hasAttribute(attr))translateAttribute(el,attr,mutation);
+    // Native <optgroup> headings live in the label attribute, not a text node.
+    // Translate only optgroup labels: other label attributes may contain user data.
+    if(el.tagName==='OPTGROUP'&&el.hasAttribute('label'))translateAttribute(el,'label',mutation);
     if(el.hasAttribute('data-i18n')&&el.childElementCount===0&&!el.firstChild){
       el.appendChild(document.createTextNode(''));
     }
@@ -139,7 +152,7 @@
   });
   observer.observe(document.body,{
     subtree:true,childList:true,characterData:true,attributes:true,
-    attributeFilter:[...attributes,'data-i18n',...attributes.map(a=>'data-i18n-'+a)]
+    attributeFilter:[...attributes,'label','data-i18n',...attributes.map(a=>'data-i18n-'+a),'data-i18n-label']
   });
   const select=document.getElementById('languageSelect');
   if(select){
@@ -148,7 +161,7 @@
   }
   document.documentElement.lang=locale;
   async function loadPack(code){
-    const response=await fetch(new URL(code+'.json',packBase));
+    const response=await fetch(new URL(code+'.json?v=0.23.2',packBase),{cache:'no-store'});
     if(!response.ok)throw Error('HTTP '+response.status+' '+code+'.json');
     const pack=await response.json();
     if(pack.locale!==code||!pack.messages||!pack.legacy||!Array.isArray(pack.patterns)){
@@ -156,14 +169,24 @@
     }
     packs[code]=pack;
     patterns[code]=pack.patterns.map(item=>({regex:new RegExp(item.pattern,item.flags||''),template:item.template}));
+    if(code==='en')for(const [source,english] of Object.entries(pack.legacy)){
+      if(source!==english&&!englishSources.has(english))englishSources.set(english,source);
+    }
   }
-  const ready=Promise.all(languages.map(loadPack))
-    .then(()=>{applyLocale();return true;})
-    .catch(error=>{root.console?.error?.('[ScoreI18n] language pack load failed:',error);return false;});
+  // Keep English/Korean operational even if the Japanese pack fails to load.
+  const ready=Promise.allSettled(languages.map(loadPack)).then(results=>{
+    for(let i=0;i<results.length;i++)if(results[i].status==='rejected'){
+      root.console?.error?.('[ScoreI18n] failed to load '+languages[i]+':',results[i].reason);
+    }
+    if(!packs[locale])locale=packs.en?'en':'ko';
+    applyLocale();return Boolean(packs.ko&&packs.en);
+  });
   root.ScoreI18n={
     get locale(){return locale;},
     get ready(){return ready;},
     setLocale,t,translate,
-    get loaded(){return !!packs.ko&&!!packs.en;}
+    get loaded(){return !!packs.ko&&!!packs.en&&!!packs.ja;},
+    get availableLocales(){return languages.filter(code=>!!packs[code]);},
+    get untranslated(){return [...untranslated];}
   };
 })(window);
