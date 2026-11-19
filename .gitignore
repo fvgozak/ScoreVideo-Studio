@@ -7,3 +7,15 @@ static/vendor/*.js
 *.pyc
 .DS_Store
 experiments/mp4-prototype/node_modules/
+
+# Generated previews and Cloudflare build output
+artifacts/
+dist/
+dist-backup-*/
+release-cloudflare-local/
+.wrangler/
+
+# Local patch archives and editor backups
+/*.patch
+/*.zip
+static/*.bak*
