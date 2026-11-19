@@ -1,4 +1,4 @@
-import {KEYBOARD,keyPosition} from './engine.js?v=aurora3';
+import {KEYBOARD,keyPosition} from './engine.js?v=staffkeyboard273';
 import {stageCamera,noteFallLane} from './stageCamera.js?v=keyboard24';
 import {normalizeNoteBarMode,risingNoteRect} from './note-bars.js?v=19';
 import {PortraitLookaheadController} from './lookaheadCamera.js?v=dynamic16h';
@@ -236,7 +236,7 @@ export class DynamicFXRenderer{
     const riseVisible=drawRise&&n.start<=tm&&n.end+riseTravel>=tm;
     if(!fallVisible&&!riseVisible)continue;
     const k=keyPosition(n.midi);if(!k)continue;
-    const color=colorFromVelocity(n.velocity,this.settings);
+    const color=n.staffColor||colorFromVelocity(n.velocity,this.settings);
     if(fallVisible){
      const lo=Math.max(HIT_Y+.04,HIT_Y+(n.start-tm)*speed);
      const hi=Math.min(roof,HIT_Y+(n.end-tm)*speed);

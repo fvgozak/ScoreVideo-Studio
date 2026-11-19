@@ -148,6 +148,47 @@
     }
     ctx.restore();
   }
+  // MIDI onset + sounding pitch is the only shared identifier between
+  // OSMD's score matches and raw MIDI events. Build the index ONCE on load,
+  // never scan score notes during each animation frame.
+  function assignStaffGroups(notes,triggers,tolerance=.015){
+    const byPitch=new Map();
+    for(const trigger of triggers||[]){
+      if(!trigger.groupKey||!Number.isFinite(trigger.midi))continue;
+      const pitch=Number.isFinite(trigger.soundingPitch)?trigger.soundingPitch:trigger.pitch;
+      if(!Number.isFinite(pitch))continue;
+      if(!byPitch.has(pitch))byPitch.set(pitch,[]);
+      byPitch.get(pitch).push(trigger);
+    }
+    for(const events of byPitch.values())events.sort((a,b)=>a.midi-b.midi);
+    let identified=0;
+    for(const note of notes){
+      const events=byPitch.get(note.pitch)||[],second=Number(note.midiSecond);
+      const matched=new Set();
+      if(Number.isFinite(second)){
+        let lo=0,hi=events.length;
+        while(lo<hi){const mid=(lo+hi)>>>1;if(events[mid].midi<second-tolerance)lo=mid+1;else hi=mid;}
+        for(let j=lo;j<events.length&&events[j].midi<=second+tolerance;j++)
+          if(Math.abs(events[j].midi-second)<=tolerance)matched.add(events[j].groupKey);
+      }
+      // Two parts may sound the exact same key simultaneously. The MIDI
+      // event cannot disambiguate them without a per-note part binding.
+      // Mix their colors rather than silently assigning the wrong instrument.
+      note.staffKeys=[...matched].sort();
+      if(note.staffKeys.length)identified++;
+    }
+    return identified;
+  }
+  function staffKeyboardColor(note,palette){
+    if(palette?.enabled!==true||palette?.keyboard!==true)return null;
+    const keys=note.staffKeys||[],found=[];
+    for(const key of keys){
+      const hex=palette.colors?.[key];
+      if(/^#[0-9a-f]{6}$/i.test(hex||''))found.push([1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255));
+    }
+    if(!found.length)return null;
+    return [0,1,2].map(i=>found.reduce((sum,color)=>sum+color[i],0)/found.length);
+  }
   class PianoFall {
     constructor(viewport){
       if(viewport.__scorePianoFall&&viewport.__scorePianoFall!==this)viewport.__scorePianoFall.dispose();
@@ -170,7 +211,7 @@
         },250);
       }
       this.notesReady=Promise.resolve();this.keyboardReady=Promise.resolve();
-      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=keyboard24').then(({ScoreDynamicFX})=>{
+      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=staffkeyboard273').then(({ScoreDynamicFX})=>{
         if(this.viewport!==viewport||viewport.__scorePianoFall!==this)return;
         this.dynamic=new ScoreDynamicFX(viewport);
         if(this.follower)this.dynamic.load(this,this.follower);
@@ -238,12 +279,13 @@
       this.notes=(follower?.noteEvents||[]).map(event=>{
         const midi=Number.isFinite(event.second)?event.second:follower.beatToSeconds(event.beat);
         const end=Number(event.end_second),sustainEnd=Number(event.sustain_end_second);
-        return {pitch:event.pitch,velocity:event.velocity,channel:event.channel??0,
+        return {pitch:event.pitch,velocity:event.velocity,channel:event.channel??0,track:event.track??0,midiSecond:midi,
           audio:follower.midiToAudio(midi)+trim,
           endAudio:follower.midiToAudio(Number.isFinite(end)&&end>midi?end:midi+.35)+trim,
           sustainEndAudio:follower.midiToAudio(Number.isFinite(sustainEnd)&&sustainEnd>end?sustainEnd:(Number.isFinite(end)&&end>midi?end:midi+.35))+trim};
       }).filter(note=>note.pitch>=FIRST&&note.pitch<=LAST&&Number.isFinite(note.audio))
         .sort((a,b)=>a.audio-b.audio);
+      assignStaffGroups(this.notes,follower?.noteTriggers);
       const accents=follower?.cameraAccents||[];
       for(const note of this.notes)note.emphasis=accentAt(accents,note.audio);
       this.pedalEvents=(follower?.pedalEvents||[]).map(event=>({
@@ -258,6 +300,7 @@
       });
       this.longestDuration=this.notes.reduce((max,note)=>Math.max(max,note.sustainEndAudio-note.audio),.35);
       const last=Math.max(Number(follower?.audioDuration)||0,this.notes.at(-1)?.endAudio||0);
+      this.updateStaffColors(follower?.effects?.staffColors);
       this.dynamic?.load(this,follower);
       this.cameraTargets=[];
       if(this.settings.portrait&&this.settings.camera!==false){
@@ -268,6 +311,13 @@
         const first=this.cameraTargets.find(Boolean)||cameraTarget(null);
         let previous=first;this.cameraTargets=this.cameraTargets.map(target=>(previous=target||previous));
       }
+    }
+    updateStaffColors(palette){
+      for(const note of this.notes){
+        note.staffColor=staffKeyboardColor(note,palette);
+        note.staffColorHex=note.staffColor?'#'+note.staffColor.map(c=>Math.round(c*255).toString(16).padStart(2,'0')).join(''):null;
+      }
+      this.dynamic?.updateStaffColors?.(this.notes,palette);
     }
     cameraAt(time){
       if(!this.settings?.portrait||this.settings.camera===false||!this.cameraTargets?.length)return cameraTarget(null);
@@ -310,7 +360,7 @@
           const note=this.notes[i],geometry=noteGeometry(note,time,impact,speed);
           if(geometry.bottom<0||geometry.top>impact)continue;
           const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
-          const color=this.follower.eventLightColor(note.velocity);
+          const color=note.staffColorHex||this.follower.eventLightColor(note.velocity);
           const x=box.x+box.w*(key.black?.15:.22),barWidth=box.w*(key.black?.7:.56);
           const top=Math.min(geometry.top,geometry.bottom-3),height=Math.max(3,geometry.bottom-top);
           bars.push({x,top,width:barWidth,height,color});
@@ -326,9 +376,9 @@
         const accent=minimal?(root.ScoreStudio.minimalNoteAccent(palette,note.velocity,
           this.follower.effects?.velocityScale,this.follower.velocityRange,
           this.follower.effects?.auroraLow,this.follower.effects?.auroraHigh)||this.follower.colors().accent):null;
-        const color=minimal?root.ScoreStudio.minimalActiveColor(accent,
+        const color=note.staffColorHex||(minimal?root.ScoreStudio.minimalActiveColor(accent,
           key.black?keys.black:keys.white,this.follower.colors().paper,note.velocity,
-          this.follower.effects?.velocityScale,this.follower.velocityRange):this.follower.eventLightColor(note.velocity);
+          this.follower.effects?.velocityScale,this.follower.velocityRange):this.follower.eventLightColor(note.velocity));
         const duration=Math.max(.08,note.endAudio-note.audio);
         const pedalled=!minimal&&note.sustainEndAudio>note.endAudio+.001&&
           time>note.endAudio&&time<note.sustainEndAudio+.3;
@@ -398,5 +448,5 @@
       if(this.viewport.__scorePianoFall===this)this.viewport.__scorePianoFall=null;
     }
   }
-  root.ScorePianoFall={PianoFall,keyLayout,noteGeometry,fallSpeed,impactEnvelope,sparkleSeed,drawImpactLight,keyPalette,luminance,noteRange,cameraTarget,pianoProjection};
+  root.ScorePianoFall={PianoFall,assignStaffGroups,staffKeyboardColor,keyLayout,noteGeometry,fallSpeed,impactEnvelope,sparkleSeed,drawImpactLight,keyPalette,luminance,noteRange,cameraTarget,pianoProjection};
 })(typeof window==='undefined'?globalThis:window);

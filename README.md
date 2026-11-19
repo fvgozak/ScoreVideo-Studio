@@ -1,3 +1,5 @@
+> **Cloudflare Pages 완전 브라우저 버전(v26):** `python3 scripts/build_cloudflare_local.py` → `cd release-cloudflare-local` → `npx wrangler pages deploy dist --project-name scoremotion`. API 서버 없이 사용자의 파일을 OPFS/IndexedDB에 저장합니다. 자세한 설명은 [`docs/CLOUDFLARE_CLIENT_ONLY.md`](docs/CLOUDFLARE_CLIENT_ONLY.md)를 참고하세요. 기존 Mac FastAPI 실행은 그대로 유지됩니다.
+
 # ScoreVideo Studio — Piano Fall Integration
 
 ScoreVideo-Studio의 기존 악보 렌더러에 MIDI 기반 88건반·낙하 노트 바·타건 발광 레이어를 추가했습니다. 악보 음표와 건반 타건 빛은 같은 bloom·beam·반사광·입자 렌더 함수를 사용하며, 동일한 MIDI→오디오 시간 보정 및 색상 반응(Aurora/고정색)을 따릅니다. 미리보기와 MP4 렌더 페이지는 같은 `ScoreStage`를 사용합니다.
@@ -159,3 +161,12 @@ There is a real FFmpeg encoder + audio MP4 smoke test in `tests/test_render_adap
 - Encoding rate is estimated from produced frames / wall-clock; the ETA may drift when scenes have more glowing notes or denser notation.
 - Hardware H.264 uses a high bitrate rather than CRF; file sizes can differ across codecs. Preview and MP4 share the same ScoreStage, although lossy H.264 output can introduce small visual artifacts.
 - This release does not yet replace all per-frame DOM effect updates with a full GPU compositor. That would be the larger next performance improvement if screenshots remain the bottleneck.
+
+
+## v27: browser-only demo and multi-staff lighting
+
+- Public demo `examples/manifest.json` selects MusicXML + MIDI. The Cloudflare build never includes the example MP3 or cover. Salamander synthesis is browser-local.
+- Effects tab: per-staff score glow colors, saved per project and passed through the preview/export settings. Default disabled for existing projects.
+- MusicXML `<transpose>` supports chromatic semitones and octave-change. The score-to-MIDI matcher checks concert pitch versus written pitch and records the selected mode.
+- Color groups use MusicXML `part/@id` plus local staff number, e.g. `P1:1`, `P1:2`. The keyboard WebGL falling/rising bars retain their global color palette for now; ambiguous note-to-instrument mapping is not inferred from MIDI channel alone.
+- See [v27 engineering notes](docs/STAFF_COLOR_TRANSPOSITION_V27.md).

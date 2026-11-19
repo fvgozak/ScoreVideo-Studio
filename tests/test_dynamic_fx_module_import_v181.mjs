@@ -10,9 +10,9 @@ const root=new URL('../static/',import.meta.url);
 const html=readFileSync(new URL('index.html',root),'utf8');
 const piano=readFileSync(new URL('piano-fall.js',root),'utf8');
 const adapter=readFileSync(new URL('dynamic-fx/adapter.js',root),'utf8');
-assert.match(html,/piano-fall\.js\?v=keyboard24/);
-assert.match(piano,/adapter\.js\?v=keyboard24/);
-assert.match(adapter,/renderer\.js\?v=keyboard24/);
+assert.match(html,/piano-fall\.js\?v=staffkeyboard273/);
+assert.match(piano,/adapter\.js\?v=staffkeyboard273/);
+assert.match(adapter,/renderer\.js\?v=staffkeyboard273/);
 assert.match(adapter,/adaptive-lighting\.js\?v=photoalpha181/);
 assert.doesNotMatch(adapter,/import\s*\{[^}]*fxBackdropAlpha[^}]*\}/,
   'fxBackdropAlpha must not be a required named import');

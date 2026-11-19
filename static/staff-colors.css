@@ -1,0 +1,13 @@
+/* Separate staff lighting: preserve original FX controls and layout. */
+.score-staff-colors{margin-top:12px}
+.staff-colors-list{display:grid;gap:8px;margin-top:10px}
+.staff-color-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}
+.staff-color-row span{overflow-wrap:anywhere}
+.staff-color-row input[type="color"]{width:46px;height:31px;flex:none;cursor:pointer}
+
+.score-staff-colors{border:1px solid var(--border,#485363);border-radius:12px;padding:14px}
+.staff-colors-status{font-size:12px;line-height:1.5;color:var(--text-muted,#8492a7);margin:8px 0}
+.staff-colors-refresh{margin-top:10px;font-size:12px}
+.staff-color-identity{display:flex;flex-direction:column;gap:3px}
+.staff-color-key{font-size:10px;color:var(--text-muted,#8492a7)}
+.staff-colors-keyboard-toggle{margin-left:0.65rem}

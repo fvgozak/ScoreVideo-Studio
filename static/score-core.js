@@ -52,7 +52,7 @@
   }
 
   class ScoreFollower {
-    constructor({container,viewport,stageRoot=null,tempoMap,noteEvents=[],scoreAlignment=null,tieContinuations=[],cameraPoints=[],sync=null,offsetSec=0,zoom=.9,effects={},scrollMode='vertical'}) {
+    constructor({container,viewport,stageRoot=null,tempoMap,noteEvents=[],scoreAlignment=null,tieContinuations=[],staffGroups=[],cameraPoints=[],sync=null,offsetSec=0,zoom=.9,effects={},scrollMode='vertical'}) {
       this.container=container;
       this.viewport=viewport;
       this.stageRoot=stageRoot||viewport;
@@ -61,6 +61,8 @@
       this.cameraBaseWidth=0;this.cameraBaseHeight=0;this.cameraScale=1;this.cameraPointsRaw=Array.isArray(cameraPoints)?cameraPoints:[];this.cameraPoints=[];this.cameraShots=[];
       this.tempoMap=tempoMap;
       this.scoreAlignment=scoreAlignment;
+      this.staffGroups=Array.isArray(staffGroups)?staffGroups:[];
+      this.instrumentGroups=[];
       this.scoreAnchors=Array.isArray(scoreAlignment?.anchors)?scoreAlignment.anchors:[];
       this.scoreNoteMatches=new Map();
       this.scoreNoteMatchesSource=scoreAlignment?.note_matches||[];
@@ -480,7 +482,7 @@
         this.bgLayer.style.backgroundColor=paper;
         // Asset URL is a project-specific same-origin endpoint, not a user URL.
         const url=String(this.effects.backgroundUrl||'');
-        this.photoLayer.style.backgroundImage=url.startsWith('/api/projects/')?'url('+JSON.stringify(url)+')':'none';
+        this.photoLayer.style.backgroundImage=(url.startsWith('/api/projects/')||url.startsWith('blob:'))?'url('+JSON.stringify(url)+')':'none';
         this.photoLayer.style.backgroundSize=this.effects.backgroundFit==='contain'?'contain':'cover';
         this.photoLayer.style.backgroundPosition=`${clamp(Number(this.effects.backgroundPositionX??50),0,100)}% ${clamp(Number(this.effects.backgroundPositionY??50),0,100)}%`;
         this.photoLayer.style.opacity=String(clamp(Number(this.effects.backgroundOpacity)||0,0,1));
@@ -660,21 +662,26 @@
             const ht=Number(gn?.sourceNote?.halfTone);
             // MusicXML halfTone is semitones above C-1 in OSMD (+12 maps to MIDI).
             const pitch=Number.isFinite(ht)?Math.round(ht+12):null;
+            const sourceStaff=gn?.sourceNote?.ParentStaff||gn?.parentVoiceEntry?.parentStaffEntry?.parentMeasure?.ParentStaff;
+            const group=window.ScoreStaffColors?.resolveStaff(sourceStaff,this.osmd?.Sheet?.Instruments||[],this.staffGroups)||null;
+            const shift=this.scoreAlignment?.pitch_mode==='written'?0:
+              (window.ScoreStaffColors?.shiftAt(this.staffGroups[group?.part_index],Number(cursor.iterator.CurrentMeasureIndex)||0,group?.staff||1)||0);
+            const soundingPitch=Number.isFinite(pitch)?pitch+shift:null;
             const scoreBase=`${(val*4).toFixed(6)}:${pitch}`;
             const scoreOccurrence=scoreKeyCounts.get(scoreBase)||0;scoreKeyCounts.set(scoreBase,scoreOccurrence+1);
             const scoreKey=`${scoreBase}:${scoreOccurrence}`;
             // Use the exact score-to-MIDI pitch mapping. Nearest-in-time
             // lookup is wrong after a fermata or a substantially delayed note.
-            const key=`${(val*4).toFixed(6)}:${pitch}`;
+            const key=`${(val*4).toFixed(6)}:${soundingPitch}`;
             let attack;
             if(this.scoreAlignment){
               const candidates=this.scoreNoteMatches.get(key)||[];
               attack=candidates.shift()||null;
             }else{
-              attack=this.matchAttack(val*4,pitch,usedMidiEvents);
+              attack=this.matchAttack(val*4,soundingPitch,usedMidiEvents);
             }
             const tieLink=!attack?(this.tieLinks.get(key)||[]).shift():null;
-            const origin=tieLink?this.scoreOrigins.get(`${Number(tieLink.origin_beat).toFixed(6)}:${pitch}`):null;
+            const origin=tieLink?this.scoreOrigins.get(`${Number(tieLink.origin_beat).toFixed(6)}:${soundingPitch}`):null;
             if(attack||(tieLink&&origin)){
               // OSMD GraphicalNote -> GraphicalVoiceEntry -> GraphicalStaffEntry
               // -> GraphicalMeasure. The staff ID is stable across systems;
@@ -720,7 +727,7 @@
                 const midiEnd=Number(attack.end_second);
                 this.noteTriggers.push({el:node,midi:midiOn,
                     midiEnd:Number.isFinite(midiEnd)&&midiEnd>=midiOn?midiEnd:null,
-                    velocity:attack.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,localY,noteX,noteY,headEl:noteHeadEl,
+                    velocity:attack.velocity,pitch,soundingPitch,groupKey:group?.key||null,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,localY,noteX,noteY,headEl:noteHeadEl,
                     staffId:Number.isFinite(staffId)?staffId:null,instrumentRef,handHint,
                     systemKey:systemIds.get(systemToken)});
               }else if(origin){
@@ -729,7 +736,7 @@
                 // A written tied note is a held continuation, never a fresh note-on.
                 this.tieContinuations.push({el:node,midi:begin,
                     midiEnd:Number.isFinite(end)?Math.max(begin+.05,end):begin+.65,
-                    velocity:origin.velocity,pitch,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,endAudio:0,noteX,noteY,headEl:noteHeadEl});
+                    velocity:origin.velocity,pitch,soundingPitch,groupKey:group?.key||null,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,endAudio:0,noteX,noteY,headEl:noteHeadEl});
               }
             }
           }
@@ -1056,7 +1063,16 @@
       }
       this.activeNodes=[];
     }
-    eventLightColor(velocity){
+    eventLightColor(velocity,entry=null){
+      const palette=this.effects.staffColors;
+      const chosen=palette?.enabled&&entry?.groupKey?palette.colors?.[entry.groupKey]:null;
+      if(/^#[0-9a-f]{6}$/i.test(chosen||'')){
+        // Strong notes brighten within the same staff hue, weak notes stay subdued.
+        const k=Math.max(0,Math.min(1,(Number(velocity)||64)/127));
+        const towardWhite=.05+.34*k;
+        const rgb=[1,3,5].map(i=>parseInt(chosen.slice(i,i+2),16));
+        return '#'+rgb.map(v=>Math.round(v+(255-v)*towardWhite).toString(16).padStart(2,'0')).join('');
+      }
       if(window.ScoreStudio?.noteLightColor)
         return window.ScoreStudio.noteLightColor(this.effects,velocity,this.colors().accent,this.velocityRange);
       return this.colors().accent;
@@ -1074,9 +1090,9 @@
       return active;
     }
     colorActiveNodes(){
-      this.activeNodes.forEach(({el,velocity})=>{
+      this.activeNodes.forEach(({el,velocity,entry})=>{
         if(this.effects.minimalMode)el.style.setProperty('--score-minimal-color',this.minimalColor(velocity));
-        else el.style.setProperty('--score-note-active',this.eventLightColor(velocity));
+        else el.style.setProperty('--score-note-active',this.eventLightColor(velocity,entry));
       });
     }
     minimalColor(velocity){
@@ -1101,7 +1117,7 @@
           const el=entry.headEl||entry.el;if(!el)return;
           el.classList.add('score-minimal-active');
           el.style.setProperty('--score-minimal-color',this.minimalColor(entry.velocity));
-          this.activeNodes.push({el,motionEl:entry.el,velocity:entry.velocity});
+          this.activeNodes.push({el,motionEl:entry.el,velocity:entry.velocity,entry});
         };
         for(let i=lo;i<events.length&&events[i].audio<=t;i++){
           const entry=events[i];
@@ -1121,10 +1137,10 @@
           const motionEl=hold.el,el=hold.headEl||motionEl;
           const remaining=clamp((hold.endAudio-t)/.28,0,1);
           el.classList.add('score-glowing');
-          el.style.setProperty('--score-note-active',this.eventLightColor(hold.velocity));
+          el.style.setProperty('--score-note-active',this.eventLightColor(hold.velocity,hold));
           const spread=window.ScoreStudio?.pitchLightProfile(hold.pitch)?.spread||1;
           el.style.setProperty('--score-glow-blur',`${((1.8+1.4*remaining)*spread).toFixed(2)}px`);
-          this.activeNodes.push({el,motionEl,velocity:hold.velocity,age:1,seed:hold.pitch+hold.audio});
+          this.activeNodes.push({el,motionEl,velocity:hold.velocity,entry:hold,age:1,seed:hold.pitch+hold.audio});
         }
       }
       const box=this.container.getBoundingClientRect();
@@ -1133,8 +1149,8 @@
         const dyn=ScoreFollower.dynamics(entry.velocity,elapsed,effect);
         if(!dyn.alive)continue;
         const motionEl=entry.el,el=entry.headEl||motionEl;
-        const noteLightColor=this.eventLightColor(entry.velocity);
-        this.activeNodes.push({el,motionEl,velocity:entry.velocity,age:elapsed,seed:entry.pitch+entry.audio});
+        const noteLightColor=this.eventLightColor(entry.velocity,entry);
+        this.activeNodes.push({el,motionEl,velocity:entry.velocity,entry,age:elapsed,seed:entry.pitch+entry.audio});
         el.classList.toggle('score-glowing',Boolean(effect.sparkle));
         motionEl.classList.toggle('score-note-moving',Boolean(effect.noteMotion));
         if(effect.noteMotion){

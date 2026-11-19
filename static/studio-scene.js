@@ -154,8 +154,10 @@
     const maxGap=Number(opts.maxGapSec)||.85;
     const maxDistance=Number(opts.maxDistance)||350;
     const result={upper:[],lower:[]};
-    for(const hand of ['upper','lower']){
-      const notes=events.filter(e=>e.hand===hand&&Number.isFinite(e.audio)&&e.audio<=now+.015&&e.audio>=now-recentWindow)
+    // Staff-group paths are already partitioned by instrument/staff. Do not
+    // clone every note into a synthetic "upper" hand on every animation frame.
+    for(const hand of (opts.anyHand?['upper']:['upper','lower'])){
+      const notes=events.filter(e=>(opts.anyHand||e.hand===hand)&&Number.isFinite(e.audio)&&e.audio<=now+.015&&e.audio>=now-recentWindow)
         .sort((a,b)=>a.audio-b.audio||a.index-b.index);
       if(!notes.length)continue;
       // Score alignment gives simultaneous chord tones the same written beat,
@@ -195,6 +197,19 @@
         path.push(b);
       }
       result[hand]=path;
+    }
+    return result;
+  }
+  function selectStaffTrails(events,now,options={}){
+    const grouped=new Map();
+    for(const event of events){
+      const key=event.groupKey||event.hand||'upper';
+      if(!grouped.has(key))grouped.set(key,[]);
+      grouped.get(key).push(event);
+    }
+    const result={};
+    for(const [key,items] of grouped){
+      result[key]=selectHandTrails(items,now,{...options,anyHand:true}).upper;
     }
     return result;
   }
@@ -294,7 +309,11 @@
       const cropX=(target.left-stageBounds.left)/stageScale;
       const cropY=(target.top-stageBounds.top)/stageScale;
       const cropW=target.width/stageScale,cropH=target.height/stageScale;
-      ctx.save();ctx.beginPath();ctx.rect(cropX,cropY,cropW,cropH);ctx.clip();
+      ctx.save();
+      // A drawing exception must not leave a saved clipping state behind.
+      // Otherwise repeated preview frames grow the Canvas state stack.
+      try {
+      ctx.beginPath();ctx.rect(cropX,cropY,cropW,cropH);ctx.clip();
       const events=follower.noteTriggers||[];
       let low=0,high=events.length;
       const trailDuration=gpuTrails?this.gpuEffects.trails.duration:s.trailDuration;
@@ -327,12 +346,13 @@
         const power=clamp((.24+.76*velocity**1.25)*strength,0,4);
         const decay=Math.exp(-age*((s.fxMode==='trail'||gpuTrails)?1.9:3.4));
         const solidColor=(s.fxMode==='trail'||gpuTrails)?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
-        const lightColor=noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
+        const lightColor=follower.effects?.staffColors?.enabled&&follower.effects.staffColors.colors?.[e.groupKey]?
+          follower.eventLightColor(e.velocity,e):noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
         const pitchLight=pitchLightProfile(e.pitch);
         const duration=Math.max(.08,(Number(e.endAudio)||e.audio+.4)-e.audio);
         const impact=root.ScorePianoFall?.impactEnvelope(age,duration,velocity)
           ??Math.exp(-age*7.5)*velocity;
-        visible.push({x,y,age,power,decay,velocity,emphasis,index:i,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
+        visible.push({x,y,age,power,decay,velocity,emphasis,index:i,groupKey:e.groupKey||null,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
         if(sceneFxOn&&s.fxMode!=='trail'){
           const energy=Math.max(decay,impact)*power*pitchLight.focus,size=(14+power*23)*pitchLight.spread;
           if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x,y,radius:size*.82,energy:clamp(energy*.4,0,.9),color:lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
@@ -340,8 +360,8 @@
         }
         if(scoreImpactOn){
           if(gpuFx)this.gpuCommands.push({kind:'piano',space:'stage',x,y,unit:10,keyWidth:10,keyHeight:24,
-            energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
-          else this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+            energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity,e)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+          else this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity,e)||lightColor,e);
         }
         for(const extra of e.fallbackHeads||[]){
           const extraPoint=gpuFx?gpuScorePoint(extra.el,this.viewport):null;
@@ -355,8 +375,8 @@
           }
           if(scoreImpactOn){
             if(gpuFx)this.gpuCommands.push({kind:'piano',space:'stage',x:extraX,y:extraY,unit:10,keyWidth:10,keyHeight:24,
-              energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
-            else this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity)||lightColor,e);
+              energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity,e)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+            else this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity,e)||lightColor,e);
           }
         }
         if(sceneFxOn&&s.fxMode==='resonance'){
@@ -388,19 +408,26 @@
       if((sceneFxOn&&s.fxMode==='trail')||gpuTrails){
         const trailLength=gpuTrails?this.gpuEffects.trails.length:s.trailLength;
         const trailBrightness=gpuTrails?this.gpuEffects.trails.strength:s.trailBrightness;
-        const trails=selectHandTrails(visible,t,{windowSec:trailDuration,maxGapSec:.85,maxDistance:Math.max(160,Math.min(w*.38,480))});
-        const colorGradient=s.lightColorMode==='aurora';
-        for(const [hand,fullPath] of [['upper',trails.upper],['lower',trails.lower]]){
+        const staffMode=Boolean(follower.effects?.staffColors?.enabled);
+        const colorGradient=staffMode||s.lightColorMode==='aurora';
+        const trailOptions={windowSec:trailDuration,maxGapSec:.85,maxDistance:Math.max(160,Math.min(w*.38,480))};
+        // Use the deterministic playback time (t), never an undeclared wall
+        // clock variable. Build EITHER staff paths OR legacy hand paths.
+        const paths=staffMode?Object.entries(selectStaffTrails(visible,t,trailOptions)):(()=>{
+          const trails=selectHandTrails(visible,t,trailOptions);
+          return [['upper',trails.upper],['lower',trails.lower]];
+        })();
+        for(const [hand,fullPath] of paths){
           const path=fullPath.slice(-Math.round(trailLength));
           if(gpuFx){
             for(let i=1;i<path.length;i++){
-              const a=path[i-1],b=path[i],solid=hand==='upper'?s.trailUpper:s.trailLower;
+              const a=path[i-1],b=path[i],solid=staffMode?(b.color||p.glow):(hand==='upper'?s.trailUpper:s.trailLower);
               this.gpuCommands.push({kind:'trailRibbon',space:'stage',
                 a:{x:a.x,y:a.y,color:colorGradient?a.color:solid,energy:a.decay*a.power,age:a.age,velocity:a.velocity,emphasis:a.emphasis},
                 b:{x:b.x,y:b.y,color:colorGradient?b.color:solid,energy:b.decay*b.power,age:b.age,velocity:b.velocity,emphasis:b.emphasis},
                 brightness:trailBrightness,thickness:s.trailThickness});
             }
-          }else drawTrailChain(ctx,path,hand==='upper'?s.trailUpper:s.trailLower,
+          }else drawTrailChain(ctx,path,staffMode?(path.at(-1)?.color||p.glow):(hand==='upper'?s.trailUpper:s.trailLower),
             colorGradient,trailBrightness,s.trailThickness);
           const tip=path.at(-1);if(!tip)continue;
           // Keep the light attached to the highest sounding note, but shape
@@ -417,7 +444,9 @@
           }
         }
       }
-      ctx.restore();
+      } finally {
+        ctx.restore();
+      }
     }
     drawTrailTip(ctx,x,y,intensity,color){
       ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=clamp(intensity*.34,0,.8);

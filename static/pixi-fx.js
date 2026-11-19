@@ -7,6 +7,7 @@
   const MAX_TRAIL_LINKS=32;
   const MAX_VOLUME_RAYS=32;
   const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+  const bloomFilterStrength=(radius,factor,pixelScale=1)=>(2+radius*factor)*clamp(Number(pixelScale)||1,1,4);
   function random(seed,index,salt=0){
     let x=(Math.imul(Math.round((Number(seed)||0)*1000)+17,1664525)^
       Math.imul(index+51+salt*131,1013904223))|0;
@@ -261,7 +262,7 @@
   }
   class Layer{
     constructor(PIXI,app,host,kind){
-      this.PIXI=PIXI;this.app=app;this.host=host;this.kind=kind;
+      this.PIXI=PIXI;this.app=app;this.host=host;this.kind=kind;this.pixelScale=1;
       // All procedural lights first land in one transparent, full-size GPU
       // emission target. Bloom is applied to that target, never per note.
       this.container=new PIXI.Container();
@@ -416,8 +417,8 @@
       if(this.trailCount>=MAX_TRAIL_LINKS||!command.a||!command.b)return;
       const {a,b}=command;
       if(![a.x,a.y,b.x,b.y].every(Number.isFinite))return;
-      const control={x:(a.x+b.x)/2,y:(a.y+b.y)/2-(6+Math.min(22,Math.abs(a.y-b.y)*.18))};
-      const width=1.25*clamp(Number(command.thickness)||1,.5,3),pad=width*17+4;
+      const control={x:(a.x+b.x)/2,y:(a.y+b.y)/2-(6*this.pixelScale+Math.min(22*this.pixelScale,Math.abs(a.y-b.y)*.18))};
+      const width=1.25*clamp(Number(command.thickness)||1,.5,3*this.pixelScale),pad=width*17+4*this.pixelScale;
       const left=Math.min(a.x,b.x,control.x)-pad,right=Math.max(a.x,b.x,control.x)+pad;
       const top=Math.min(a.y,b.y,control.y)-pad,bottom=Math.max(a.y,b.y,control.y)+pad;
       let mesh=this.trailPool[this.trailCount];
@@ -449,9 +450,9 @@
       const spread=fx.burst.spread*Math.PI/180;
       for(let i=0;i<count&&this.particleCount<MAX_PARTICLES;i++){
         const angle=direction+(random(seed,i,1)-.5)*spread;
-        const speed=fx.burst.speed*(.45+.9*random(seed,i,2));
-        const distance=3+random(seed,i,3)*4+speed*age;
-        const size=(6+random(seed,i,4)*7)*fx.burst.size*(.75+.35*velocityAmount);
+        const speed=fx.burst.speed*this.pixelScale*(.45+.9*random(seed,i,2));
+        const distance=(3+random(seed,i,3)*4)*this.pixelScale+speed*age;
+        const size=(6+random(seed,i,4)*7)*this.pixelScale*fx.burst.size*(.75+.35*velocityAmount);
         const brightness=fade*(.3+.7*velocityAmount)*(.45+.55*random(seed,i,5))*
           fx.burst.brightness*(fx.burst.on?1:.55)*
           (fx.stardust.on?fx.stardust.strength:1)*
@@ -460,7 +461,8 @@
           size,brightness,color,angle);
       }
     }
-    draw(commands,width,height,effects){
+    draw(commands,width,height,effects,options={}){
+      this.pixelScale=clamp(Number(options?.pixelScale)||1,1,4);
       this.resize(width,height);this.count=0;this.rayCount=0;this.trailCount=0;this.particleCount=0;this.particleCounts.fill(0);
       const fx=normalizeEffects(effects);
       const bloom=fx.bloom.on&&fx.bloom.strength>0;
@@ -487,19 +489,19 @@
           const {x,y,unit,keyWidth,keyHeight,energy,color,spread=1,focus=1,age=0,seed=0}=command;
           const radius=unit*(2.4+2.6*Math.min(1,energy))*spread;
           light('key',x,y,radius*2,radius*2,Math.min(.8,.48*energy*focus),color,0,command);
-          this.volume(command,fx,Math.min(unit*3.5,150),Math.min(unit*6,210));
+          this.volume(command,fx,Math.min(unit*3.5,150*this.pixelScale),Math.min(unit*6,210*this.pixelScale));
           this.burst(command,fx);
           if(fx.outline.on)this.sprite('outline',x,y+keyHeight*.3,keyWidth,keyHeight*.6,
             energy*.42*fx.outline.strength,color);
           const beamHeight=Math.min(y,unit*(3.1+2.7*energy)*spread);
           if(fx.classic.on){
-            this.sprite('beam',x,y-beamHeight/2+9,keyWidth*1.3*spread,beamHeight+18,.44*energy*focus*fx.classic.strength,color);
+            this.sprite('beam',x,y-beamHeight/2+9*this.pixelScale,keyWidth*1.3*spread,beamHeight+18*this.pixelScale,.44*energy*focus*fx.classic.strength,color);
             this.sprite('beam',x,y+keyHeight*.25,keyWidth*.9,keyHeight*.55,.22*energy*fx.classic.strength,color);
           }
         }else if(command.kind==='note'){
           const {x,y,radius,energy,color,age=0,seed=0,width,height,rotation=0}=command;
           light('note',x,y,width??radius*2,height??radius*1.4,energy,color,rotation,command);
-          this.volume(command,fx,Math.min(radius*2.2,110),Math.min(radius*3.1,135));
+          this.volume(command,fx,Math.min(radius*2.2,110*this.pixelScale),Math.min(radius*3.1,135*this.pixelScale));
         }else if(command.kind==='particle'){
           const {x,y,size=4,energy,color}=command;
           this.particle(0,x,y,size*2,energy,color);
@@ -512,12 +514,12 @@
         }else if(command.kind==='trailRibbon'){
           this.ribbon(command,fx);
         }else if(command.kind==='trailTip'){
-          this.sprite('glow',command.x,command.y,15,7,command.energy*.48,command.color,0,
+          this.sprite('glow',command.x,command.y,15*this.pixelScale,7*this.pixelScale,command.energy*.48,command.color,0,
             this.chromaticLevel(command,fx));
-          this.volume(command,fx,24,42);
+          this.volume(command,fx,24*this.pixelScale,42*this.pixelScale);
         }else if(command.kind==='fall'){
           const {x,y,width,height,energy,color,age=0,seed=0}=command;
-          light('fall',x,y,width+14,height+14,energy,color);
+          light('fall',x,y,width+14*this.pixelScale,height+14*this.pixelScale,energy,color);
           if(fx.outline.on)this.sprite('outline',x,y,width,height,energy*.5*fx.outline.strength,color);
         }else if(command.kind==='pedal'&&fx.pedalResonance){
           this.sprite('glow',command.x,command.y,command.width,command.height,
@@ -539,8 +541,8 @@
       // stay transparent; only the final full-screen composite is presented.
       renderer.render({container:this.emissionRoot,target:t.emission,clear:true});
       if(bloom&&(this.count||this.trailCount||this.particleCount)){
-        t.midFilter.strength=2+fx.glow.mid.radius*18;
-        t.wideFilter.strength=2+fx.glow.halo.radius*22;
+        t.midFilter.strength=bloomFilterStrength(fx.glow.mid.radius,18,this.pixelScale);
+        t.wideFilter.strength=bloomFilterStrength(fx.glow.halo.radius,22,this.pixelScale);
         renderer.render({container:t.downMid.container,target:t.midRaw,clear:true});
         renderer.render({container:t.blurMid.container,target:t.mid,clear:true});
         renderer.render({container:t.downWide.container,target:t.wideRaw,clear:true});
@@ -561,5 +563,5 @@
       this.particleTextures.forEach(texture=>texture.destroy(true));
       this.app.canvas.remove();this.app.destroy(true,{children:true});this.geometry.destroy();this.pool=[];}
   }
-  root.ScorePixiFx={Layer,MAX_SPRITES,presets,cinematicPresets,normalizeEffects};
+  root.ScorePixiFx={Layer,MAX_SPRITES,presets,cinematicPresets,normalizeEffects,bloomFilterStrength};
 })(typeof window==='undefined'?globalThis:window);

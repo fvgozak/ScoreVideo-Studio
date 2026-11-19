@@ -1,10 +1,5 @@
-# Dream Journey · Hemio Monthly Series #11
+# Dream Journey — ScoreMotion example
 
-이 예제는 ScoreVideo Studio의 파일 탭에서 `Dream Journey 예제 바로 체험하기`를 눌러 바로 불러올 수 있습니다. MusicXML 악보, MIDI 연주, MP3 음원, 영상 배경 커버가 포함됩니다.
+The public demo contains only MusicXML and MIDI. Salamander Piano audio is synthesized locally in the browser. The MP3 and cover in this source directory are archival files and are excluded from the Cloudflare Pages build.
 
-- MusicXML: [`dream-journey.musicxml`](dream-journey.musicxml)
-- MIDI: [`dream-journey.mid`](dream-journey.mid)
-- Audio: [`dream-journey.mp3`](dream-journey.mp3)
-- Cover art: [`cover.png`](cover.png)
-
-Cover artwork by Lim Hyeon Jun (credit printed on the artwork).
+To switch examples, edit `examples/manifest.json` and add the named score/MIDI files under `examples/<id>/`. The public demo button title follows the manifest. Files are fetched from the same site; user project data stays in the browser.

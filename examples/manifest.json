@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "default_example": "dream-journey",
+  "examples": [
+    {
+      "id": "dream-journey",
+      "title": "Dream Journey",
+      "score": "dream-journey.musicxml",
+      "midi": "dream-journey.mid",
+      "audio_mode": "salamander"
+    }
+  ]
+}

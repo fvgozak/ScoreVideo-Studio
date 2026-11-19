@@ -39,6 +39,7 @@ DATA.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="ScoreVideo Studio", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.mount("/examples", StaticFiles(directory=BASE / "examples"), name="examples")
 
 
 @app.middleware("http")

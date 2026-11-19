@@ -23,7 +23,7 @@ window.ScoreOfflinePrototype={
   const context=mode==='simple'?canvas.getContext('2d',{alpha:false}):null;
   let frameCount=Math.round(seconds*fps);
   const times={scene:[],compose:[],scoreOverlay:[],encode:[],background:[],piano:[],score:[],effects:[],svgDecode:[],pianoPaint:[],pianoCopy:[]};
-  let svgDecodes=0,svgCacheHits=0,visibleSvgTiles=0,rasterCachePeakBytes=0,pianoLayerInfo=[],keyboardCamera=null,keyboardPixelProbe=null;
+  let svgDecodes=0,svgCacheHits=0,visibleSvgTiles=0,rasterCachePeakBytes=0,pianoLayerInfo=[],keyboardCamera=null,keyboardPixelProbe=null,scoreGlowTransferInfo=null;
   let output=null,source=null,completed=0,finalized=false,opfs=null,audioInfo=null,audioTrack=null,audioTask=null;
   let audioEncodeError=null,audioEncodeStats=null,audioEncodeMs=0,audioWaitMs=0;
   // Export uses a GPU compositor, even in minimal mode. The earlier
@@ -81,7 +81,7 @@ window.ScoreOfflinePrototype={
         svgCacheHits+=metrics.tileCacheHits||0;visibleSvgTiles+=metrics.visibleTiles||0;
         rasterCachePeakBytes=Math.max(rasterCachePeakBytes,metrics.rasterCacheBytes||0);
         if(frame===0){pianoLayerInfo=metrics.pianoLayerInfo||[];keyboardCamera=metrics.keyboardCamera||null;
-          keyboardPixelProbe=metrics.keyboardPixelProbe||null;}}
+          keyboardPixelProbe=metrics.keyboardPixelProbe||null;scoreGlowTransferInfo=metrics.scoreGlowTransferInfo||null;}}
       times.compose.push(performance.now()-before);
       before=performance.now();
       if(source)await source.add(time,1/fps);
@@ -93,7 +93,7 @@ window.ScoreOfflinePrototype={
           piano:mean100(times.piano),score:mean100(times.score),effects:mean100(times.effects),
           svgDecode:mean100(times.svgDecode),encode:mean100(times.encode)};
         window.__offlineProgress={mode,completed,frameCount,svgDecodes,svgCacheHits,
-          visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,cpuTiming100Ms};
+          visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,scoreGlowTransferInfo,cpuTiming100Ms};
         jsHeapPeak=Math.max(jsHeapPeak,performance.memory?.usedJSHeapSize||0);await new Promise(resolve=>setTimeout(resolve,0));}
     }
     const audioWaitStarted=performance.now();if(audioTask)await audioTask;
@@ -118,7 +118,7 @@ window.ScoreOfflinePrototype={
       audioFetchMs:+(audioInfo?.fetchMs||0).toFixed(2),audioDecodeMs:+(audioInfo?.decodeMs||0).toFixed(2),
       audioEncodeMs:+audioEncodeMs.toFixed(2),audioWaitMs:+audioWaitMs.toFixed(2),
       audioEncodedPackets:audioTrack?.packetCount||0,audio:audioEncodeStats,
-      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:null,staticHeads:null,titleDrawCalls:0,titleSkipped:0,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls:0,pianoResizes:0,pianoCopiedPixels:0,pianoDrawInfo:null,spriteCreates:0,spriteHits:0,spriteBuildMs:0,peakSpriteBytes:0,spriteEvictions:0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,svgCacheHits,visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
+      wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:null,staticHeads:null,titleDrawCalls:0,titleSkipped:0,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls:0,pianoResizes:0,pianoCopiedPixels:0,pianoDrawInfo:null,spriteCreates:0,spriteHits:0,spriteBuildMs:0,peakSpriteBytes:0,spriteEvictions:0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,svgCacheHits,visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,scoreGlowTransferInfo,encode:summary(times.encode),finalizeMs:+finalizeMs.toFixed(2)};
   }catch(error){cancelRequested=true;if(output&&!finalized)try{await output.cancel();}catch(_){}
     if(audioTask)await audioTask;
     if(opfs)try{await opfs.directory.removeEntry(opfs.name);}catch(_){}

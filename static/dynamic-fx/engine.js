@@ -17,7 +17,7 @@ export function buildNoteRects(song){
     const key=`${e.track??0}/${e.channel}/${e.midi}`;
     if(e.type==='on'){
       if(!stacks.has(key))stacks.set(key,[]);
-      const note={start:e.time,end:song.duration,midi:e.midi,velocity:e.velocity,channel:e.channel};
+      const note={start:e.time,end:song.duration,midi:e.midi,velocity:e.velocity,channel:e.channel,noteIndex:e.noteIndex,staffColor:e.staffColor||null};
       notes.push(note);stacks.get(key).push(note);
     }else{
       const st=stacks.get(key);
@@ -57,7 +57,7 @@ export class MidiFXEngine{
       const previous=this.channels[channel];this.channels[channel]=e.value;
       if(previous>=64&&e.value<64){for(const v of this.voices)if(v.channel===channel&&v.state==='sustained')this.releaseVoice(v,time)}
     } else if(e.type==='on'){
-      const v={id:++this.triggerCount,midi:e.midi,channel,velocity:e.velocity,startedAt:time,state:'held',releasedAt:null,noteOffAt:null,phase:0,track:e.track??0};
+      const v={id:++this.triggerCount,midi:e.midi,channel,velocity:e.velocity,startedAt:time,state:'held',releasedAt:null,noteOffAt:null,phase:0,track:e.track??0,noteIndex:e.noteIndex,staffColor:e.staffColor||null};
       this.voices.push(v);this.lastVelocity=e.velocity;this.lastMidi=e.midi;
       if(!skipFX)this.onNote?.(v);
     } else if(e.type==='off'){
@@ -84,15 +84,28 @@ export class MidiFXEngine{
   updateLive(){for(const v of this.voices){if(v.state==='held'&&v.liveOffTime!==undefined&&this.time>=v.liveOffTime)this.releaseVoice(v,v.liveOffTime)}}
   keyLights(){
     const out=new Float32Array(88*4),intensity=new Float32Array(88);
+    // Different instruments can sound the same physical key. In linked mode
+    // blend their active colors by energy; keep the strongest key intensity.
+    const linked=this.settings.staffKeyboardEnabled===true;
+    const weights=linked?new Float32Array(88):null;
     for(const v of this.voices){
       if(v.midi<21||v.midi>108)continue;
       const amp=voiceAmplitude(v,this.time,this.settings,this.pedalFor(v.channel));
       if(amp<.004)continue;
       const idx=v.midi-21,level=intensityFromVelocity(v.velocity,this.settings)*amp;
-      if(level<intensity[idx])continue;
-      intensity[idx]=level;
-      const c=colorFromVelocity(v.velocity,this.settings);
-      out.set([c[0],c[1],c[2],level],idx*4);
+      const c=v.staffColor||colorFromVelocity(v.velocity,this.settings);
+      if(linked){
+        weights[idx]+=level;
+        for(let i=0;i<3;i++)out[idx*4+i]+=c[i]*level;
+        intensity[idx]=Math.max(intensity[idx],level);
+      }else if(level>=intensity[idx]){
+        intensity[idx]=level;
+        out.set([c[0],c[1],c[2],level],idx*4);
+      }
+    }
+    if(linked)for(let i=0;i<88;i++)if(weights[i]>0){
+      for(let channel=0;channel<3;channel++)out[i*4+channel]/=weights[i];
+      out[i*4+3]=intensity[i];
     }
     return out;
   }
@@ -142,13 +155,13 @@ export class ParticleField{
       *(this.settings.audioReactive?1+.45*(this.audioRms||0):1);
     const a=this.random(),b=this.random(),c=this.random();
     const kind=a<.11?2:a<.23?1:0;
-    const color=colorFromVelocity(v.velocity,this.settings);
+    const color=v.staffColor||colorFromVelocity(v.velocity,this.settings);
     const side=(b-.5)*pos.width*.8;
     const speed=.6+c*1.25; // Launch speed is independent of BPM.
     const p={x:pos.x+side,y:-.84+this.random()*.06,z:.33+this.random()*.11,
       vx:(this.random()-.5)*.28,vy:speed,vz:0,
       life:life*(.72+this.random()*.75),age:0,alpha:(.34+.6*this.random())*(.55+v.velocity/180),
-      color,kind,size:(kind===2?29+this.random()*32:kind===1?15+this.random()*15:3.5+this.random()*8)*(this.settings.particleSize??1),
+      color,noteIndex:v.noteIndex,kind,size:(kind===2?29+this.random()*32:kind===1?15+this.random()*15:3.5+this.random()*8)*(this.settings.particleSize??1),
       seed:this.random()*100, origin:pos.x,weight:burst?1.25:1};
     if(this.particles.length>=this.settings.maxParticles)this.particles.shift();
     this.particles.push(p);

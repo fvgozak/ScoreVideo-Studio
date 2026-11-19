@@ -28,7 +28,7 @@ const ui=readFileSync(new URL('fx-groups.js',root),'utf8');
 const app=readFileSync(new URL('app.js',root),'utf8');
 const adapter=readFileSync(new URL('dynamic-fx/adapter.js',root),'utf8');
 const renderer=readFileSync(new URL('dynamic-fx/renderer.js',root),'utf8');
-for(const text of [index,render])assert.match(text,/piano-fall\.js\?v=keyboard24/);
+for(const text of [index,render])assert.match(text,/piano-fall\.js\?v=staffkeyboard273/);
 for(const key of ['keyboardNoteBarMode','keyboardNoteRiseSpeed']){
   assert.ok(ui.includes(key),`${key} exists in effects UI`);
   assert.ok(app.includes(key),`${key} saved/exported`);

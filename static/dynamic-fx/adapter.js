@@ -1,7 +1,7 @@
 /* ScoreMotion clock/data adapter for the Dynamic FX v1.6 visual modules. */
 import {DEFAULTS} from './dynamics.js?v=aurora3';
-import {MidiFXEngine,ParticleField} from './engine.js?v=aurora3';
-import {DynamicFXRenderer} from './renderer.js?v=keyboard24';
+import {MidiFXEngine,ParticleField} from './engine.js?v=staffkeyboard273';
+import {DynamicFXRenderer} from './renderer.js?v=staffkeyboard273';
 // Namespace import is intentionally tolerant of an older cached lighting module.
 // v18 initially imported fxBackdropAlpha as a *required* named export, which
 // crashed the whole Dynamic FX renderer when Chromium retained background1.
@@ -13,7 +13,7 @@ function fxBackdropAlpha(effects={}){
   // Same rule as v18. Protect existing sessions if the helper's module is
   // cached from a previous version or a deployment was only partly updated.
   const opacity=Number(effects?.backgroundOpacity??0);
-  const visible=String(effects?.backgroundUrl||'').startsWith('/api/projects/')&&
+  const visible=(/^(\/api\/projects\/|blob:)/.test(String(effects?.backgroundUrl||'')))&&
     Number.isFinite(opacity)&&opacity>0;
   return visible?0:.94;
 }
@@ -28,8 +28,8 @@ function rgb(value){
 }
 function songFrom(piano,follower){
   const events=[];
-  for(const note of piano.notes){
-    const base={midi:note.pitch,channel:note.channel??0,track:0};
+  for(const [noteIndex,note] of piano.notes.entries()){
+    const base={midi:note.pitch,channel:note.channel??0,track:note.track??0,noteIndex,staffColor:note.staffColor};
     events.push({...base,type:'on',time:Math.max(0,note.audio),velocity:clamp(note.velocity||64,1,127)});
     events.push({...base,type:'off',time:Math.max(0,note.endAudio),velocity:0});
   }
@@ -79,6 +79,7 @@ export class ScoreDynamicFX {
       pianoSettings.keyStyle==='classic'?{white:rgb('#f1f1f5'),black:rgb('#151821')}:null;
     Object.assign(this.settings,{
       velocityLight:clamp(Number(pianoSettings.strength??1.4),0,4),
+      staffKeyboardEnabled:follower?.effects?.staffColors?.enabled===true&&follower.effects.staffColors.keyboard===true,
       velocityReactive:follower?.effects?.velocityReactive!==false,
       colorStops:colors,
       scoreAuroraLinked:useScorePalette&&scoreAurora&&!!scoreLow&&!!scoreHigh,
@@ -144,6 +145,20 @@ export class ScoreDynamicFX {
     this.engine.onNote=voice=>{this.noteOnCount++;this.lastNoteOn={midi:voice.midi,time:voice.startedAt};this.field.onNote(voice);};
     this.drawCount=0;this.noteOnCount=0;this.lastNoteOn=null;
     this.renderer.resetCamera();this.time=null;
+  }
+  // Palette changes must NOT rebuild the MIDI engine or reset camera/particles.
+  updateStaffColors(notes,palette){
+    this.settings.staffKeyboardEnabled=palette?.enabled===true&&palette?.keyboard===true;
+    if(!this.engine)return;
+    const colors=notes.map(note=>note.staffColor||null);
+    for(const event of this.engine.song.events)
+      if(Number.isInteger(event.noteIndex))event.staffColor=colors[event.noteIndex];
+    for(const note of this.engine.notes)
+      if(Number.isInteger(note.noteIndex))note.staffColor=colors[note.noteIndex];
+    for(const voice of this.engine.voices)
+      if(Number.isInteger(voice.noteIndex))voice.staffColor=colors[voice.noteIndex];
+    for(const particle of this.field?.particles||[])
+      if(Number.isInteger(particle.noteIndex)&&colors[particle.noteIndex])particle.color=colors[particle.noteIndex];
   }
   draw(time){
     if(!this.engine)return;

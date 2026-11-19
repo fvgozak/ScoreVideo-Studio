@@ -2,7 +2,7 @@
 (function () {
   const urls = [
     '/static/vendor/opensheetmusicdisplay.min.js',
-    'https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@2.2.1/build/opensheetmusicdisplay.min.js'
+    ...(!window.SCOREMOTION_LOCAL_ONLY?['https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@2.2.1/build/opensheetmusicdisplay.min.js']:[])
   ];
   let loading;
   window.loadOSMD = function() {
