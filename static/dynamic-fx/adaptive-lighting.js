@@ -18,7 +18,7 @@ export const luminance=color=>color[0]*.2126+color[1]*.7152+color[2]*.0722;
 // keyboard, falling notes and their emissive effects should cover the photo.
 export function fxBackdropAlpha(effects={}){
   const url=String(effects?.backgroundUrl||'');
-  const imageVisible=(/^(\/api\/projects\/|blob:)/.test(url))&&clamp(Number(effects?.backgroundOpacity??0))>0;
+  const imageVisible=(url.startsWith('/api/projects/')||url.startsWith('blob:'))&&clamp(Number(effects?.backgroundOpacity??0))>0;
   return imageVisible?0:.94;
 }
 

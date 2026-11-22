@@ -19,7 +19,7 @@ export async function createStaticScoreHeads(stage,canvas){
     copy.setAttribute('xmlns',svgNamespace);
     copy.setAttribute('data-notation-style',stage.settings.scene.notationStyle);
     if(stage.settings.effects.minimalMode)copy.style.setProperty('--minimal-note-base',
-      stage.settings.effects.minimalPalette?.note||stage.settings.effects.accent);
+      (stage.settings.effects.inverted?stage.settings.effects.paper:stage.settings.effects.ink));
     copy.querySelectorAll('.score-glowing,.score-note-moving,.score-minimal-active').forEach(node=>{
       node.classList.remove('score-glowing','score-note-moving','score-minimal-active');
       node.style.removeProperty('translate');node.style.removeProperty('scale');

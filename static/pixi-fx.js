@@ -438,26 +438,30 @@
       mesh.visible=true;this.trailCount++;
     }
     burst(command,fx,force=false){
-      if(!(force||fx.stardust.on||fx.burst.on))return;
+      const custom=command.kind==='scoreParticleBurst'&&command.particleSettings?.on===true;
+      if(!(force||custom||fx.stardust.on||fx.burst.on))return;
       const {x,y,color,seed=0,age=0,energy=1,velocity=.65}=command;
-      const life=fx.burst.on?fx.burst.life:Math.min(.55,fx.burst.life);
+      const props=custom?command.particleSettings:fx.burst;
+      const life=custom?props.life:(fx.burst.on?fx.burst.life:Math.min(.55,fx.burst.life));
       if(age<0||age>=life||this.particleCount>=MAX_PARTICLES)return;
       const velocityAmount=clamp(Number(velocity),0,1);
-      const amount=fx.burst.on?fx.burst.count:Math.min(4,fx.burst.count);
+      const amount=custom?props.count:(fx.burst.on?fx.burst.count:Math.min(4,fx.burst.count));
       const count=Math.min(amount,Math.max(1,Math.round(amount*(.3+.7*velocityAmount))));
       const fade=(1-age/life)**1.7;
-      const direction=fx.burst.direction*Math.PI/180;
-      const spread=fx.burst.spread*Math.PI/180;
+      const style=custom?props.style:'spark';
+      const direction=(custom?-90:fx.burst.direction)*Math.PI/180;
+      const spread=(custom?(style==='rise'?85:style==='dust'?360:310):fx.burst.spread)*Math.PI/180;
       for(let i=0;i<count&&this.particleCount<MAX_PARTICLES;i++){
         const angle=direction+(random(seed,i,1)-.5)*spread;
-        const speed=fx.burst.speed*this.pixelScale*(.45+.9*random(seed,i,2));
+        const speed=props.speed*this.pixelScale*(.45+.9*random(seed,i,2));
         const distance=(3+random(seed,i,3)*4)*this.pixelScale+speed*age;
-        const size=(6+random(seed,i,4)*7)*this.pixelScale*fx.burst.size*(.75+.35*velocityAmount);
+        const size=(6+random(seed,i,4)*7)*this.pixelScale*props.size*(.75+.35*velocityAmount);
         const brightness=fade*(.3+.7*velocityAmount)*(.45+.55*random(seed,i,5))*
-          fx.burst.brightness*(fx.burst.on?1:.55)*
-          (fx.stardust.on?fx.stardust.strength:1)*
+          props.brightness*(custom?1:(fx.burst.on?1:.55))*
+          (custom?1:(fx.stardust.on?fx.stardust.strength:1))*
           clamp(energy,0,1);
-        this.particle(i%3,x+Math.cos(angle)*distance,y+Math.sin(angle)*distance,
+        const shape=custom?(style==='dust'?0:style==='rise'?i%2:(i%2)+1):i%3;
+        this.particle(shape,x+Math.cos(angle)*distance,y+Math.sin(angle)*distance,
           size,brightness,color,angle);
       }
     }
@@ -479,8 +483,8 @@
         const emphasis=clamp(Number(command.emphasis)||0,0,1);
         return fx.cinematic.strength*clamp(1+fx.cinematic.reaction*((velocity-.5)*.24+emphasis*.12),.7,1.3);
       };
-      for(const source of (fx.cinematic.on?commands:[])){
-        const command=fx.cinematic.strength===1&&fx.cinematic.reaction===0?source:
+      for(const source of (fx.cinematic.on?commands:commands.filter(c=>c.kind==='scoreParticleBurst'))){
+        const command=source.kind==='scoreParticleBurst'||(fx.cinematic.strength===1&&fx.cinematic.reaction===0)?source:
           source.kind==='trailRibbon'?{...source,
             a:{...source.a,energy:source.a.energy*gainFor(source.a)},
             b:{...source.b,energy:source.b.energy*gainFor(source.b)}}:
@@ -505,8 +509,8 @@
         }else if(command.kind==='particle'){
           const {x,y,size=4,energy,color}=command;
           this.particle(0,x,y,size*2,energy,color);
-        }else if(command.kind==='burst'){
-          this.burst(command,fx,Boolean(command.force));
+        }else if(command.kind==='burst'||command.kind==='scoreParticleBurst'){
+          this.burst(command,fx,Boolean(command.force)||command.kind==='scoreParticleBurst');
         }else if(command.kind==='trail'){
           const {x,y,width=18,height,energy,color,rotation=0}=command;
           this.sprite('glow',x,y,width,height||Math.max(4,width*.3),energy,color,rotation,

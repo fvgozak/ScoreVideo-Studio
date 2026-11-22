@@ -123,7 +123,7 @@
        const copy=svg.cloneNode(true);copy.setAttribute('xmlns','http://www.w3.org/2000/svg');copy.setAttribute('data-notation-style',notation);
        if(!stage.settings.effects.drawScore)copy.querySelectorAll('.score-glowing,.score-note-moving,.score-minimal-active').forEach(node=>{node.classList.remove('score-glowing','score-note-moving','score-minimal-active');node.style.removeProperty('translate');node.style.removeProperty('scale');node.style.removeProperty('--score-minimal-color');});
        const style=document.createElementNS('http://www.w3.org/2000/svg','style');
-       if(stage.settings.effects.minimalMode)copy.style.setProperty('--minimal-note-base',stage.settings.effects.minimalPalette?.note||stage.settings.effects.accent);
+       if(stage.settings.effects.minimalMode)copy.style.setProperty('--minimal-note-base',(stage.settings.effects.inverted?stage.settings.effects.paper:stage.settings.effects.ink));
        style.textContent=css.replaceAll('.score-window[data-notation-style=', 'svg[data-notation-style=')
          .replaceAll('.score-minimal-stage',stage.settings.effects.minimalMode?'svg':'.score-minimal-stage');copy.insertBefore(style,copy.firstChild);
        image=await imageFromSvg(new XMLSerializer().serializeToString(copy));cache.set(svg,image);

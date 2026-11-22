@@ -161,7 +161,7 @@
   }
   document.documentElement.lang=locale;
   async function loadPack(code){
-    const response=await fetch(new URL(code+'.json?v=0.23.2',packBase),{cache:'no-store'});
+    const response=await fetch(new URL(code+'.json?v=fxi18n1',packBase),{cache:'no-store'});
     if(!response.ok)throw Error('HTTP '+response.status+' '+code+'.json');
     const pack=await response.json();
     if(pack.locale!==code||!pack.messages||!pack.legacy||!Array.isArray(pack.patterns)){

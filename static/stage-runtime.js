@@ -4,12 +4,6 @@
  const hex=(v,d)=>/^#[0-9a-f]{6}$/i.test(v||'')?v:d;
  const number=(v,d)=>Number.isFinite(Number(v))?Number(v):d;
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
- // Keep procedural score lights proportional to the output frame.
- // 1440p is the known-good reference; lower presets remain unchanged.
- function scoreGlowPixelScale(settings){
-   const short=Math.min(Number(settings?.width),Number(settings?.height));
-   return Number.isFinite(short)&&short>0?clamp(short/1440,1,4):1;
- }
  function pianoOnlyFollower(meta,settings,viewport){
    const bg=document.createElement('div');bg.className='score-background';
    const photo=document.createElement('div');photo.className='score-photo';bg.appendChild(photo);
@@ -20,9 +14,9 @@
      stageRoot:viewport,viewport,container:null,bgLayer:bg,photoLayer:photo,
      noteEvents:meta.note_events||[],pedalEvents:meta.pedal_events||[],noteTriggers:[],tieContinuations:[],timestamps:[0,meta.audio_duration_sec||0],measureStarts:[],
      tempoMap:meta.tempo_map||[{beat:0,second:0,tempo_us:500000}],audioDuration:meta.audio_duration_sec,
-     offsetSec:settings.offsetSec,sync:meta.sync,effects:{...settings.effects,velocityScale:settings.scene.velocityScale},scene:settings.scene,velocityRange:range,
+     offsetSec:settings.offsetSec,sync:meta.sync,effects:{...settings.effects,velocityScale:settings.scene.velocityScale,lightColorPreset:settings.scene.lightColorPreset},scene:settings.scene,velocityRange:range,
      colors(){const e=this.effects;return {paper:e.inverted?e.ink:e.paper,ink:e.inverted?e.paper:e.ink,accent:e.accent,glow:e.glow};},
-     eventLightColor(velocity){return root.ScoreStudio.noteLightColor(this.scene,velocity,this.colors().accent,this.velocityRange);},
+     eventLightColor(velocity,entry=null){return root.ScoreStudio.noteLightColor(this.scene,velocity,this.colors().accent,this.velocityRange,entry);},
      beatToSeconds(beat){const map=this.tempoMap;let lo=0,hi=map.length-1;
        while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(map[mid].beat<=beat)lo=mid;else hi=mid-1;}
        const p=map[lo];return p.second+(beat-p.beat)*p.tempo_us/1e6;},
@@ -50,13 +44,13 @@
      staff:hex(s.staff_color,'#323a43'),glow:hex(s.glow_color,'#68ddfa'),
      cursor:hex(s.cursor_color,'#2ec9d3'),cursorVisible:s.cursor_visible!==false,cursorMotion:s.cursor_motion==='step'?'step':'smooth',accent:hex(s.accent_color,'#2ec9d3'),
      texture:'none',inverted:Boolean(s.inverted),
-     backgroundUrl:meta.background_filename?(meta.local_project?(meta.local_background_url||''):`/api/projects/${meta.id}/background?v=${encodeURIComponent(meta.background_version||meta.background_filename)}`): '',
+     backgroundUrl:meta.background_filename?(root.ScoreLocalProjects?.enabled?root.ScoreLocalProjects.assetUrl(meta.id,'background'):`/api/projects/${meta.id}/background?v=${encodeURIComponent(meta.background_version||meta.background_filename)}`): '',
      backgroundOpacity:clamp(number(s.background_opacity,.5),0,1),backgroundFit:s.background_fit||'cover',
      backgroundPositionX:clamp(number(s.background_position_x,50),0,100),backgroundPositionY:clamp(number(s.background_position_y,50),0,100),
      glitter:Boolean(s.glitter),sparkle:s.sparkle!==false,drawScore:Boolean(s.draw_score),minimalMode:Boolean(s.minimal_mode),
+     staffColors:s.staff_colors&&typeof s.staff_colors==='object'?s.staff_colors:{enabled:false,keyboard:false,colors:{}},
      velocityReactive:s.velocity_reactive!==false,noteMotion:s.note_motion!==false,
      motionStrength:clamp(number(s.motion_strength,1),0,2),
-     staffColors:s.staff_colors&&typeof s.staff_colors==='object'?s.staff_colors:{enabled:false,keyboard:false,colors:{}},
      scorePositionX:clamp(number(s.score_position_x,38),0,100),scorePositionY:clamp(number(s.score_position_y,0),0,100),
    };
    effect.minimalPalette=root.ScoreStudio.minimalPalette(s.minimal_palette,{
@@ -197,30 +191,18 @@
      const base=score.getBoundingClientRect(),stage=this.viewport.getBoundingClientRect();
      if(!base.width||!base.height||!stage.width||!stage.height)return;
      const commands=[],scoreScaleX=base.width/score.clientWidth,scoreScaleY=base.height/score.clientHeight;
-     const pixelScale=scoreGlowPixelScale(this.settings);
-     // Scene light envelopes use fixed logical pixel sizes (14, 23, etc.).
-     // Scale only those lengths; notehead geometry measured from SVG must
-     // not be multiplied a second time.
-     const scaleSceneCommand=command=>{
-       if(pixelScale===1||command.space!=='stage')return command;
-       const scaled={...command};
-       for(const key of ['radius','width','height','unit','keyWidth','keyHeight','size','thickness']){
-         if(Number.isFinite(scaled[key]))scaled[key]*=pixelScale;
-       }
-       return scaled;
-     };
      const toScore=(x,y)=>({
        x:(stage.left+x*stage.width/this.viewport.clientWidth-base.left)/scoreScaleX,
        y:(stage.top+y*stage.height/this.viewport.clientHeight-base.top)/scoreScaleY});
      const pointOf=element=>root.ScoreStudio.gpuScorePoint(element,score);
      for(const command of this.layer?.gpuCommands||[]){
        if(command.kind==='trailRibbon'){
-         commands.push(scaleSceneCommand({...command,a:{...command.a,...toScore(command.a.x,command.a.y)},
-           b:{...command.b,...toScore(command.b.x,command.b.y)}}));
+         commands.push({...command,a:{...command.a,...toScore(command.a.x,command.a.y)},
+           b:{...command.b,...toScore(command.b.x,command.b.y)}});
          continue;
        }
        const point=toScore(command.x,command.y);
-       commands.push(scaleSceneCommand({...command,...point}));
+       commands.push({...command,...point});
      }
      for(const active of this.follower.activeNodes||[]){
        const el=active.el;if(!el?.classList?.contains('score-glowing'))continue;
@@ -237,10 +219,9 @@
            rotation=Math.atan2(matrix.b,matrix.a);
          }
        }catch(_){}
-       const scaledBlur=blur*pixelScale;
        commands.push({kind:'note',x:point.x,y:point.y,
-         radius:Math.max(headWidth/scoreScaleX,headHeight/scoreScaleY)+scaledBlur*5,
-         width:headWidth/scoreScaleX+scaledBlur*7,height:headHeight/scoreScaleY+scaledBlur*5,rotation,
+         radius:Math.max(headWidth/scoreScaleX,headHeight/scoreScaleY)+blur*5,
+         width:headWidth/scoreScaleX+blur*7,height:headHeight/scoreScaleY+blur*5,rotation,
          energy:Math.min(.65,.18+blur*.07),color,age:active.age??1,
          velocity:(active.velocity??78)/127,seed:active.seed??0});
        if((this.settings.gpuEffects?.stardust?.on||this.settings.gpuEffects?.burst?.on)&&
@@ -258,7 +239,7 @@
          width:rect.width/scoreScaleX,
          energy:Number(style.opacity)||.5,color});
      }
-     try{gpu.draw(commands,score.clientWidth,score.clientHeight,this.settings.gpuEffects,{pixelScale});}
+     try{gpu.draw(commands,score.clientWidth,score.clientHeight,this.settings.gpuEffects);}
      catch(error){gpu.dispose();this.scoreGpu=null;this.viewport.classList.remove('score-pixi-active');
        this.follower.gpuParticles=false;
        if(this.layer)this.layer.gpuLayer=null;
@@ -324,15 +305,20 @@
        stageRoot:this.viewport,
        effects:{...s.effects,lightColorMode:s.scene.lightColorMode,
          auroraLow:s.scene.auroraLow,auroraHigh:s.scene.auroraHigh,velocityScale:s.scene.velocityScale,
+         lightPaletteStops:s.scene.lightPaletteStops,lightColorPreset:s.scene.lightColorPreset,
        // Explicit Y slider controls internal score spacing in both layouts.
          scoreTopPadding:Stage.scoreTopPadding(s)},
        scrollMode:s.scrollMode});
      this.follower.cameraMode=s.scene.cameraMode;
      this.follower.pedalEvents=this.meta.pedal_events||[];
      this.follower.audioDuration=this.meta.audio_duration_sec;
-     if(this.meta.local_project&&!this.meta.local_score_url)
-       throw Error('로컬 MusicXML 주소가 없습니다. 프로젝트를 다시 불러오거나 파일을 다시 선택해 주세요.');
-     await this.follower.load(this.meta.local_project?this.meta.local_score_url:`/api/projects/${this.meta.id}/score`);
+     // OSMD may use its own native network loader. Supply XML text directly
+     // in browser-only mode so no API/Functions request can escape the client.
+     if(root.ScoreLocalProjects?.enabled){
+       const result=await fetch(`/api/projects/${this.meta.id}/score`);
+       if(!result.ok)throw Error('브라우저 로컬 악보를 읽을 수 없습니다.');
+       await this.follower.load(await result.text());
+     }else await this.follower.load(`/api/projects/${this.meta.id}/score`);
      this.layer=new root.ScoreStudio.LayerRenderer(this.viewport);
      this.layer.setScene(s.scene);
      this.applyScoreVisibility();
@@ -345,9 +331,7 @@
      this.seek(this.time);
      return this;
    }
-   // A color-picker drag can emit dozens of input events per second. Updating
-   // staff/part lighting never requires OSMD layout, MIDI remapping, a piano
-   // camera reset, or rebuilding the PixiJS renderer.
+   // Change existing score/keyboard light colors without recreating OSMD or WebGL.
    setStaffColors(config,{redraw=true}={}){
      const colors={};
      for(const [key,value] of Object.entries(config?.colors||{})){
@@ -381,10 +365,12 @@
      this.applyScoreWindow();
      this.applyScoreVisibility();
      this.follower.setEffects({...next.effects,lightColorMode:next.scene.lightColorMode,
-       auroraLow:next.scene.auroraLow,auroraHigh:next.scene.auroraHigh,velocityScale:next.scene.velocityScale});
+       auroraLow:next.scene.auroraLow,auroraHigh:next.scene.auroraHigh,velocityScale:next.scene.velocityScale,
+       lightPaletteStops:next.scene.lightPaletteStops,lightColorPreset:next.scene.lightColorPreset});
      if(prev.effects.glow!==next.effects.glow||prev.effects.accent!==next.effects.accent||
        prev.effects.paper!==next.effects.paper||prev.scene.lightColorMode!==next.scene.lightColorMode||
-       prev.scene.auroraLow!==next.scene.auroraLow||prev.scene.auroraHigh!==next.scene.auroraHigh||
+       prev.scene.lightColorPreset!==next.scene.lightColorPreset||prev.scene.auroraLow!==next.scene.auroraLow||prev.scene.auroraHigh!==next.scene.auroraHigh||
+       JSON.stringify(prev.scene.lightPaletteStops)!==JSON.stringify(next.scene.lightPaletteStops)||
        prev.scene.velocityScale!==next.scene.velocityScale)this.piano?.shadowCache?.clear();
      if(this.meta.has_score===false)this.follower.scene=next.scene;
      this.follower.setOffset(next.offsetSec);
@@ -411,5 +397,5 @@
    setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.piano?.setFollower(this.follower);this.seek(this.time);}}
    setCameraPoints(points){this.settings.cameraPoints=Array.isArray(points)?points:[];this.follower?.setCameraPoints(this.settings.cameraPoints);this.seek(this.time);}
  }
- root.ScoreStage={normalized,Stage,scoreGlowPixelScale};
+ root.ScoreStage={normalized,Stage};
 })(typeof window==='undefined'?globalThis:window);

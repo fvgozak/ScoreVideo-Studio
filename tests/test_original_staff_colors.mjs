@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {readFileSync,existsSync} from 'node:fs';
+import {createRequire} from 'node:module';
+const read=path=>readFileSync(path,'utf8');
+const html=read('static/index.html');
+const app=read('static/app.js');
+const stage=read('static/stage-runtime.js');
+const core=read('static/score-core.js');
+const ui=read('static/staff-colors.js');
+const dyn=read('static/dynamic-fx/adapter.js');
+assert.ok(existsSync('static/staff-colors.css'),'staff color stylesheet missing');
+assert.match(html,/static\/staff-colors\.css\?v=staffrestore20261120/);
+assert.match(html,/static\/staff-colors\.js\?v=staffrestore20261120/);
+assert.ok(html.indexOf('/static/fx-groups.js')<html.indexOf('/static/staff-colors.js'));
+assert.ok(html.indexOf('/static/staff-colors.js')<html.indexOf('/static/app.js'));
+assert.match(ui,/scoreBody\.appendChild\(section\)/);
+assert.match(ui,/id="staffColorsEnabled"/);
+assert.match(ui,/id="staffColorsKeyboard"/);
+assert.match(ui,/id="staffColorsList"/);
+assert.match(ui,/catalogFromMusicXML\(score\)/);
+assert.match(app,/staff_colors:window\.ScoreStaffColors/);
+assert.match(app,/staffColors=window\.ScoreStaffColors\?\.getConfig/);
+assert.match(app,/window\.ScoreStaffColors\?\.setProject\(meta\)/);
+assert.match(app,/stage\.setStaffColors/);
+assert.match(stage,/setStaffColors\(config/);
+assert.match(stage,/staffGroups:this\.meta\.staff_groups/);
+assert.match(core,/resolveStaff\(sourceStaff/);
+assert.match(core,/groupKey:group\?\.key/);
+assert.match(dyn,/staffKeyboardEnabled:/);
+assert.match(dyn,/updateStaffColors\(notes,palette\)/);
+const require=createRequire(import.meta.url);
+require('../static/piano-fall.js');
+const {assignStaffGroups,staffKeyboardColor}=globalThis.ScorePianoFall;
+assert.equal(typeof assignStaffGroups,'function');
+const notes=[{pitch:60,midiSecond:1.0},{pitch:64,midiSecond:1.5},{pitch:60,midiSecond:2.0}];
+const triggers=[
+ {pitch:60,soundingPitch:60,midi:1.001,groupKey:'P1:1'},
+ {pitch:64,soundingPitch:64,midi:1.499,groupKey:'P1:2'},
+ {pitch:60,soundingPitch:60,midi:2.001,groupKey:'P1:1'},
+ {pitch:60,soundingPitch:60,midi:2.003,groupKey:'P2:1'}];
+assert.equal(assignStaffGroups(notes,triggers),3);
+assert.deepEqual(notes.map(n=>n.staffKeys),[['P1:1'],['P1:2'],['P1:1','P2:1']]);
+const palette={enabled:true,keyboard:true,colors:{'P1:1':'#ff0000','P1:2':'#00ff00','P2:1':'#0000ff'}};
+assert.deepEqual(staffKeyboardColor(notes[0],palette),[1,0,0]);
+assert.deepEqual(staffKeyboardColor(notes[1],palette),[0,1,0]);
+assert.deepEqual(staffKeyboardColor(notes[2],palette),[.5,0,.5]);
+assert.equal(staffKeyboardColor(notes[0],{...palette,keyboard:false}),null);
+require('../static/stage-runtime.js');
+globalThis.ScoreStudio={minimalPalette:()=>({}),normalize:()=>({})};
+const normalized=globalThis.ScoreStage.normalized({staff_colors:palette},{has_score:true});
+assert.equal(normalized.effects.staffColors.keyboard,true);
+assert.equal(normalized.effects.staffColors.colors['P1:1'],'#ff0000');
+console.log('PASS: UI 위치, 설정, 오선 매핑, 건반 연동, 이중 타건 혼합, Stage 설정');

@@ -62,6 +62,30 @@
    for(const [key,color] of Object.entries(value.colors||{}))if((pendingCatalog||allowed.has(key))&&isColor(color))colors[key]=color;
    return {enabled:value.enabled===true,keyboard:value.keyboard===true,colors};
  }
+
+ function catalogFromMusicXML(xml){
+   const doc=new DOMParser().parseFromString(xml,'application/xml');
+   if(doc.getElementsByTagName('parsererror').length)throw Error('MusicXML 구문 분석 실패');
+   const labels=new Map([...doc.getElementsByTagName('score-part')].map(p=>[
+     p.getAttribute('id'),p.getElementsByTagName('part-name')[0]?.textContent?.trim()||p.getAttribute('id')]));
+   return [...doc.getElementsByTagName('part')].map((part,index)=>{
+     const id=part.getAttribute('id')||`P${index+1}`;
+     let staves=1;const transpositions=[];
+     const measures=[...part.getElementsByTagName('measure')];
+     for(const [mi,measure] of measures.entries()){
+       for(const attributes of [...measure.children].filter(e=>e.localName==='attributes')){
+         for(const s of [...attributes.children].filter(e=>e.localName==='staves'))staves=Math.max(staves,Number(s.textContent)||1);
+         for(const t of [...attributes.children].filter(e=>e.localName==='transpose')){
+           const get=tag=>Number([...t.children].find(e=>e.localName===tag)?.textContent)||0;
+           transpositions.push({measure:mi,staff:Number(t.getAttribute('number'))||0,
+             semitones:get('chromatic')+get('octave-change')*12});
+         }
+       }
+       for(const staff of measure.getElementsByTagName('staff'))staves=Math.max(staves,Number(staff.textContent)||1);
+     }
+     return {id,name:labels.get(id)||id,part_index:index,staves:Math.min(32,staves),transpositions};
+   });
+ }
  const storageKey=id=>`scoremotion.staffColors.v1.${id}`;
  let projectId=null,catalog=[],current={enabled:false,keyboard:false,colors:{}},pitchMode=null;
  const panel=document.querySelector('[data-editor-panel="effects"] .panel:not(.image-palette-studio):not(.video-background-panel)');
@@ -78,13 +102,15 @@
    section=document.createElement('section');section.className='fx-group score-staff-colors';
    section.innerHTML=`<div class="fx-group-heading"><h3 data-i18n="staffColors.title">오선별 빛 색상</h3><small data-i18n="staffColors.help">악기·오선마다 음표 발광색을 지정합니다. 악보의 인쇄 색상은 그대로 유지됩니다.</small></div>
       <label class="fx-check"><input id="staffColorsEnabled" type="checkbox"><span data-i18n="staffColors.enable">오선별 색상 사용</span></label>
-      <label class="fx-check staff-colors-keyboard-toggle"><input id="staffColorsKeyboard" type="checkbox"><span data-i18n="staffColors.keyboard">건반도 동일하게 표시</span></label>
       <p id="staffColorsStatus" class="staff-colors-status" role="status"></p>
       <div id="staffColorsList" class="staff-colors-list"></div>
+      <label class="fx-check staff-colors-keyboard-toggle"><input id="staffColorsKeyboard" type="checkbox"><span data-i18n="staffColors.keyboard">건반도 동일한 색상 적용</span></label>
       <button type="button" id="staffColorsRefresh" class="subtle-button staff-colors-refresh" data-i18n="staffColors.refresh">악기 목록 다시 읽기</button>
       <small id="staffTransposeInfo" class="hint" hidden></small>`;
-   if(parent)parent.after(section);
-   else panel.insertBefore(section,panel.querySelector('.fx-all-advanced')||panel.firstChild);
+   // Score FX must be visible without expanding the legacy advanced drawer.
+   const scoreBody=parent?.querySelector('.fx-basic');
+   if(scoreBody)scoreBody.appendChild(section);
+   else {console.error('[ScoreMotion] Score FX basic container is missing; staff color UI cannot mount.');panel.insertBefore(section,panel.querySelector('.fx-all-advanced')||panel.firstChild);}
    list=$('staffColorsList');check=$('staffColorsEnabled');keyboardCheck=$('staffColorsKeyboard');status=$('staffColorsStatus');refresh=$('staffColorsRefresh');
    check.addEventListener('change',()=>{current.enabled=check.checked;paint();save(true);});
    keyboardCheck.addEventListener('change',()=>{current.keyboard=keyboardCheck.checked;save(true);});
@@ -161,15 +187,15 @@
    if(loading)return false;
    loading=true;lastError='';paint();
    try{
-     const source=meta.local_score_url||(!root.SCOREMOTION_LOCAL_ONLY&&meta.id?
-       `/api/projects/${encodeURIComponent(meta.id)}/score`:null);
+     const source=meta.local_score_url||(meta.id?`/api/projects/${encodeURIComponent(meta.id)}/score`:null);
      if(!source)throw Error(tr('staffColors.scoreMissing','저장된 악보 파일 경로가 없습니다.'));
      const response=await fetch(source);
      if(!response.ok)throw Error(`HTTP ${response.status}`);
      const score=await response.text();
      const parser=root.ScoreLocalMusicXML;
-     if(!parser?.parse||!parser?.partCatalog)throw Error('MusicXML reader unavailable');
-     const found=parser.partCatalog(parser.parse(score));
+     const found=parser?.parse&&parser?.partCatalog
+       ?parser.partCatalog(parser.parse(score))
+       :catalogFromMusicXML(score);
      if(!found.length)throw Error(tr('staffColors.empty','MusicXML에 악기 파트가 없습니다.'));
      // A queued reload can finish after another project has been selected.
      if(metaRef!==meta)return false;

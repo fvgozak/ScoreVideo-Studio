@@ -75,9 +75,34 @@
       ?auroraColor(normalizedVelocity(velocity,scale,range),low,high)
       :palette?.note;
   }
-  function noteLightColor(scene,velocity,solidColor,range=null){
-    return scene.lightColorMode==='aurora'
-      ?auroraColor(normalizedVelocity(velocity,scene.velocityScale,range),scene.auroraLow,scene.auroraHigh):solidColor;
+  function multistopColor(normalized,stops){
+    const t=Math.pow(clamp((Number(normalized)-1)/126,0,1),1.05);
+    const pos=t*(stops.length-1),index=Math.min(stops.length-2,Math.floor(pos));
+    return mix(stops[index],stops[index+1],ease(pos-index));
+  }
+  const randomLightColors=Object.freeze(['#53bde4','#988ce8','#e799bc','#f0c57e','#5ac8ad','#748de6',
+    '#ce92ce','#ef9488','#a6cb81','#72cad4','#d9a67e','#b0a6f2']);
+  function randomNoteColor(entry){
+    // No Math.random(): fixed by played pitch+audio onset, stable under seeking
+    // and MP4 frame order. Velocity changes intensity, NOT the selected hue.
+    const pitch=Math.round(Number(entry?.soundingPitch??entry?.pitch??entry?.midi??60))|0;
+    // ScoreFollower stores pre-sync MIDI seconds in `midi`, PianoFall in
+    // `midiSecond`. This makes linked score+keyboard colors agree even after
+    // nonlinear audio synchronization or offset edits.
+    const time=entry?.midiSecond??(entry?.pitch!=null?entry?.midi:null)??entry?.audio??entry?.time??entry?.start??0;
+    const onset=Math.round(Math.max(0,Number(time)||0)*1000)|0;
+    let x=(Math.imul(onset+1,0x9e3779b1)^Math.imul(pitch+17,0x85ebca77))|0;
+    x^=x>>>16;x=Math.imul(x,0x7feb352d);x^=x>>>15;x=Math.imul(x,0x846ca68b);x^=x>>>16;
+    return randomLightColors[(x>>>0)%randomLightColors.length];
+  }
+  function noteLightColor(scene,velocity,solidColor,range=null,entry=null){
+    if(scene.lightColorMode!=='aurora')return solidColor;
+    if(scene.lightColorPreset==='random'&&entry)return randomNoteColor(entry);
+    const v=normalizedVelocity(velocity,scene.velocityScale,range);
+    const stops=scene.lightPaletteStops;
+    return Array.isArray(stops)&&stops.length>=3
+      ?multistopColor(v,stops)
+      :auroraColor(v,scene.auroraLow,scene.auroraHigh);
   }
   function pitchLightProfile(pitch){
     // Low notes have a broad halo; high notes have a tighter, brighter core.
@@ -103,16 +128,26 @@
       .map(p=>({time:clamp(Number(p.time)||0,0,3600),color:validColor(p.color,base.color),glow:validColor(p.glow,base.glow)}))
       .sort((a,b)=>a.time-b.time);
     if(!keyframes.length||keyframes[0].time>0)keyframes.unshift({time:0,color:base.color,glow:base.glow});
+    const lightColorPreset=typeof x.lightColorPreset==='string'?x.lightColorPreset:'custom';
     const auroraPreset=auroraPresets[x.auroraPreset] ? x.auroraPreset : (x.auroraPreset==='theme'||x.auroraPreset==='custom'?x.auroraPreset:'polar');
     const auroraDefault=auroraPresets[auroraPreset]||auroraPresets.polar;
     const font=FONT_STACKS[x.font]?x.font:'sans';
     const notationStyle=['classic','modern','jazz','manuscript'].includes(x.notationStyle)?x.notationStyle:'classic';
-    return {template,cameraMode,fxMode,lightColorMode,velocityScale:x.velocityScale==='relative'?'relative':'absolute',minimalMode:Boolean(x.minimalMode),animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,4),
+    return {template,cameraMode,fxMode,lightColorMode,lightColorPreset,velocityScale:x.velocityScale==='relative'?'relative':'absolute',minimalMode:Boolean(x.minimalMode),animateBackground:Boolean(x.animateBackground),fxStrength:clamp(Number(x.fxStrength??base.fxStrength)||0,0,4),
       scoreImpactEnabled:x.scoreImpactEnabled!==false,scoreImpactStrength:clamp(Number(x.scoreImpactStrength??1.4)||0,0,4),
+      scoreParticles:{on:x.scoreParticles?.on===true,
+        style:['dust','rise','spark'].includes(x.scoreParticles?.style)?x.scoreParticles.style:'dust',
+        count:clamp(Math.round(Number(x.scoreParticles?.count??12)),2,24),
+        size:clamp(Number(x.scoreParticles?.size??.8),.35,2),
+        speed:clamp(Number(x.scoreParticles?.speed??34),4,100),
+        life:clamp(Number(x.scoreParticles?.life??.75),.15,1.5),
+        brightness:clamp(Number(x.scoreParticles?.brightness??1.2),.1,2)},
       title:String(x.title||'').slice(0,120),artist:String(x.artist||'').slice(0,120),
       credit:String(x.credit||'').slice(0,200),showText:x.showText!==false,
       font,notationStyle,titleGap:clamp(Number(x.titleGap??65),0,320),
       auroraPreset,auroraLow:validColor(x.auroraLow,auroraDefault.low),auroraHigh:validColor(x.auroraHigh,auroraDefault.high),
+      lightPaletteStops:Array.isArray(x.lightPaletteStops)&&x.lightPaletteStops.length>=3&&x.lightPaletteStops.length<=8
+        &&x.lightPaletteStops.every(c=>/^#[0-9a-f]{6}$/i.test(c))?[...x.lightPaletteStops]:null,
       trailUpper:validColor(x.trailUpper, '#7ed8ff'), trailLower:validColor(x.trailLower, '#f2d16f'),
       trailLength:clamp(Number(x.trailLength??8),2,16),
       trailBrightness:clamp(Number(x.trailBrightness??1),0,2),
@@ -300,7 +335,7 @@
       const gpuTrails=gpuFx&&this.gpuEffects?.trails?.on;
       const sceneFxOn=s.fxMode!=='none'&&strength>0;
       const scoreImpactOn=s.scoreImpactEnabled&&s.scoreImpactStrength>0;
-      if(!sceneFxOn&&!scoreImpactOn&&!gpuTrails)return;
+      if(!sceneFxOn&&!scoreImpactOn&&!gpuTrails&&!s.scoreParticles.on)return;
       // Light and particles belong to the score window, not to the entire video.
       // The clipping rectangle is in unscaled stage coordinates.
       const target=follower.viewport.getBoundingClientRect();
@@ -317,7 +352,7 @@
       const events=follower.noteTriggers||[];
       let low=0,high=events.length;
       const trailDuration=gpuTrails?this.gpuEffects.trails.duration:s.trailDuration;
-      const history=(s.fxMode==='trail'||gpuTrails)?Math.max(1.8,trailDuration):1.8;
+      const history=Math.max(1.8,s.scoreParticles.on?s.scoreParticles.life:0,(s.fxMode==='trail'||gpuTrails)?trailDuration:0);
       while(low<high){const mid=(low+high)>>>1;if(events[mid].audio<t-history)low=mid+1;else high=mid;}
       const visible=[],view=this.viewport.getBoundingClientRect(),scale=view.width/this.viewport.clientWidth||1;
       const containerBox=follower.container?.getBoundingClientRect?.()||null;
@@ -347,12 +382,21 @@
         const decay=Math.exp(-age*((s.fxMode==='trail'||gpuTrails)?1.9:3.4));
         const solidColor=(s.fxMode==='trail'||gpuTrails)?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
         const lightColor=follower.effects?.staffColors?.enabled&&follower.effects.staffColors.colors?.[e.groupKey]?
-          follower.eventLightColor(e.velocity,e):noteLightColor(s,e.velocity,solidColor,follower.velocityRange);
+          follower.eventLightColor(e.velocity,e):noteLightColor(s,e.velocity,solidColor,follower.velocityRange,e);
         const pitchLight=pitchLightProfile(e.pitch);
         const duration=Math.max(.08,(Number(e.endAudio)||e.audio+.4)-e.audio);
         const impact=root.ScorePianoFall?.impactEnvelope(age,duration,velocity)
           ??Math.exp(-age*7.5)*velocity;
         visible.push({x,y,age,power,decay,velocity,emphasis,index:i,groupKey:e.groupKey||null,hand:e.hand||'upper',systemKey:e.systemKey,audio:e.audio,endAudio:e.endAudio,beat:e.beat,pitch:e.pitch,color:lightColor});
+        // Note-anchored Pixi particle emission. All state is derived from
+        // (score time, note onset, pitch), not frame count or Math.random().
+        // The same draw() powers the live preview and the MP4 stage.
+        if(gpuFx&&s.scoreParticles.on&&age<s.scoreParticles.life){
+          this.gpuCommands.push({kind:'scoreParticleBurst',space:'stage',x,y,age,
+            velocity:e.velocity/127,energy:clamp(.48+.52*power,0,1),color:lightColor,
+            seed:Math.round((Number(e.midi??e.audio)||0)*1000)*131+Number(e.pitch||60),
+            particleSettings:s.scoreParticles});
+        }
         if(sceneFxOn&&s.fxMode!=='trail'){
           const energy=Math.max(decay,impact)*power*pitchLight.focus,size=(14+power*23)*pitchLight.spread;
           if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x,y,radius:size*.82,energy:clamp(energy*.4,0,.9),color:lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
@@ -399,7 +443,7 @@
         let x=holdPoint?.x??containerX+hold.noteX*cameraScale,
           y=holdPoint?.y??containerY+hold.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)||x<-60||x>w+60||y<-60||y>h+60)continue;
-        const color=noteLightColor(s,hold.velocity,p.glow,follower.velocityRange);
+        const color=noteLightColor(s,hold.velocity,p.glow,follower.velocityRange,hold);
         const remain=clamp((hold.endAudio-t)/.28,0,1);
         const energy=Math.min(.48,.21+hold.velocity/127*.22)*remain*strength,size=12+hold.velocity/127*12;
         if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x,y,radius:size*.82,energy:clamp(energy*.4,0,.9),color,age:1,velocity:hold.velocity/127,seed:hold.pitch+hold.audio});
@@ -517,6 +561,6 @@
       }
     }
   }
-  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,minimalActiveColor,minimalPalette,recommendMinimalPalette,minimalNoteAccent,noteLightColor,pitchLightProfile,normalize,frame,mix,random,gpuScorePoint,selectHandTrails,LayerRenderer};
+  root.ScoreStudio={presets,FONT_STACKS,auroraPresets,auroraColor,normalizedVelocity,minimalActiveColor,minimalPalette,recommendMinimalPalette,minimalNoteAccent,noteLightColor,randomLightColors,randomNoteColor,pitchLightProfile,normalize,frame,mix,random,gpuScorePoint,selectHandTrails,LayerRenderer};
 })(typeof window!=='undefined'?window:globalThis);
 if(typeof module!=='undefined')module.exports=globalThis.ScoreStudio;

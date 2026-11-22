@@ -41,7 +41,13 @@ export function colorFromVelocity(v,settings=DEFAULTS){
   // ScoreStudio. All other Dynamic FX palettes retain their original stops.
   if(settings.scoreAuroraLinked&&colors.length>=2){
     const f=Math.pow(t,1.05),last=colors[colors.length-1];
-    return colors[0].map((c,k)=>mix(c,last[k],f));
+    if(colors.length===4&&settings.colorStops?.length===4&&settings.useHarmonicStops!==true){
+      // Legacy 2-color projects expand endpoints to 4 for GPU only.
+      return colors[0].map((c,k)=>mix(c,last[k],f));
+    }
+    if(colors.length===2)return colors[0].map((c,k)=>mix(c,last[k],f));
+    const p=f*(colors.length-1),i=Math.min(colors.length-2,Math.floor(p));
+    return colors[i].map((c,k)=>mix(c,colors[i+1][k],smooth(p-i)));
   }
   const pos=t*(colors.length-1),i=Math.min(colors.length-2,Math.floor(pos)),f=smooth(pos-i);
   return colors[i].map((c,k)=>mix(c,colors[i+1][k],f));

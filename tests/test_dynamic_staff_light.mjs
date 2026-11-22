@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {pathToFileURL} from 'node:url';
+import {resolve} from 'node:path';
+const url=pathToFileURL(resolve(process.cwd(),'static/dynamic-fx/engine.js')).href;
+const {MidiFXEngine,buildNoteRects}=await import(url);
+const song={duration:2,events:[{type:'on',time:0,midi:60,track:0,channel:0,velocity:90,staffColor:[.25,.5,.75]},{type:'off',time:1,midi:60,track:0,channel:0,velocity:0}]};
+const notes=buildNoteRects(song);
+assert.deepEqual(notes[0].staffColor,[.25,.5,.75]);
+const engine=new MidiFXEngine(song);
+engine.advance(.1);
+const idx=(60-21)*4;
+const lights=engine.keyLights();
+assert.ok(Math.abs(lights[idx]-.25)<.01);
+assert.ok(Math.abs(lights[idx+1]-.5)<.01);
+assert.ok(Math.abs(lights[idx+2]-.75)<.01);
+console.log('PASS dynamic keyboard note color propagation');

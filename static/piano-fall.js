@@ -211,7 +211,7 @@
         },250);
       }
       this.notesReady=Promise.resolve();this.keyboardReady=Promise.resolve();
-      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=staffkeyboard273').then(({ScoreDynamicFX})=>{
+      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=randomkey2').then(({ScoreDynamicFX})=>{
         if(this.viewport!==viewport||viewport.__scorePianoFall!==this)return;
         this.dynamic=new ScoreDynamicFX(viewport);
         if(this.follower)this.dynamic.load(this,this.follower);
@@ -355,12 +355,16 @@
       let lo=0,hi=this.notes.length;
       while(lo<hi){const mid=(lo+hi)>>>1;if(this.notes[mid].audio<time-this.longestDuration-.8)lo=mid+1;else hi=mid;}
       const bars=[],active=[],gpuCommands=[],pedal=this.pedalAt(time);
+      const keyboardPreset=fx.groups?.keyboard?.colorPreset;
+      const keyboardRandom=keyboardPreset==='random'||
+        ((keyboardPreset==='linked'||fx.keyboard?.paletteLink===true)&&this.follower.effects?.lightColorPreset==='random');
+      const noteColor=note=>keyboardRandom?root.ScoreStudio.randomNoteColor(note):this.follower.eventLightColor(note.velocity,note);
       if(!minimal){
         for(let i=lo;i<this.notes.length&&this.notes[i].audio<=time+visibleSeconds+.2;i++){
           const note=this.notes[i],geometry=noteGeometry(note,time,impact,speed);
           if(geometry.bottom<0||geometry.top>impact)continue;
           const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
-          const color=note.staffColorHex||this.follower.eventLightColor(note.velocity);
+          const color=note.staffColorHex||noteColor(note);
           const x=box.x+box.w*(key.black?.15:.22),barWidth=box.w*(key.black?.7:.56);
           const top=Math.min(geometry.top,geometry.bottom-3),height=Math.max(3,geometry.bottom-top);
           bars.push({x,top,width:barWidth,height,color});
@@ -373,12 +377,13 @@
         const note=this.notes[i];if(time>Math.max(note.audio+.8,note.endAudio+.35,note.sustainEndAudio+.3))continue;
         if(minimal&&time>=Math.max(note.audio+.08,note.endAudio))continue;
         const key=keyByPitch.get(note.pitch),box=this.keyBox(key,left,whiteWidth);
-        const accent=minimal?(root.ScoreStudio.minimalNoteAccent(palette,note.velocity,
-          this.follower.effects?.velocityScale,this.follower.velocityRange,
-          this.follower.effects?.auroraLow,this.follower.effects?.auroraHigh)||this.follower.colors().accent):null;
+        const accent=minimal?(keyboardRandom?root.ScoreStudio.randomNoteColor(note):
+          (root.ScoreStudio.minimalNoteAccent(palette,note.velocity,
+            this.follower.effects?.velocityScale,this.follower.velocityRange,
+            this.follower.effects?.auroraLow,this.follower.effects?.auroraHigh)||this.follower.colors().accent)):null;
         const color=note.staffColorHex||(minimal?root.ScoreStudio.minimalActiveColor(accent,
           key.black?keys.black:keys.white,this.follower.colors().paper,note.velocity,
-          this.follower.effects?.velocityScale,this.follower.velocityRange):this.follower.eventLightColor(note.velocity));
+          this.follower.effects?.velocityScale,this.follower.velocityRange):noteColor(note));
         const duration=Math.max(.08,note.endAudio-note.audio);
         const pedalled=!minimal&&note.sustainEndAudio>note.endAudio+.001&&
           time>note.endAudio&&time<note.sustainEndAudio+.3;

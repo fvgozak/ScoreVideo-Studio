@@ -51,13 +51,18 @@
      this.drawMask=new PIXI.Graphics();this.drawOverlayGroup=new PIXI.Container();
      this.drawOverlayGroup.mask=this.drawMask;
      this.root.addChild(this.background);
-     this.spriteCache=new WeakMap();this.svgCache=new WeakMap();this.headCache=new WeakMap();
+     // Export-owned sprites must be enumerable at teardown: a WeakMap cannot be
+     // walked, and removeChildren() detaches sprites without destroying them.
+     this.spriteCache=new Map();this.ownedSources=new Set();
+     this.svgCache=new WeakMap();this.headCache=new WeakMap();
      this.canvasMirrors=new WeakMap();
      this.tileCache=new Map();this.tileBytes=0;this.smallSvgBytes=0;this.maxTileBytes=MAX_TILE_BYTES;
      this.svgIds=new WeakMap();this.nextSvgId=0;this.frameNumber=0;
      this.retiredImages=[];this.smallSvgEntries=new Set();
-     this.titleCache=new Map();this.cursorCache=new Map();this.atmosphereTiles=null;this.photo=null;this.photoKey='';
+     this.titleCache=new Map();this.photo=null;this.photoKey='';
      this.placed=[];this.isClosed=false;
+     const lifetime=root.__scoreMotionExportGpuStats ||= {created:0,closed:0,active:0,lastClosed:null};
+     lifetime.created++;lifetime.active++;
    }
    static async create(stage,width,height){
      const PIXI=await import(MODULE),app=new PIXI.Application();
@@ -86,6 +91,7 @@
        const canvas=document.createElement('canvas');
        canvas.width=source.width;canvas.height=source.height;
        entry={canvas,context:canvas.getContext('2d',{alpha:true,desynchronized:true})};
+       this.ownedSources.add(canvas);
        this.canvasMirrors.set(source,entry);
      }
      entry.context.setTransform(1,0,0,1,0,0);
@@ -104,7 +110,14 @@
      if(url!==this.photoKey){
        const response=await fetch(url);if(!response.ok)throw Error(`Background image HTTP ${response.status}`);
        const image=await createImageBitmap(await response.blob());
-       this.photo?.close?.();this.photo=image;this.photoKey=url;
+       if(this.photo){
+         // A background can change while composing; destroy its texture before
+         // closing the bitmap so no GPU reference to the old bitmap remains.
+         const oldSprite=this.spriteCache.get(this.photo);
+         if(oldSprite){oldSprite.destroy({texture:true,textureSource:true});this.spriteCache.delete(this.photo);}
+         this.ownedSources.delete(this.photo);this.photo.close?.();
+       }
+       this.photo=image;this.ownedSources.add(image);this.photoKey=url;
      }
      return this.photo;
    }
@@ -125,6 +138,7 @@
    disposeRaster(image){
      const sprite=this.spriteCache.get(image);
      if(sprite){sprite.destroy({texture:true,textureSource:true});this.spriteCache.delete(image);}
+     this.ownedSources.delete(image);
      image.close?.();
    }
    pruneTiles(){
@@ -202,12 +216,13 @@
        node.style.removeProperty('--score-minimal-color');
      });
      if(stage.settings.effects.minimalMode)copy.style.setProperty('--minimal-note-base',
-       stage.settings.effects.minimalPalette?.note||stage.settings.effects.accent);
+       (stage.settings.effects.inverted?stage.settings.effects.paper:stage.settings.effects.ink));
      const style=document.createElementNS('http://www.w3.org/2000/svg','style');
      style.textContent=css.replaceAll('.score-window[data-notation-style=', 'svg[data-notation-style=')
        .replaceAll('.score-minimal-stage',stage.settings.effects.minimalMode?'svg':'.score-minimal-stage');
      copy.insertBefore(style,copy.firstChild);
      const image=await svgImage(new XMLSerializer().serializeToString(copy));
+     this.ownedSources.add(image);
      this.cacheMisses++;
      const entry={image,signature,revision,usedFrame:this.frameNumber,svg,
        bytes:crop?Math.ceil(crop.width)*Math.ceil(crop.height)*4:
@@ -221,108 +236,33 @@
      }
      return image;
    }
-   // The editor renders score-glowing noteheads with a CSS drop-shadow, while
-   // the MP4 compositor rasterizes the static engraving without transient CSS.
-   // Bake the same silhouette-shaped halo into the cached SVG head overlay.
-   // Blur is quantized to avoid a new Image/texture at every animation frame.
-   async getHead(head,color,blurPx,rect,preserveHollows=false){
+   async getHead(head,color){
      let palette=this.headCache.get(head);
      if(!palette){palette=new Map();this.headCache.set(head,palette);}
-     const radius=Math.max(0,Math.min(32,Math.round((Number(blurPx)||0))));
-     const width=Math.max(1,rect.width),height=Math.max(1,rect.height);
-     const key=`${color}|${radius}|${Math.ceil(width)}|${Math.ceil(height)}|${preserveHollows}`;
-     if(palette.has(key))return palette.get(key);
+     if(palette.has(color))return palette.get(color);
      let box;
      try{box=head.getBBox();}catch(_){return null;}
      if(!box?.width||!box?.height)return null;
      const copy=head.cloneNode(true);
-     // The preview's .score-glowing CSS targets path, ellipse, circle, use.
-     // VexFlow may use any of these as the notehead's visible silhouette.
-     const selector='path,ellipse,circle,use';
-     const glyphs=copy.matches?.(selector)?[copy]:[...copy.querySelectorAll(selector)];
-     for(const glyph of glyphs){
-       if(!preserveHollows||glyph.getAttribute('fill')!=='none')glyph.setAttribute('fill',color);
-       glyph.setAttribute('stroke',preserveHollows&&glyph.getAttribute('stroke')==='none'?'none':color);
+     const paths=copy.matches?.('path')?[copy]:[...copy.querySelectorAll('path')];
+     for(const path of paths){
+       if(path.getAttribute('fill')!=='none')path.setAttribute('fill',color);
+       path.setAttribute('stroke',path.getAttribute('stroke')==='none'?'none':color);
      }
-     // SVG user units and output pixels differ when OSMD zoom/camera is active.
-     // Padding must be added *outside* the notehead rect, not compressed into it.
-     const pad=radius?Math.ceil(radius*3+2):1;
-     const unitX=box.width/width,unitY=box.height/height;
-     const source=new XMLSerializer().serializeToString(copy);
-     const halo=radius?`<defs><filter id="score-head-halo" x="-300%" y="-300%" width="700%" height="700%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="${(radius*unitX).toFixed(3)} ${(radius*unitY).toFixed(3)}" result="soft"/><feMerge><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><g filter="url(#score-head-halo)">${source}</g>`:source;
-     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(width+2*pad)}" height="${Math.ceil(height+2*pad)}" viewBox="${box.x-pad*unitX} ${box.y-pad*unitY} ${box.width+2*pad*unitX} ${box.height+2*pad*unitY}" preserveAspectRatio="none">${halo}</svg>`;
+     const pad=2;
+     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(box.width+2*pad)}" height="${Math.ceil(box.height+2*pad)}" viewBox="${box.x-pad} ${box.y-pad} ${box.width+pad*2} ${box.height+pad*2}">${new XMLSerializer().serializeToString(copy)}</svg>`;
      const image=await svgImage(xml);
-     const result={image,pad};palette.set(key,result);return result;
-   }
-   // CSS atmosphere lives between the photo (z=0) and keyboard (z=3).
-   // Use two reusable GPU-tinted radial sprites rather than a full-frame
-   // Canvas2D copy or a new full-resolution texture on every animation frame.
-   async getAtmosphereTiles(){
-     if(!this.atmosphereTiles){
-       const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><defs><radialGradient id="atmosphere" cx="50%" cy="50%" r="50%"><stop stop-color="#ffffff" stop-opacity="1"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient></defs><rect width="256" height="256" fill="url(#atmosphere)"/></svg>`;
-       // Two different Image objects: place() reuses one Sprite per source.
-       this.atmosphereTiles=Promise.all([svgImage(xml),svgImage(xml)]);
-       this.atmosphereTiles.then(images=>{this.atmosphereImages=images;});
-     }
-     return this.atmosphereTiles;
-   }
-   async placeAtmosphere(stage,time,width,height){
-     const element=stage.layer?.atmosphere;
-     if(!element||stage.settings.scene.minimalMode)return;
-     const opacity=Math.max(0,Math.min(1,Number(getComputedStyle(element).opacity)||0));
-     if(opacity<=0)return;
-     const scene=stage.settings.scene;
-     const color=scene.animateBackground?root.ScoreStudio.frame(scene,time).glow:stage.follower.colors().glow;
-     const tiles=await this.getAtmosphereTiles();
-     const centers=[[25+Math.sin(time*.09)*17,18,.207843],[85,87,.133333]];
-     centers.forEach(([x,y,alpha],i)=>{
-       const cx=width*x/100,cy=height*y/100;
-       // Approximate CSS elliptical farthest-corner gradient at its 58/60% stop.
-       const stop=i===0?.58:.60;
-       const rx=Math.max(cx,width-cx)*Math.SQRT2*stop;
-       const ry=Math.max(cy,height-cy)*Math.SQRT2*stop;
-       this.place(tiles[i],{x:cx-rx,y:cy-ry,width:2*rx,height:2*ry},this.root,opacity*alpha);
-       const sprite=this.spriteCache.get(tiles[i]);
-       sprite.tint=this.tint(color);sprite.blendMode='screen';
-     });
-   }
-   // CSS cursor is a rounded, glowing rectangle with 72% element opacity.
-   // Render it as an SVG filter sprite, preserving the computed blur in video pixels.
-   async getCursor(color,width,height,blurPx,radiusPx){
-     const w=Math.max(1,Math.ceil(width)),h=Math.max(1,Math.ceil(height));
-     const blur=Math.max(0,Math.min(64,Math.round(blurPx)));
-     const r=Math.max(0,Math.round(radiusPx));
-     const key=[color,w,h,blur,r].join('|');
-     if(this.cursorCache.has(key))return this.cursorCache.get(key);
-     const pad=blur?Math.ceil(blur*2+2):1;
-     const shadow=blur?`<rect x="${pad}" y="${pad}" width="${w}" height="${h}" rx="${r}" fill="${esc(color)}" filter="url(#cursor-soft)"/>`:'';
-     const defs=blur?`<defs><filter id="cursor-soft" x="-500%" y="-500%" width="1100%" height="1100%"><feGaussianBlur stdDeviation="${(blur*.5).toFixed(2)}"/></filter></defs>`:'';
-     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${w+2*pad}" height="${h+2*pad}" viewBox="0 0 ${w+2*pad} ${h+2*pad}">${defs}${shadow}<rect x="${pad}" y="${pad}" width="${w}" height="${h}" rx="${r}" fill="${esc(color)}"/></svg>`;
-     const image=await svgImage(xml),tile={image,pad};
-     this.cursorCache.set(key,tile);
-     return tile;
+     this.ownedSources.add(image);
+     palette.set(color,image);return image;
    }
    async getTitle(text,style,width,height){
-     const key=[text,style.color,style.fontSize,style.fontFamily,style.fontWeight,
-       style.letterSpacing,style.textShadow,Math.ceil(width),Math.ceil(height)].join('|');
+     const key=[text,style.color,style.fontSize,style.fontFamily,style.fontWeight,Math.ceil(width),Math.ceil(height)].join('|');
      if(this.titleCache.has(key))return this.titleCache.get(key);
      const w=Math.max(1,Math.ceil(width)),h=Math.max(1,Math.ceil(height));
      const fontSize=Math.max(1,parseFloat(style.fontSize)||18);
-     // Text shadow is inherited by .studio-title/.studio-artist/.studio-credit.
-     // The previous SVG replacement dropped it and clipped any outward glow.
-     const numbers=String(style.textShadow||'').match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px/);
-     const dx=numbers?Number(numbers[1]):0,dy=numbers?Number(numbers[2]):0,
-       blur=numbers?Number(numbers[3]):0;
-     const pad=blur?Math.ceil(blur*3+Math.max(Math.abs(dx),Math.abs(dy))+2):1;
-     const rawColor=String(style.textShadow||'').match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/i)?.[0]||'#000000';
-     const colorParts=rawColor.match(/^rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:[, /]+\s*([\d.]+))?/i);
-     const shadowColor=colorParts?`rgb(${colorParts[1]},${colorParts[2]},${colorParts[3]})`:rawColor;
-     const shadowAlpha=colorParts&&colorParts[4]?Math.max(0,Math.min(1,Number(colorParts[4]))):1;
-     const defs=blur?`<defs><filter id="title-shadow" x="-200%" y="-200%" width="500%" height="500%"><feDropShadow dx="${dx}" dy="${dy}" stdDeviation="${(blur/2).toFixed(2)}" flood-color="${esc(shadowColor)}" flood-opacity="${shadowAlpha}"/></filter></defs>`:'';
-     const x=w/2+pad,y=Math.min(h,Math.ceil(fontSize*1.12))+pad;
-     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${w+2*pad}" height="${h+2*pad}" viewBox="0 0 ${w+2*pad} ${h+2*pad}">${defs}<text x="${x}" y="${y}" text-anchor="middle" fill="${esc(style.color)}" font-size="${fontSize}" font-weight="${esc(style.fontWeight)}" font-family="${esc(style.fontFamily)}" letter-spacing="${esc(style.letterSpacing||'normal')}" ${blur?'filter="url(#title-shadow)"':''}>${esc(text)}</text></svg>`;
-     const image=await svgImage(xml),tile={image,pad};this.titleCache.set(key,tile);
-     return tile;
+     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><text x="${w/2}" y="${Math.min(h,Math.ceil(fontSize*1.12))}" text-anchor="middle" fill="${esc(style.color)}" font-size="${fontSize}" font-weight="${esc(style.fontWeight)}" font-family="${esc(style.fontFamily)}">${esc(text)}</text></svg>`;
+     const image=await svgImage(xml);this.ownedSources.add(image);this.titleCache.set(key,image);
+     return image;
    }
    async compose(time){
      const stage=this.stage,settings=stage.settings,w=settings.width,h=settings.height;
@@ -342,8 +282,6 @@
        this.place(photo,{x:(w-dw)*settings.effects.backgroundPositionX/100,
          y:(h-dh)*settings.effects.backgroundPositionY/100,width:dw,height:dh},this.root,settings.effects.backgroundOpacity);
      }
-     // DOM order: background/photo -> screen-blended atmosphere -> keyboard.
-     await this.placeAtmosphere(stage,time,w,h);
      metrics.backgroundMs=performance.now()-t0;
      const pianoStart=performance.now();
      const visibleCanvas=kind=>[...stage.viewport.querySelectorAll('canvas')].filter(canvas=>
@@ -389,12 +327,7 @@
      const scoreStart=performance.now();
      if(settings.scoreVisible&&stage.meta.has_score!==false){
        const region=this.rectOf(stage.scoreWindow,base,sx,sy),crop=settings.scoreRegion.cropTopPercent/100;
-       const round=Math.max(0,(parseFloat(getComputedStyle(stage.scoreWindow).borderTopLeftRadius)||0)*sx);
-       this.scoreMask.clear();
-       // Match CSS overflow:hidden + border-radius on the score window.
-       // With a top crop, the inset clip starts at a square edge.
-       if(round>0&&crop===0)this.scoreMask.roundRect(region.x,region.y,region.width,region.height,round).fill(0xffffff);
-       else this.scoreMask.rect(region.x,region.y+region.height*crop,region.width,region.height*(1-crop)).fill(0xffffff);
+       this.scoreMask.clear().rect(region.x,region.y+region.height*crop,region.width,region.height*(1-crop)).fill(0xffffff);
        this.scoreGroup.mask=this.scoreMask;
        this.panel.clear().rect(region.x,region.y,region.width,region.height)
          .fill({color:this.tint(settings.scoreRegion.panelColor),alpha:settings.scoreRegion.panelOpacity});
@@ -462,9 +395,10 @@
          }
          this.scoreGroup.addChild(this.drawOverlayGroup,this.drawMask);
        }
-       // True SVG notehead silhouettes, not bounding-box glow. The editor's
-       // SVG noteheads sit *below* the Pixi score effects (z-index: 1 vs 2).
-       // The compositor must keep that same order so bloom is not occluded.
+       const scoreEffects=visibleCanvas(c=>c.classList.contains('score-pixi-score'));
+       for(const canvas of scoreEffects)addCanvas(canvas,this.scoreGroup);
+       // True SVG notehead silhouettes, not bounding-box glow. These cached
+       // glyph images replace the obsolete Canvas2D score-glow overlay.
        const seen=new Set();
        for(const item of stage.follower?.activeNodes||[]){
          const head=item.el;if(!head||seen.has(head))continue;seen.add(head);
@@ -476,65 +410,21 @@
          const color=minimal?(style.getPropertyValue('--score-minimal-color').trim()||stage.follower.colors().accent):
            glowing?(style.getPropertyValue('--score-note-active').trim()||stage.follower.colors().glow):
              stage.follower.colors().ink;
-         const rect=this.rectOf(head,base,sx,sy);
-         // stage.viewport may be CSS-scaled in the editor; express the native
-         // CSS shadow blur in final video pixels, not screenshot pixels.
-         const blur=glowing?(parseFloat(style.getPropertyValue('--score-glow-blur'))||3)*
-           (w/Math.max(1,stage.viewport.clientWidth)):0;
-         const headTile=await this.getHead(head,color,blur,rect,minimal||!glowing);
-         if(!headTile)continue;
-         const {image,pad}=headTile;
-         this.place(image,{x:rect.x-pad,y:rect.y-pad,
-           width:rect.width+pad*2,height:rect.height+pad*2},this.scoreGroup);
+         const image=await this.getHead(head,color);
+         if(!image)continue;
+         this.place(image,this.rectOf(head,base,sx,sy),this.scoreGroup);
        }
-       // The cursor is in #osmdContainer (score-scroll z=1), so its CSS
-       // box-shadow is below the score Pixi canvas (z=2), not above it.
        const cursor=stage.follower?.playbackCursor;
-       if(cursor&&!cursor.hidden&&getComputedStyle(cursor).display!=='none'){
-         const box=this.rectOf(cursor,base,sx,sy),style=getComputedStyle(cursor);
-         const glow=(parseFloat(style.getPropertyValue('--playback-cursor-glow'))||7)*sx;
-         const radius=(parseFloat(style.borderTopLeftRadius)||3)*sx;
-         const tile=await this.getCursor(style.backgroundColor||settings.effects.cursor,
-           box.width,box.height,glow,radius);
-         this.place(tile.image,{x:box.x-tile.pad,y:box.y-tile.pad,
-           width:Math.ceil(box.width)+tile.pad*2,height:Math.ceil(box.height)+tile.pad*2},
-           this.scoreGroup,Number(style.opacity)||.72);
-       }
-       // Pixi score bloom sits above OSMD engraving and its playback cursor.
-       // IMPORTANT: this is an independently rendered WebGL canvas. Importing
-       // it directly as a Pixi Texture can lose its low-alpha, wide elliptical
-       // halo in the second WebGL context (or retain stale GPU pixels).
-       // Mirror its *actual* premultiplied output through a persistent 2D
-       // canvas first, exactly as we already do for the dynamic piano GPU.
-       // No halo is synthesized: the same preview bloom is transferred.
-       const scoreEffects=visibleCanvas(c=>c.classList.contains('score-pixi-score'));
-       for(const canvas of scoreEffects){
-         const mirrored=this.mirrorCanvas(canvas);
-         this.place(mirrored,this.rectOf(canvas,base,sx,sy),this.scoreGroup);
-       }
-       if(this.frameNumber===1){
-         metrics.scoreGlowTransferInfo={
-           canvases:scoreEffects.length,
-           mode:'live-score-pixi-canvas-to-persistent-2d-mirror',
-           rendererType:stage.scoreGpu?.app?.renderer?.type??null,
-           // Pixi 8: WebGL=1, WebGPU=2, Canvas=4. Custom note shaders
-           // in score-pixi-fx.js currently require WebGL.
-           canvasSizes:scoreEffects.map(canvas=>[canvas.width,canvas.height]),
-           layerBoxes:scoreEffects.map(canvas=>{
-             const b=this.rectOf(canvas,base,sx,sy);
-             return [b.x,b.y,b.width,b.height].map(n=>Math.round(n*100)/100);
-           })
-         };
+       this.cursor.clear();
+       if(cursor&&!cursor.hidden){const box=this.rectOf(cursor,base,sx,sy);
+         this.cursor.rect(box.x,box.y,Math.max(1,box.width),box.height)
+           .fill({color:this.tint(settings.effects.cursor),alpha:.8});
+         this.scoreGroup.addChild(this.cursor);
        }
        this.root.addChild(this.scoreGroup,this.scoreMask);
      }
      metrics.scoreMs=performance.now()-scoreStart;
      const effectsStart=performance.now();
-     // The live stage paints a transparent 2D scene canvas at z=8, above
-     // the score window (z=6) and below the title (z=10). The previous
-     // GPU compositor silently omitted it; preserve any fallback FX here.
-     const sceneFx=visibleCanvas(c=>c.classList.contains('studio-fx-canvas'));
-     for(const canvas of sceneFx)addCanvas(canvas,this.root);
      const box=stage.viewport.querySelector('.studio-titles');
      if(box&&!box.hidden){const boxStyle=getComputedStyle(box);
        if(boxStyle.display!=='none'&&boxStyle.visibility!=='hidden')for(const title of box.children){
@@ -542,9 +432,8 @@
          const style=getComputedStyle(title),alpha=(Number(boxStyle.opacity)||0)*(Number(style.opacity)||0);
          if(alpha<=0||style.visibility==='hidden'||style.display==='none')continue;
          const rect=this.rectOf(title,base,sx,sy);
-         const tile=await this.getTitle(title.textContent,style,rect.width,rect.height);
-         this.place(tile.image,{x:rect.x-tile.pad,y:rect.y-tile.pad,
-           width:Math.ceil(rect.width)+2*tile.pad,height:Math.ceil(rect.height)+2*tile.pad},this.root,alpha);
+         const image=await this.getTitle(title.textContent,style,rect.width,rect.height);
+         this.place(image,rect,this.root,alpha);
        }
      }
      this.app.render();
@@ -596,22 +485,58 @@
      for(let i=0;i<88;i++)this.background.rect(i*w/88,h-110,w/88-1,110).fill(i%12===1?0x151d2b:0xe7edf2);
      this.root.addChild(this.background);this.app.render();
    }
-   close(){if(this.isClosed)return;this.isClosed=true;
-     for(const entry of this.tileCache.values())this.disposeRaster(entry.image);
-     this.tileCache.clear();this.tileBytes=0;
-     for(const entry of this.smallSvgEntries)this.disposeRaster(entry.image);
-     this.smallSvgEntries.clear();this.smallSvgBytes=0;
-     for(const image of this.retiredImages)this.disposeRaster(image);
-     this.retiredImages.length=0;
-     for(const image of this.atmosphereImages||[])this.disposeRaster(image);
-     for(const tile of this.cursorCache.values())this.disposeRaster(tile.image);
-     this.cursorCache.clear();
-     for(const tile of this.titleCache.values())this.disposeRaster(tile.image);
-     this.titleCache.clear();
-     this.photo?.close?.();this.app.destroy(true,{children:true});
+   close(){
+     if(this.isClosed)return;
+     this.isClosed=true;
+     const lifetime=root.__scoreMotionExportGpuStats;
+     const cleanup={sprites:this.spriteCache.size,ownedSources:this.ownedSources.size,
+       rasterEntries:this.tileCache.size+this.smallSvgEntries.size,
+       rasterMiB:+((this.tileBytes+this.smallSvgBytes)/1048576).toFixed(2),
+       startedAt:performance.now(),success:false};
+     try{
+       // removeChildren() during compose() leaves many reusable sprites detached.
+       // Pixi's recursive app.destroy() cannot reach those detached objects.
+       for(const entry of this.tileCache.values())this.disposeRaster(entry.image);
+       this.tileCache.clear();this.tileBytes=0;
+       for(const entry of this.smallSvgEntries)this.disposeRaster(entry.image);
+       this.smallSvgEntries.clear();this.smallSvgBytes=0;
+       for(const image of this.retiredImages)this.disposeRaster(image);
+       this.retiredImages.length=0;
+       for(const [source,sprite] of this.spriteCache){
+         // Never destroy a TextureSource belonging to the live preview (piano
+         // canvas, etc). Only private raster/bitmap/mirror sources are owned.
+         if(!sprite.destroyed)sprite.destroy(this.ownedSources.has(source)
+           ?{texture:true,textureSource:true}:undefined);
+       }
+       this.spriteCache.clear();
+       for(const source of this.ownedSources){
+         source.close?.();
+         // Reset only private mirror canvases, not live stage canvases.
+         if(typeof HTMLCanvasElement!=='undefined'&&source instanceof HTMLCanvasElement){
+           source.width=0;source.height=0;
+         }
+       }
+       this.ownedSources.clear();
+       this.titleCache.clear();
+       this.headCache=new WeakMap();this.svgCache=new WeakMap();this.canvasMirrors=new WeakMap();
+       this.photo=null;this.photoKey='';this.placed.length=0;
+       // Pixi v8: request explicit destruction of the *export-only* WebGL
+       // context and GPU resources. The editor's WebGL contexts are separate.
+       this.app.destroy(true,{children:true,texture:true,textureSource:true,context:true});
+       cleanup.success=true;
+     }finally{
+       if(lifetime){
+         lifetime.closed++;lifetime.active=Math.max(0,lifetime.active-1);
+         lifetime.lastClosed={...cleanup,elapsedMs:+(performance.now()-cleanup.startedAt).toFixed(2)};
+       }
+     }
    }
  }
- async function createDiagnosticComposer(stage){return (await GPUComposer.create(stage,stage.settings.width,stage.settings.height)).prepare();}
+ async function createDiagnosticComposer(stage){
+   const composer=await GPUComposer.create(stage,stage.settings.width,stage.settings.height);
+   try{return await composer.prepare();}
+   catch(error){composer.close();throw error;}
+ }
  async function createSimpleComposer(width=1280,height=720){return GPUComposer.create(null,width,height);}
 
  root.ScoreGpuComposer={createDiagnosticComposer,createSimpleComposer,

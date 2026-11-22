@@ -3,7 +3,7 @@
 (function(root){
   'use strict';
   let modulePromise=null,cancelled=false,running=false,moduleAttempt=0;
-  const modulePaths=['offline.js','offline-audio.js','mediabunny.min.mjs'];
+  const modulePaths=['offline.js','direct-video-encoder.js','offline-audio.js','video-encode-queue.js','mp4-diagnostics.js','mediabunny.min.mjs'];
   async function moduleFailure(error,requestedPath){
     const failures=[];
     try{
@@ -51,7 +51,7 @@
 
   async function engine(){
     if(!modulePromise){
-      const path=`/static/offline/offline.js?v=dynamic16h${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
+      const path=`/static/offline/offline.js?v=directencoder1${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
       modulePromise=import(path).catch(async error=>{modulePromise=null;moduleAttempt++;throw await moduleFailure(error,path);});
     }
     await modulePromise;
@@ -59,15 +59,15 @@
     return root.ScoreOfflinePrototype;
   }
 
-  async function run({fps,quality='high',bitrate='auto',onProgress=()=>{}}){
+  async function run({fps,quality='high',bitrate='auto',maxEncodeInFlight=2,videoEngine='canvas',onProgress=()=>{}}){
     if(running)throw Error('다른 오프라인 MP4 출력이 진행 중입니다.');
     running=true;cancelled=false;
-    const timer=setInterval(()=>{if(root.__offlineProgress)onProgress(root.__offlineProgress);},250);
+    const timer=setInterval(()=>{if(root.__offlineProgress)onProgress(root.__offlineProgress);},1000);
     try{
       const api=await engine();
       if(cancelled)throw Error('Cancelled');
       const metrics=await api.run('full',{fps,fullSong:true,audioMode:'source',storage:'opfs',
-        pianoMode:'baseline',videoQuality:quality,videoBitrate:bitrate});
+        pianoMode:'baseline',videoQuality:quality,videoBitrate:bitrate,maxEncodeInFlight,videoEngine});
       if(cancelled){await api.release();throw Error('Cancelled');}
       const file=root.__offlineResult;
       if(!(file instanceof Blob)||file.size<4096){await api.release();throw Error('완성된 MP4 파일이 유효하지 않습니다.');}

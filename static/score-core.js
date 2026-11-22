@@ -470,7 +470,7 @@
       this.viewport.style.backgroundColor=this.stageRoot===this.viewport?paper:'transparent';
       this.stageRoot.style.backgroundColor=paper;
       this.stageRoot.classList.toggle('score-minimal-stage',Boolean(this.effects.minimalMode));
-      this.stageRoot.style.setProperty('--minimal-note-base',this.effects.minimalPalette?.note||accent);
+      this.stageRoot.style.setProperty('--minimal-note-base',ink);
       this.container.style.color=ink;
       this.viewport.style.setProperty('--score-accent',accent);
       this.stageRoot.style.setProperty('--score-accent',accent);
@@ -1074,7 +1074,7 @@
         return '#'+rgb.map(v=>Math.round(v+(255-v)*towardWhite).toString(16).padStart(2,'0')).join('');
       }
       if(window.ScoreStudio?.noteLightColor)
-        return window.ScoreStudio.noteLightColor(this.effects,velocity,this.colors().accent,this.velocityRange);
+        return window.ScoreStudio.noteLightColor(this.effects,velocity,this.colors().accent,this.velocityRange,entry);
       return this.colors().accent;
     }
     activeTies(t){
@@ -1091,15 +1091,17 @@
     }
     colorActiveNodes(){
       this.activeNodes.forEach(({el,velocity,entry})=>{
-        if(this.effects.minimalMode)el.style.setProperty('--score-minimal-color',this.minimalColor(velocity));
+        if(this.effects.minimalMode)el.style.setProperty('--score-minimal-color',this.minimalColor(velocity,entry));
         else el.style.setProperty('--score-note-active',this.eventLightColor(velocity,entry));
       });
     }
-    minimalColor(velocity){
+    minimalColor(velocity,entry=null){
       const colors=this.colors();
       const palette=this.effects.minimalPalette;
-      const accent=window.ScoreStudio.minimalNoteAccent(palette,velocity,
-        this.effects.velocityScale,this.velocityRange,this.effects.auroraLow,this.effects.auroraHigh)||colors.accent;
+      const accent=this.effects.lightColorPreset==='random'&&entry
+        ?window.ScoreStudio.randomNoteColor(entry)
+        :(window.ScoreStudio.minimalNoteAccent(palette,velocity,
+          this.effects.velocityScale,this.velocityRange,this.effects.auroraLow,this.effects.auroraHigh)||colors.accent);
       return window.ScoreStudio.minimalActiveColor(accent,colors.ink,colors.paper,velocity,
         this.effects.velocityScale,this.velocityRange);
     }
@@ -1116,7 +1118,7 @@
         const activate=entry=>{
           const el=entry.headEl||entry.el;if(!el)return;
           el.classList.add('score-minimal-active');
-          el.style.setProperty('--score-minimal-color',this.minimalColor(entry.velocity));
+          el.style.setProperty('--score-minimal-color',this.minimalColor(entry.velocity,entry));
           this.activeNodes.push({el,motionEl:entry.el,velocity:entry.velocity,entry});
         };
         for(let i=lo;i<events.length&&events[i].audio<=t;i++){
