@@ -480,6 +480,12 @@ async function apiFetch(input,init={}){
 }
 root.fetch=apiFetch;
 root.ScoreLocalProjects={enabled:true,assetUrl,openProject:load,createProject,codec,request:apiFetch,generateAudio:generatedPianoAudio,
+      pianoSampleKey:pitch=>sampleName(Number(pitch)).name,
+      getPianoSample:(pitch,context)=>{
+        if(!context||typeof context.decodeAudioData!=='function')throw Error('실시간 피아노 디코더를 사용할 수 없습니다.');
+        const anchor=sampleName(Number(pitch));
+        return decodedSalamanderSample(anchor.name,anchor.sourcePitch,()=>context);
+      },
   saveState,savePaletteSource,importRecord,replaceAsset,undoReplace,forget,ensureAudio,validateAudio:durationFromAudio,
   async setStaffGroups(id,groups){
     const record=await load(id);if(!record)throw Error('프로젝트를 찾지 못했습니다.');

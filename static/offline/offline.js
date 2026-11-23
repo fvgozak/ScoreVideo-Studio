@@ -1,6 +1,7 @@
 /* Shared deterministic MP4 engine; experiment and production call this module. */
 import {Output, Mp4OutputFormat, BufferTarget, StreamTarget, NullTarget, CanvasSource, Quality} from './mediabunny.min.mjs';
 import {decodeProjectAudio,createAacSource,encodeAudioSamples} from './offline-audio.js?v=localaudio1';
+import {encodeGeneratedPianoAac} from './offline-generated-audio.js';
 import {VideoEncodeQueue} from './video-encode-queue.js';
 import {findDirectEncoderConfig,DirectVideoEncoderSource} from './direct-video-encoder.js';
 import {Mp4Diagnostics} from './mp4-diagnostics.js?v=packetbacklog1';
@@ -52,6 +53,8 @@ window.ScoreOfflinePrototype={
   let svgDecodes=0,svgCacheHits=0,visibleSvgTiles=0,rasterCachePeakBytes=0,pianoLayerInfo=[],keyboardCamera=null,keyboardPixelProbe=null;
   let output=null,source=null,directSource=null,videoQueue=null,completed=0,finalized=false,opfs=null,audioInfo=null,audioTrack=null,audioTask=null;
   let audioEncodeError=null,audioEncodeStats=null,audioEncodeMs=0,audioWaitMs=0;
+  const generatedAudio=audioMode==='source'&&stage?.meta?.local_project===true&&stage?.meta?.generated_audio===true&&window.__scoreMotionParallelAudioEnabled!==false;
+  window.__scoreMotionOfflineAudioProgress=null;
   let videoDrainMs=0,readFileMs=0;
   // Export uses a GPU compositor, even in minimal mode. The earlier
   // Canvas2D drawImage/fillText interceptors and shadow-sprite cache were
@@ -62,9 +65,15 @@ window.ScoreOfflinePrototype={
   const jsHeapStart=performance.memory?.usedJSHeapSize||null;let jsHeapPeak=jsHeapStart||0;
   try{
     if(audioMode==='source'){
-      audioInfo=await decodeProjectAudio(stage.meta,abortController.signal);
-      if(fullSong){seconds=Math.max(Number(stage.meta.audio_duration_sec)||0,audioInfo.buffer.duration);
-        frameCount=Math.ceil(seconds*fps);}
+      if(generatedAudio){
+        // Generated MIDI is encoded to AAC from short PCM buffers directly.
+        audioInfo={generated:true,fetchMs:0,decodeMs:0,inputBytes:0};
+        if(fullSong){seconds=Number(stage.meta.audio_duration_sec)||0;frameCount=Math.ceil(seconds*fps);}
+      }else{
+        audioInfo=await decodeProjectAudio(stage.meta,abortController.signal);
+        if(fullSong){seconds=Math.max(Number(stage.meta.audio_duration_sec)||0,audioInfo.buffer.duration);
+          frameCount=Math.ceil(seconds*fps);}
+      }
     }else if(fullSong){seconds=Number(stage?.meta?.audio_duration_sec)||0;frameCount=Math.ceil(seconds*fps);}
     if(cancelRequested)throw Error('Cancelled');
     if(frameCount<=0)throw Error('No frames to render.');
@@ -125,7 +134,11 @@ window.ScoreOfflinePrototype={
       await output.start();
       if(audioTrack){
         const audioStarted=performance.now();
-        audioTask=encodeAudioSamples(audioTrack.source,audioInfo.buffer,seconds,()=>cancelRequested)
+        audioTask=(generatedAudio
+          ? encodeGeneratedPianoAac(audioTrack.source,stage.meta,seconds,()=>cancelRequested,
+              abortController.signal,progress=>{window.__scoreMotionOfflineAudioProgress=progress;},
+              ()=>completed/fps)
+          : encodeAudioSamples(audioTrack.source,audioInfo.buffer,seconds,()=>cancelRequested))
           .then(stats=>{audioEncodeStats=stats;audioTrack.source.close();})
           .catch(error=>{audioEncodeError=error;})
           .finally(()=>{audioEncodeMs=performance.now()-audioStarted;});
@@ -194,7 +207,7 @@ window.ScoreOfflinePrototype={
     if(videoQueue){const drainStarted=performance.now();await awaitFinalStep(videoQueue.drain(),'draining-video');
       if(directSource)await awaitFinalStep(directSource.drain(),'draining-encoder');
       videoDrainMs=performance.now()-drainStarted;source.close();}
-    const audioWaitStarted=performance.now();if(audioTask)await awaitFinalStep(audioTask,'draining-audio');
+    const audioWaitStarted=performance.now();if(audioTask)await awaitFinalStep(audioTask,'draining-audio',Math.max(180000,Math.ceil(seconds*1000)));
     audioWaitMs=performance.now()-audioWaitStarted;
     if(audioEncodeError)throw audioEncodeError;
     if(cancelRequested)throw Error('Cancelled');
@@ -225,6 +238,7 @@ window.ScoreOfflinePrototype={
       audioFetchMs:+(audioInfo?.fetchMs||0).toFixed(2),audioDecodeMs:+(audioInfo?.decodeMs||0).toFixed(2),
       audioEncodeMs:+audioEncodeMs.toFixed(2),audioWaitMs:+audioWaitMs.toFixed(2),
       audioEncodedPackets:audioTrack?.packetCount||0,audio:audioEncodeStats,
+      generatedAudio,generatedAudioProgress:window.__scoreMotionOfflineAudioProgress,
       wallSec:+((performance.now()-started)/1000).toFixed(2),scene:summary(times.scene),compose:summary(times.compose),scoreOverlay:summary(times.scoreOverlay),scoreOverlayStats:null,staticHeads:null,titleDrawCalls:0,titleSkipped:0,background:summary(times.background),piano:summary(times.piano),pianoPaint:summary(times.pianoPaint),pianoCopy:summary(times.pianoCopy),pianoCalls:0,pianoResizes:0,pianoCopiedPixels:0,pianoDrawInfo:null,spriteCreates:0,spriteHits:0,spriteBuildMs:0,peakSpriteBytes:0,spriteEvictions:0,jsHeapStart,jsHeapPeak,jsHeapEnd:performance.memory?.usedJSHeapSize||null,score:summary(times.score),effects:summary(times.effects),svgDecode:summary(times.svgDecode),svgDecodes,svgCacheHits,visibleSvgTiles,rasterCachePeakBytes,pianoLayerInfo,keyboardCamera,keyboardPixelProbe,encode:summary(times.encode),encodeBackpressure:summary(times.encodeBackpressure),
       encoderPacketWait:summary(times.encoderPacketWait),encoderBacklogLimit:backlogLimit,
       encodeMaxInFlight:videoQueue?.maxInFlight||0,encodePeakInFlight:videoQueue?.peakInFlight||0,

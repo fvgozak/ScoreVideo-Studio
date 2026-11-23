@@ -11,9 +11,10 @@ assert.match(local,/workers=Math\.min\(6,tasks\.length\)/);
 assert.match(local,/const stereo=new Uint32Array\(buffer,44,count\)/);
 assert.match(local,/if\(littleEndian\)/);
 assert.match(local,/if\(context\)await context\.close\(\)/);
-assert.match(app,/function queueSalamanderWarmup\(id\)/);
-assert.match(app,/queueSalamanderWarmup\(meta\.id\)/);
-assert.match(app,/void window\.ScoreLocalProjects\.ensureAudio\(id\)\.catch/);
+assert.doesNotMatch(app,/function queueSalamanderWarmup\(id\)/);
+assert.match(app,/new window\.ScoreRealtimeSalamander\.Player\(meta,/);
+assert.match(app,/void primer\.prepare\(\)\.catch/);
+assert.match(app,/await ensureLocalAudioReady\(projectId\);/);
 assert.match(html,/\/static\/app\.js\?[^"\s]*salamanderFast1/);
 assert.match(html,/\/static\/local-projects\.js\?[^"\s]*salamanderFast1/);
 // The packed stereo writer must produce the identical RIFF PCM payload as
@@ -37,4 +38,4 @@ for(let i=0;i<count;i++){
  out[i]=(left&65535)|((right&65535)<<16);
 }
 assert.equal(Buffer.compare(Buffer.from(old),Buffer.from(fast)),0,'PCM must be bit-identical');
-console.log('PASS Salamander fast: decoded sample reuse, background warmup, cache-busting, bit-identical 2.5M-frame PCM');
+console.log('PASS Salamander fast: decoded samples, lightweight preview prewarm, offline WAV on export, bit-identical 2.5M-frame PCM');

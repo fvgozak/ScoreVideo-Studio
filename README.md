@@ -38,7 +38,7 @@ npx wrangler pages deploy dist --project-name scoremotion --branch main
 ## 사용 흐름
 
 1. MIDI를 올립니다. MusicXML을 함께 올리면 악보와 연주를 정렬하고, MIDI만 올리면 건반 중심 영상을 만듭니다.
-2. 음원이 없으면 번들된 Salamander 피아노 샘플로 소리를 만듭니다. 음원과 배경 이미지를 직접 지정할 수도 있습니다.
+2. 음원이 없으면 미리보기는 Salamander 피아노 샘플을 실시간으로 재생하고, MP4 출력 시 필요한 오디오를 구간별로 생성합니다. 음원과 배경 이미지를 직접 지정할 수도 있습니다.
 3. 악보 배치, 건반·낙하 노트, 색상·빛 효과, 카메라와 싱크를 조정한 뒤 미리보기를 확인합니다.
 4. 지원 브라우저에서는 WebCodecs로 MP4를 출력합니다. 로컬 앱은 Chromium·FFmpeg 호환 출력도 제공합니다.
 

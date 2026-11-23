@@ -1,5 +1,5 @@
 """Run .venv/bin/python tests/validate_local_mp4_audio_browser.py
-E2E: lazy piano synthesis, IndexedDB audio API, and offline decoder.
+E2E: real-time piano preview, on-demand WAV, IndexedDB audio API, and decoder.
 """
 import pathlib, functools, threading, tempfile, struct, shutil
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -35,12 +35,23 @@ with tempfile.TemporaryDirectory() as tmp:
                 raise AssertionError(f'Project creation timed out: {state}, page errors: {errors}') from exc
             before=page.evaluate("""async () => {
               const meta=window.__scoreVideoDebug.getStage().meta;
-              return {generated:meta.generated_audio,hasAudio:!!(await window.ScoreLocalProjects.openProject(meta.id))?.audio};
+              return {generated:meta.generated_audio,hasAudio:!!(await window.ScoreLocalProjects.openProject(meta.id))?.audio,
+                livePlayer:typeof window.ScoreRealtimeSalamander?.Player==='function'};
             }""")
-            assert before=={'generated':True,'hasAudio':False},before
+            assert before=={'generated':True,'hasAudio':False,'livePlayer':True},before
             page.locator('#playButton').click()
-            page.wait_for_function('''window.ScoreLocalProjects?.assetUrl(
-              window.__scoreVideoDebug?.getStage()?.meta?.id, 'audio')''',timeout=30000)
+            page.wait_for_function('document.querySelector("#playButton")?.getAttribute("aria-label")==="일시정지"',timeout=30000)
+            preview=page.evaluate("""async () => {
+              const id=window.__scoreVideoDebug.getStage().meta.id;
+              return {audioStored:!!(await window.ScoreLocalProjects.openProject(id))?.audio,
+                htmlAudioSrc:document.querySelector('#audioPlayer').getAttribute('src')};
+            }""")
+            assert preview=={'audioStored':False,'htmlAudioSrc':None},preview
+            page.locator('#playButton').click()
+            page.evaluate("""async () => {
+              const id=window.__scoreVideoDebug.getStage().meta.id;
+              await window.ScoreLocalProjects.ensureAudio(id);
+            }""")
             result=page.evaluate("""async () => {
               const meta=window.__scoreVideoDebug.getStage().meta;
               const record=await window.ScoreLocalProjects.openProject(meta.id);
@@ -69,7 +80,7 @@ with tempfile.TemporaryDirectory() as tmp:
             }""",list(midi_bytes))
             assert reused['cached']>=1 and reused['identical'],reused
             assert not errors,errors
-            print('PASS browser: lazy MIDI audio -> IndexedDB -> MP4 decoder; cached sample WAV identical',result)
+            print('PASS browser: real-time MIDI preview without WAV; on-demand IndexedDB audio -> MP4 decoder; cached WAV identical',result)
             browser.close()
     finally:
         server.shutdown()

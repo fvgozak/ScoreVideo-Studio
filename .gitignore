@@ -34,6 +34,7 @@ static/*.bak*
 /scripts/rollback_*
 /scripts/restore_staff_light_colors.py
 /scripts/apply_gpu_cleanup_version.py
+/scripts/*_patch_logic*.py
 /static/score-fx-staff-mount.js
 /static/staff-light-colors.js
 /tests/fixtures/

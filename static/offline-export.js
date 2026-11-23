@@ -3,7 +3,7 @@
 (function(root){
   'use strict';
   let modulePromise=null,cancelled=false,running=false,moduleAttempt=0;
-  const modulePaths=['offline.js','direct-video-encoder.js','offline-audio.js','video-encode-queue.js','mp4-diagnostics.js','mediabunny.min.mjs'];
+  const modulePaths=['offline.js','offline-generated-audio.js','direct-video-encoder.js','offline-audio.js','video-encode-queue.js','mp4-diagnostics.js','mediabunny.min.mjs'];
   async function moduleFailure(error,requestedPath){
     const failures=[];
     try{
@@ -51,7 +51,7 @@
 
   async function engine(){
     if(!modulePromise){
-      const path=`/static/offline/offline.js?v=localaudio1${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
+      const path=`/static/offline/offline.js?v=localaudio1&parallelAudio1${moduleAttempt?`&retry=${moduleAttempt}`:''}`;
       modulePromise=import(path).catch(async error=>{modulePromise=null;moduleAttempt++;throw await moduleFailure(error,path);});
     }
     await modulePromise;

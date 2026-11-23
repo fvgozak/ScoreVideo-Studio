@@ -17,7 +17,7 @@ controls.downloadName={type:'text',value:'my-clip.mp4'};controls.fxRenderer.valu
 const data={};let savedStaff={enabled:true,keyboard:true,colors:{'P1:1':'#ff1122','P99:1':'#abc123'}};
 const context={
  project:{id:'f'.repeat(32),musicxml_title:'Test Music',score_name:'test.musicxml',sync:{method:'manual',offset_sec:.04}},
- activeProjectState:null,restoringPortableState:false,readCameraPoints:()=>[{key:'camera-1',zoom:1.45}],audio:{currentTime:29.2},
+ activeProjectState:null,restoringPortableState:false,readCameraPoints:()=>[{key:'camera-1',zoom:1.45}],audio:{currentTime:29.2},previewTime:()=>29.2,
  window:{ScoreStaffColors:{getConfig:()=>savedStaff,setConfig:cfg=>{savedStaff=structuredClone(cfg)}},ScoreFxGroups:{syncBoundaryUi(){},syncNoteBarUi(){},syncLightingUi(){},syncCustomColors(){},syncPreview(){}}},
  $:id=>controls[id],persistent:audit.ids,structuredClone,useGpuRenderer(){},migrateOutputSize(){},
  syncInfo(){},updateLabels(){},cameraPointStoreKey:()=> 'scorevideo_camera_points_'+'f'.repeat(32),

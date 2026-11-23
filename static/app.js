@@ -2,6 +2,16 @@
 (function(){
  'use strict';
  const $=id=>document.getElementById(id),audio=$('audioPlayer'),transport=window.ScoreTransport;
+     let liveSampler=null;
+     function previewTime(){return liveSampler?liveSampler.currentTime:(Number(audio.currentTime)||0);}
+     function previewPaused(){return liveSampler?liveSampler.paused:audio.paused;}
+     function pausePreview(){liveSampler?.pause();audio.pause();}
+     function setPreviewTime(time){if(liveSampler)liveSampler.seek(time);else audio.currentTime=time;}
+     function updatePlaybackUi(){
+       $('playButton').textContent=previewPaused()?'▶':'Ⅱ';
+       $('playButton').setAttribute('aria-label',previewPaused()?'재생':'일시정지');
+       cancelAnimationFrame(raf);tick();
+     }
  const browserParams=new URLSearchParams(location.search);
  const browserOnlyRequested=window.SCOREMOTION_LOCAL_ONLY===true||browserParams.has('browser-local')||
    !browserParams.has('python-backend')&&location.protocol==='https:'&&!['localhost','127.0.0.1'].includes(location.hostname);
@@ -79,7 +89,7 @@
          review_state:old.timeline?.synchronization?.review_state||'valid',
          dependencies:old.timeline?.synchronization?.dependencies||{}},
        camera:{schema_version:1,camera_points:readCameraPoints()}},
-     preview:{playhead_sec:Number(audio.currentTime)||0},extensions:old.extensions||{}};
+     preview:{playhead_sec:Number(previewTime())||0},extensions:old.extensions||{}};
  }
  function validateProjectState(state){
    if(!state||state.schema_version!==1||!state.settings?.controls||!state.timeline?.synchronization)throw Error('프로젝트 상태가 유효하지 않습니다.');
@@ -323,7 +333,7 @@
    writeCameraPoints([...manual,...suggested]);syncCameraPointControls();queueApply();
    $('cameraAutoStatus').textContent=`${suggested.length}개 자동 포인트를 만들었습니다. 수동 ${manual.length}개는 유지하고, 이전 자동 포인트만 새로 제안했습니다.`;
  });
- $('cameraPointAtPlayhead').addEventListener('click',()=>{const notes=stage?.follower?.noteTriggers||[],time=Number(audio.currentTime)||0;let best=null,distance=Infinity;for(const note of notes){const d=Math.abs(note.audio-time);if(d<distance){best=note;distance=d;}}if(!best||distance>.6){message('현재 위치 근처에서 음표를 찾지 못했습니다. 재생 위치를 음표 가까이 옮겨 주세요.',true);return;}const chord=notes.filter(n=>Math.abs(n.audio-best.audio)<.055&&n.systemKey===best.systemKey);const target=chord.reduce((top,n)=>(Number(n.pitch)>Number(top.pitch)?n:top),best);window.ScoreCameraPointEditor.add({key:target.scoreKey,time:target.audio,beat:target.beat,pitch:target.pitch,measure:target.measure});});
+ $('cameraPointAtPlayhead').addEventListener('click',()=>{const notes=stage?.follower?.noteTriggers||[],time=Number(previewTime())||0;let best=null,distance=Infinity;for(const note of notes){const d=Math.abs(note.audio-time);if(d<distance){best=note;distance=d;}}if(!best||distance>.6){message('현재 위치 근처에서 음표를 찾지 못했습니다. 재생 위치를 음표 가까이 옮겨 주세요.',true);return;}const chord=notes.filter(n=>Math.abs(n.audio-best.audio)<.055&&n.systemKey===best.systemKey);const target=chord.reduce((top,n)=>(Number(n.pitch)>Number(top.pitch)?n:top),best);window.ScoreCameraPointEditor.add({key:target.scoreKey,time:target.audio,beat:target.beat,pitch:target.pitch,measure:target.measure});});
  for(const [id,key] of [['cameraPointZoom','zoom'],['cameraPointDuration','duration'],['cameraPointShake','shake'],['cameraPointTiming','timing']])$(id).addEventListener('input',()=>{const points=readCameraPoints(),p=points.find(x=>x.key===selectedCameraPoint);if(!p)return;p[key]=Number($(id).value);p.auto=false;writeCameraPoints(points);syncCameraPointControls();});
  $('cameraPointRemove').addEventListener('click',()=>{const removed=selectedCameraPoint;selectedCameraPoint='';writeCameraPoints(readCameraPoints().filter(p=>p.key!==removed));});
  $('cameraPointClear').addEventListener('click',()=>{selectedCameraPoint='';writeCameraPoints([]);});
@@ -609,7 +619,7 @@
      staffColorsRaf=0;
      if(!stage||project?.id!==projectId)return;
      try{stage.setStaffColors(window.ScoreStaffColors?.getConfig?.()||{enabled:false,keyboard:false,colors:{}},
-       {redraw:audio.paused});}
+       {redraw:previewPaused()});}
      catch(error){message(`오선 색상 미리보기 실패: ${error.message}`,true);}
    });
  });
@@ -622,7 +632,7 @@
    applySerial=applySerial.catch(()=>{}).then(async()=>{
      if(myRevision!==revision||!stage)return;
      await stage.setSettings(setting);
-     stage.seek(audio.currentTime);
+     stage.seek(previewTime());
      window.ScoreVisualEditor?.sync();
      if(myRevision===revision)$('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
    }).catch(e=>{
@@ -1046,7 +1056,7 @@
    if(!stage||!project)return;
    $('previewInfo').textContent=reason;
    await stage.load();
-   stage.seek(audio.currentTime||0);
+   stage.seek(previewTime()||0);
    $('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
  }
  $('resetPreviewButton').addEventListener('click',()=>void rebuildPreview());
@@ -1070,25 +1080,6 @@
    }
    if(stage){stage.meta.background_filename=project.background_filename;stage.meta.background_version=project.background_version;queueApply();}
  }
- // Prepare Salamander audio after the editor is already visible. This is never
- // awaited by project creation, and ensureAudio() deduplicates overlapping Play
- // /Export requests with this warmup. Keep CPU work out of the first UI paint.
- function queueSalamanderWarmup(id){
-   if(!window.ScoreLocalProjects?.enabled)return;
-   setTimeout(()=>{
-     if(project?.id!==id||document.hidden||renderUiActive||offlineActive||webmRecorder)return;
-     const prepare=()=>{
-       if(project?.id!==id||document.hidden)return;
-       if(window.ScoreLocalProjects.assetUrl(id,'audio'))return;
-       void window.ScoreLocalProjects.ensureAudio(id).catch(error=>{
-         console.warn('Salamander background preparation:',error);
-       });
-     };
-     if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(prepare,{timeout:2000});
-     else prepare();
-   },700);
- }
-
  async function loadProject(meta){
    if(renderUiActive&&project&&meta.id!==project.id)return;
    if(portableSaveTimer!==null){clearTimeout(portableSaveTimer);portableSaveTimer=null;}
@@ -1101,7 +1092,7 @@
    $('scoreEditOverlay').hidden=true;
    project=meta;window.ScoreStaffColors?.setProject(meta);
    if(meta.has_score!==false&&!meta.staff_groups?.length)await window.ScoreStaffColors?.recoverCatalog?.(meta);
-   mp4MeasuredFps=0;experimentalOptIn=false;$('downloadName').value='';selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);audio.pause();
+   mp4MeasuredFps=0;experimentalOptIn=false;$('downloadName').value='';selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);pausePreview();if(liveSampler){await liveSampler.dispose();liveSampler=null;}
    for(const [id,value] of Object.entries(meta.effect_settings||{})){
      if(!effectSettingIds.includes(id))continue;
      const node=$(id);if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
@@ -1145,7 +1136,15 @@
    if(a?.status==='needs-review')message(`악보 ↔ MIDI 매칭 주의 (${Math.round(a.coverage*100)}%): ${a.message}`,true);
    const projectAudioUrl=window.ScoreLocalProjects?.enabled?window.ScoreLocalProjects.assetUrl(meta.id,'audio'):`/api/projects/${meta.id}/audio`;
    if(projectAudioUrl)audio.src=projectAudioUrl;
-   else{audio.removeAttribute('src');audio.load();}
+       else{audio.removeAttribute('src');audio.load();}
+       // Generated MIDI projects preview in real time. Existing uploaded audio
+       // remains an HTML media element; MP4/WebM export still requests WAV on demand.
+       if(window.ScoreLocalProjects?.enabled&&meta.generated_audio&&window.ScoreRealtimeSalamander?.Player){
+         liveSampler=new window.ScoreRealtimeSalamander.Player(meta,{
+           loadSample:(pitch,ctx)=>window.ScoreLocalProjects.getPianoSample(pitch,ctx),
+           onState:()=>updatePlaybackUi()
+         });
+       }
    $('totalTime').textContent=fmt(meta.audio_duration_sec);$('currentTime').textContent='00:00';
    $('seek').max=meta.audio_duration_sec;$('seek').value=0;
    $('offset').value=0;$('pianoOffset').value=0;updateLabels();
@@ -1171,7 +1170,7 @@
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:previewConfig()});
    await stage.load();
    const savedPlayhead=Math.max(0,Math.min(Number(activeProjectState?.preview?.playhead_sec)||0,Number(meta.audio_duration_sec)||0));
-   if(savedPlayhead>0){try{audio.currentTime=savedPlayhead;}catch(_){}}
+   if(savedPlayhead>0){try{setPreviewTime(savedPlayhead);}catch(_){}}
    stage.seek(savedPlayhead);$('seek').value=String(savedPlayhead);$('currentTime').textContent=fmt(savedPlayhead);
    $('cameraPointAuto').disabled=!hasScore||!stage.follower?.noteTriggers?.length;
    $('webmRecordButton').disabled=Boolean(webmUnavailable);updateExportUi();
@@ -1188,10 +1187,16 @@
      message(`되돌이표 확인: ${meta.repeat_info.warning}`,true);
    }else if(!hasScore)message('MIDI 건반 영상 준비 완료. Salamander 피아노 음원과 MP4 출력에 동일하게 적용됩니다.');
    else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
-   if(window.ScoreLocalProjects?.enabled&&meta.generated_audio&&!projectAudioUrl){
-     message('프로젝트 준비 완료 · 피아노 음원은 편집 중 백그라운드에서 준비합니다.');
-     queueSalamanderWarmup(meta.id);
-   }
+   if(liveSampler){
+         message('프로젝트 준비 완료 · 미리보기는 실시간 피아노, MP4 출력 시에만 전체 음원을 생성합니다.');
+         const primer=liveSampler;
+         const prepare=()=>{
+           if(liveSampler!==primer||document.hidden)return;
+           void primer.prepare().catch(error=>console.warn('Realtime piano sample preparation:',error));
+         };
+         if(typeof requestIdleCallback==='function')requestIdleCallback(prepare,{timeout:1500});
+         else setTimeout(prepare,650);
+       }
  }
  const portableText=(key,fallback,vars={})=>{
    const translated=window.ScoreI18n?.t?.('projectIO.'+key,vars);
@@ -1352,7 +1357,7 @@
    localStorage.removeItem('scorevideo_studio_v05_settings');
    clearUploadInputs();
    for(const name of ['backgroundFile','paletteImageFile'])if($(name))$(name).value='';
-   audio.pause();audio.removeAttribute('src');audio.load();
+   pausePreview();if(liveSampler){void liveSampler.dispose();liveSampler=null;}audio.removeAttribute('src');audio.load();
    window.location.reload();
  });
  $('uploadForm').addEventListener('submit',async e=>{
@@ -1401,26 +1406,26 @@
      project.sync=null;stage?.setSync(null);schedulePortableAutosave();syncInfo();message('싱크 초기화됨.');
    }catch(e){message(e.message,true);}
  });
- function duration(){return Number.isFinite(audio.duration)?audio.duration:(Number(project?.audio_duration_sec)||0);}
+ function duration(){return liveSampler?liveSampler.duration:(Number.isFinite(audio.duration)?audio.duration:(Number(project?.audio_duration_sec)||0));}
  function measureAxis(){return stage?.getMeasureStarts?.()||[];}
  function updateTimeline(){
    if(!project)return;
-   const t=Number(audio.currentTime)||0;
+   const t=Number(previewTime())||0;
    $('currentTime').textContent=fmt(t);$('seek').value=t;
    const current=transport.currentMeasure(t,measureAxis());
    $('measureInfo').textContent=current.total?`마디 ${current.index}/${current.total}`:'마디 —';
    stage?.seek(t);
  }
- function tick(now){if(!project||webmRecorder)return;const current=now||performance.now();if(!renderUiActive||audio.paused||current-lastPreviewFrame>=67){updateTimeline();lastPreviewFrame=current;}if(!audio.paused)raf=requestAnimationFrame(tick);}
+ function tick(now){if(!project||webmRecorder)return;const current=now||performance.now();if(!renderUiActive||previewPaused()||current-lastPreviewFrame>=67){updateTimeline();lastPreviewFrame=current;}if(!previewPaused())raf=requestAnimationFrame(tick);}
  function seekTo(time){
    if(!project)return;
    const target=transport.seekSeconds(0,Number(time)||0,duration());
-   audio.currentTime=target;
+   setPreviewTime(target);
    updateTimeline();
  }
  function moveByMeasure(direction){
    if(!project)return;
-   const time=transport.seekMeasure(audio.currentTime,direction,measureAxis(),duration());
+   const time=transport.seekMeasure(previewTime(),direction,measureAxis(),duration());
    if(time===null){message('마디 위치를 읽지 못했습니다. 악보 로딩 상태를 확인해 주세요.',true);return;}
    seekTo(time);
  }
@@ -1438,10 +1443,28 @@
    if(audio.src!==source){audio.src=source;audio.load();}
  }
  async function toggle(){
-   if(!project){message('먼저 MIDI 파일을 불러오세요.');return;}
-   if(audio.paused){try{await ensureLocalAudioReady(project.id);await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
-   else audio.pause();
- }
+       if(!project){message('먼저 MIDI 파일을 불러오세요.');return;}
+       if(liveSampler){
+         if(!liveSampler.paused){liveSampler.pause();return;}
+         const current=liveSampler;
+         try{await current.play();}
+         catch(error){
+           if(liveSampler!==current)return;
+           console.warn('ScoreMotion live piano fallback:',error);
+           const time=current.currentTime;
+           await current.dispose();liveSampler=null;
+           try{
+             await ensureLocalAudioReady(project.id);
+             audio.currentTime=Math.min(time,Number(audio.duration)||time);
+             await audio.play();
+             message('실시간 피아노 재생이 지원되지 않아 기존 WAV 방식으로 전환했습니다.');
+           }catch(fallback){message('오디오 재생 실패: '+fallback.message,true);}
+         }
+         return;
+       }
+       if(audio.paused){try{await ensureLocalAudioReady(project.id);await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
+       else audio.pause();
+     }
  const playerDock=$('playerDock');
  const fullscreenButton=$('fullscreenPreviewButton');
  let fullscreenWasEditing=false;
@@ -1480,14 +1503,10 @@
    if(command==='play')void toggle();
    else if(command==='previous-measure')moveByMeasure(-1);
    else if(command==='next-measure')moveByMeasure(1);
-   else if(command==='back-five')seekTo(transport.seekSeconds(audio.currentTime,-5,duration()));
-   else if(command==='forward-five')seekTo(transport.seekSeconds(audio.currentTime,5,duration()));
+   else if(command==='back-five')seekTo(transport.seekSeconds(previewTime(),-5,duration()));
+   else if(command==='forward-five')seekTo(transport.seekSeconds(previewTime(),5,duration()));
  },{capture:true});
- for(const id of ['play','pause','ended'])audio.addEventListener(id,()=>{
-   $('playButton').textContent=audio.paused?'▶':'Ⅱ';
-   $('playButton').setAttribute('aria-label',audio.paused?'재생':'일시정지');
-   cancelAnimationFrame(raf);tick();
- });
+ for(const id of ['play','pause','ended'])audio.addEventListener(id,updatePlaybackUi);
  $('seek').addEventListener('input',()=>seekTo(Number($('seek').value)));
  $('restartButton').addEventListener('click',()=>seekTo(0));
  async function pollStatus(){if(!project)return;const projectId=project.id,epoch=renderPollEpoch,job=renderUiJob;try{
@@ -1529,13 +1548,16 @@
  async function startOfflineRender(){
    if(!project||renderUiActive||offlineSupport?.supported!==true)return;
    const projectId=project.id,token=++offlineEpoch,fps=Number($('fps').value),started=performance.now();
-   offlineActive=true;offlineCancelPending=false;offlineReturnTime=Number(audio.currentTime)||0;audio.pause();
+   offlineActive=true;offlineCancelPending=false;offlineReturnTime=Number(previewTime())||0;pausePreview();
    if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;}
    $('downloadLink').hidden=true;$('cancelRenderButton').hidden=false;$('cancelRenderButton').disabled=false;
    setRenderUi(true,{state:'queued',message:'WebCodecs MP4 준비 중',progress:0});
    $('progressWrap').hidden=false;$('progressBar').style.width='0%';$('percent').textContent='0%';
    try{
-     await ensureLocalAudioReady(projectId);
+     // Generated MIDI previews use real-time sampling. During MP4 export,
+     // synthesize bounded PCM chunks concurrently with video: no giant WAV.
+     if(!(window.ScoreLocalProjects?.enabled&&project?.generated_audio&&window.__scoreMotionParallelAudioEnabled!==false))
+       await ensureLocalAudioReady(projectId);
      await applySerial;
      if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
      const [width,height]=$('resolution').value.split('x').map(Number);
@@ -1621,7 +1643,7 @@
    const selection=$('webmTestSeconds').value,seconds=selection==='full'?duration():Math.min(duration(),Number(selection)),projectId=project.id;
    if(!Number.isFinite(seconds)||seconds<=0){message('오디오 길이를 확인할 수 없습니다.',true);return;}
    webmPosition=0;
-   audio.pause();$('webmRecordButton').disabled=true;$('exportButton').disabled=true;$('cancelWebmButton').hidden=false;
+   pausePreview();$('webmRecordButton').disabled=true;$('exportButton').disabled=true;$('cancelWebmButton').hidden=false;
    setRenderUi(true,{webm:true,state:'queued',message:'녹화 장면 준비 중',progress:0});
    try{
      await ensureLocalAudioReady(projectId);
@@ -1667,7 +1689,7 @@
      window.ScoreOfflineExport.cancel();
      return;
    }
-   cancelReturnTime=audio.currentTime;audio.pause();
+   cancelReturnTime=previewTime();pausePreview();
    $('cancelRenderButton').disabled=true;$('cancelRenderButton').textContent='취소 중…';
    setRenderUi(true,{state:'cancelling',progress:Number($('percent').textContent.replace('%',''))||0});
    if(legacyStartPending){legacyCancelPending=true;return;}
