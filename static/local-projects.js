@@ -9,7 +9,7 @@ const enabled=root.SCOREMOTION_LOCAL_ONLY===true||params.has('browser-local')||!
 if(!enabled){root.ScoreLocalProjects={enabled:false};return;}
 const codec=root.ScoreLocalCodec;
 if(!codec)throw Error('ScoreLocalCodec must be loaded before ScoreLocalProjects.');
-const nativeFetch=root.fetch.bind(root),memory=new Map(),urls=new Map(),undoRecords=new Map();let dbPromise=null;
+const nativeFetch=root.fetch.bind(root),memory=new Map(),urls=new Map(),undoRecords=new Map(),audioJobs=new Map();let dbPromise=null;
 const DB='scoremotion-local-projects',STORE='projects',STATE_STORE='projectStates';
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8'}});
 const error=(detail,status=400)=>json({detail:String(detail)},status);
@@ -80,21 +80,60 @@ function sampleName(note){
   const names=['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
   return {name:`${names[pitch%12]}${Math.floor(pitch/12)-1}.mp3`,sourcePitch:pitch};
 }
+// Same 44.1 kHz decoded piano samples can serve multiple MIDI projects.
+// Keep a bounded LRU to avoid long-session browser memory growth.
+const decodedSalamander=new Map(),loadingSalamander=new Map();
+const SALAMANDER_CACHE_LIMIT=48*1024*1024;
+let decodedSalamanderBytes=0;
+async function decodedSalamanderSample(name,pitch,decoder){
+  const cached=decodedSalamander.get(name);
+  if(cached){decodedSalamander.delete(name);decodedSalamander.set(name,cached);return cached.sample;}
+  const pending=loadingSalamander.get(name);
+  if(pending)return pending;
+  const task=(async()=>{
+    const r=await nativeFetch(`/static/audio/salamander/${name}`);
+    if(!r.ok)throw Error('Salamander 피아노 샘플이 누락됐습니다: '+name);
+    const audio=await decoder().decodeAudioData(await r.arrayBuffer());
+    const sample={buffer:audio,pitch},bytes=audio.length*audio.numberOfChannels*4;
+    if(bytes<=SALAMANDER_CACHE_LIMIT){
+      decodedSalamander.set(name,{sample,bytes});decodedSalamanderBytes+=bytes;
+      while(decodedSalamanderBytes>SALAMANDER_CACHE_LIMIT){
+        const first=decodedSalamander.keys().next().value;
+        const victim=decodedSalamander.get(first);
+        decodedSalamander.delete(first);decodedSalamanderBytes-=victim.bytes;
+      }
+    }
+    return sample;
+  })();
+  loadingSalamander.set(name,task);
+  try{return await task;}finally{if(loadingSalamander.get(name)===task)loadingSalamander.delete(name);}
+}
+
 async function generatedPianoAudio(timing){
-  const events=timing.note_events;
+  const started=Date.now(),events=timing.note_events;
   if(events.length>12000)throw Error('브라우저 피아노 음원 자동생성은 12,000개 이하의 MIDI 음표를 지원합니다. 오디오를 직접 추가하세요.');
   const duration=Math.min(600,Math.max(timing.midi_duration_sec+3,3));
   if(timing.midi_duration_sec>597)throw Error('10분이 넘는 MIDI는 오디오를 함께 업로드해 주세요.');
-  const context=new AudioContext({sampleRate:44100});
-  const sources=new Map();
+  const sources=new Map(),required=new Map();
+  for(const e of events){const s=sampleName(e.pitch);required.set(s.name,s.sourcePitch);}
+  // Open a decoder only for cache misses. Decoded samples survive across songs
+  // within this browser tab, bounded by an LRU memory budget.
+  let context=null,cacheHits=0;
+  const decoder=()=>{if(!context)context=new AudioContext({sampleRate:44100});return context;};
   try{
-    const required=new Map();for(const e of events){const s=sampleName(e.pitch);required.set(s.name,s.sourcePitch);}
-    for(const [name,pitch] of required){
-      const r=await nativeFetch(`/static/audio/salamander/${name}`);
-      if(!r.ok)throw Error('Salamander 피아노 샘플이 누락됐습니다: '+name);
-      const buffer=await context.decodeAudioData(await r.arrayBuffer());sources.set(name,{buffer,pitch});
-    }
-  }finally{await context.close();}
+    const tasks=[...required],workers=Math.min(6,tasks.length);let index=0;
+    const results=await Promise.allSettled(Array.from({length:workers},async()=>{
+      while(index<tasks.length){
+        const [name,pitch]=tasks[index++];
+        if(decodedSalamander.has(name)||loadingSalamander.has(name))cacheHits++;
+        const sample=await decodedSalamanderSample(name,pitch,decoder);
+        sources.set(name,sample);
+      }
+    }));
+    const failed=results.find(item=>item.status==='rejected');
+    if(failed)throw failed.reason;
+  }finally{if(context)await context.close();}
+  const sampleMs=Date.now()-started,renderStart=Date.now();
   const offline=new OfflineAudioContext(2,Math.ceil(duration*44100),44100);
   for(const event of events){
     const s=sampleName(event.pitch),sample=sources.get(s.name);if(!sample)continue;
@@ -105,7 +144,7 @@ async function generatedPianoAudio(timing){
     gain.gain.setValueAtTime(.24*velocity,Math.max(from+.012,until-.09));gain.gain.linearRampToValueAtTime(0,until+.2);
     audio.connect(gain).connect(offline.destination);audio.start(from);audio.stop(Math.min(duration,until+.24));
   }
-  const rendered=await offline.startRendering();
+  const rendered=await offline.startRendering(),renderMs=Date.now()-renderStart,pcmStart=Date.now();
   const count=rendered.length,buffer=new ArrayBuffer(44+count*4),view=new DataView(buffer);
   const word=(offset,text)=>{for(let i=0;i<text.length;i++)view.setUint8(offset+i,text.charCodeAt(i));};
   word(0,'RIFF');view.setUint32(4,36+count*4,true);word(8,'WAVE');word(12,'fmt ');
@@ -113,12 +152,29 @@ async function generatedPianoAudio(timing){
   view.setUint32(24,44100,true);view.setUint32(28,44100*4,true);view.setUint16(32,4,true);view.setUint16(34,16,true);
   word(36,'data');view.setUint32(40,count*4,true);
   const a=rendered.getChannelData(0),b=rendered.getChannelData(1);
-  for(let i=0;i<count;i++){
-    view.setInt16(44+i*4,Math.round(Math.max(-1,Math.min(1,a[i]))*32767),true);
-    view.setInt16(46+i*4,Math.round(Math.max(-1,Math.min(1,b[i]))*32767),true);
+  // One aligned 32-bit write per stereo frame (instead of two DataView
+  // writes) keeps the exact old 16-bit PCM quantization and output format.
+  const littleEndian=new Uint8Array(new Uint16Array([1]).buffer)[0]===1;
+  if(littleEndian){
+    const stereo=new Uint32Array(buffer,44,count);
+    for(let i=0;i<count;i++){
+      const left=Math.round(Math.max(-1,Math.min(1,a[i]))*32767);
+      const right=Math.round(Math.max(-1,Math.min(1,b[i]))*32767);
+      stereo[i]=(left&65535)|((right&65535)<<16);
+    }
+  }else{
+    for(let i=0;i<count;i++){
+      view.setInt16(44+i*4,Math.round(Math.max(-1,Math.min(1,a[i]))*32767),true);
+      view.setInt16(46+i*4,Math.round(Math.max(-1,Math.min(1,b[i]))*32767),true);
+    }
   }
+  root.__scoreMotionSalamanderPerf={sampleCount:required.size,cachedSamples:cacheHits,
+    sampleMs,renderMs,pcmMs:Date.now()-pcmStart,totalMs:Date.now()-started,
+    cachedDecodedBytes:decodedSalamanderBytes};
+  console.info('[ScoreMotion Salamander]',root.__scoreMotionSalamanderPerf);
   return new File([buffer],'Salamander Grand Piano.wav',{type:'audio/wav'});
 }
+
 async function createProject(files,{save=true}={}){
   const {score,midi}=files;let {audio}=files;
   if(!midi)throw Error('MIDI 파일이 필요합니다.');
@@ -132,8 +188,13 @@ async function createProject(files,{save=true}={}){
   let parsed=null,scoreText=null;
   if(score){scoreText=await codec.readScore(score);parsed=codec.decodeScore(scoreText);}
   const generated_audio=!audio;
-  if(!audio)audio=await generatedPianoAudio(timing);
-  const duration=await durationFromAudio(audio);
+  // Create the project immediately. Do not synthesise an entire-song WAV while
+  // the user is waiting for the editor. Generate once on first Play/Export.
+  if(generated_audio){
+    if(timing.note_events.length>12000)throw Error('브라우저 피아노 음원 자동생성은 12,000개 이하의 MIDI 음표를 지원합니다. 오디오를 직접 추가하세요.');
+    if(timing.midi_duration_sec>597)throw Error('10분이 넘는 MIDI는 오디오를 함께 업로드해 주세요.');
+  }
+  const duration=generated_audio?Math.min(600,Math.max(timing.midi_duration_sec+3,3)):await durationFromAudio(audio);
   if(!Number.isFinite(duration)||duration<=0||duration>3600)throw Error('오디오 길이를 확인할 수 없습니다.');
   let alignment=null,repeatInfo=parsed?.repeat_info||{mode:'none',warning:''};
   if(parsed){const selected=codec.selectPerformance(scoreText,timing);scoreText=selected.xml;parsed=selected.parsed;alignment=selected.alignment;repeatInfo=selected.repeat_info;}
@@ -147,6 +208,29 @@ async function createProject(files,{save=true}={}){
   const record={id,meta,score:scoreText||null,scoreOriginal:score||null,midi,audio,background:null,paletteSource:null,diagnostics:null,state:null,createdAt:new Date().toISOString()};
   if(save){await store(record);cacheAssets(record);return meta;}
   return record;
+}
+// A single in-flight synthesis per project. Once made, the original generated
+// WAV is stored in IndexedDB for subsequent playback/export in this browser.
+// A .scoremotion archive intentionally still omits generated audio.
+async function ensureAudio(id){
+  const current=await load(id);
+  if(!current)throw Error('프로젝트를 찾지 못했습니다.');
+  if(current.audio){cacheAssets(current);return current.audio;}
+  if(!current.meta.generated_audio)throw Error('프로젝트에 업로드 음원이 없습니다.');
+  if(audioJobs.has(id))return audioJobs.get(id);
+  const job=(async()=>{
+    const wav=await generatedPianoAudio(current.meta);
+    if(audioJobs.get(id)!==job)throw Error('음원 생성 중 프로젝트 파일이 교체되었습니다.');
+    const latest=await load(id);
+    if(!latest||!latest.meta.generated_audio)throw Error('음원 생성 중 프로젝트가 변경되었습니다.');
+    if(latest.audio)return latest.audio;
+    latest.audio=wav;
+    await store(latest);
+    cacheAsset(id,'audio',wav);
+    return wav;
+  })();
+  audioJobs.set(id,job);
+  try{return await job;}finally{if(audioJobs.get(id)===job)audioJobs.delete(id);}
 }
 function svgPalette(colors){
   const main=colors.main,secondary=colors.secondary,shadow=colors.shadow;
@@ -276,11 +360,12 @@ async function savePaletteSource(id,file){
   record.paletteSource=file||null;await store(record);
 }
 async function forget(id){
+  audioJobs.delete(id);
   const database=await db();await new Promise((resolve,reject)=>{
     const tx=database.transaction([STORE,STATE_STORE],'readwrite');
     tx.objectStore(STORE).delete(id);tx.objectStore(STATE_STORE).delete(id);
     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
-  });memory.delete(id);for(const kind of ['audio','background'])cacheAsset(id,kind,null);undoRecords.delete(id);
+  });audioJobs.delete(id);memory.delete(id);for(const kind of ['audio','background'])cacheAsset(id,kind,null);undoRecords.delete(id);
 }
 async function importRecord(candidate){
   if(!candidate?.meta||!candidate.midi||!candidate.audio)throw Error('복원할 프로젝트 데이터가 없습니다.');
@@ -295,6 +380,8 @@ async function importRecord(candidate){
 async function replaceAsset(id,role,file){
   if(!['score','midi','audio','background','palette_source'].includes(role)||!(file instanceof Blob))throw Error('파일 교체 대상이 올바르지 않습니다.');
   const record=await load(id);if(!record)throw Error('프로젝트가 없습니다.');
+  // Invalidate a pending synthesis before any file replacement awaits.
+  if(['score','midi','audio'].includes(role))audioJobs.delete(id);
   let updated;
   if(role==='background'||role==='palette_source'){
     if(file.size>20*1024*1024||!/^image\/(png|jpeg|webp)$/.test(file.type))throw Error('PNG/JPEG/WebP 이미지, 20MB 이하만 지원합니다.');
@@ -322,11 +409,12 @@ async function replaceAsset(id,role,file){
   }
   if(role==='background'||role==='palette_source')updated.state=record.state;
   undoRecords.set(id,record);
-  try{await storeWithState(updated);cacheAsset(id,'audio',updated.audio);cacheAsset(id,'background',updated.background);}catch(error){undoRecords.delete(id);throw error;}
+  try{await storeWithState(updated);audioJobs.delete(id);cacheAsset(id,'audio',updated.audio);cacheAsset(id,'background',updated.background);}catch(error){undoRecords.delete(id);throw error;}
   return {meta:updated.meta,role,reviewRequired:['score','midi','audio'].includes(role)};
 }
 async function undoReplace(id){
   const previous=undoRecords.get(id);if(!previous)throw Error('되돌릴 파일 교체 기록이 없습니다.');
+  audioJobs.delete(id);
   await storeWithState(previous);cacheAsset(id,'audio',previous.audio);cacheAsset(id,'background',previous.background);undoRecords.delete(id);return previous.meta;
 }
 async function apiFetch(input,init={}){
@@ -392,7 +480,7 @@ async function apiFetch(input,init={}){
 }
 root.fetch=apiFetch;
 root.ScoreLocalProjects={enabled:true,assetUrl,openProject:load,createProject,codec,request:apiFetch,generateAudio:generatedPianoAudio,
-  saveState,savePaletteSource,importRecord,replaceAsset,undoReplace,forget,validateAudio:durationFromAudio,
+  saveState,savePaletteSource,importRecord,replaceAsset,undoReplace,forget,ensureAudio,validateAudio:durationFromAudio,
   async setStaffGroups(id,groups){
     const record=await load(id);if(!record)throw Error('프로젝트를 찾지 못했습니다.');
     record.meta.staff_groups=groups;await store(record);return groups;

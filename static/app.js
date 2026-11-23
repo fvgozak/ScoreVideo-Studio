@@ -1070,6 +1070,25 @@
    }
    if(stage){stage.meta.background_filename=project.background_filename;stage.meta.background_version=project.background_version;queueApply();}
  }
+ // Prepare Salamander audio after the editor is already visible. This is never
+ // awaited by project creation, and ensureAudio() deduplicates overlapping Play
+ // /Export requests with this warmup. Keep CPU work out of the first UI paint.
+ function queueSalamanderWarmup(id){
+   if(!window.ScoreLocalProjects?.enabled)return;
+   setTimeout(()=>{
+     if(project?.id!==id||document.hidden||renderUiActive||offlineActive||webmRecorder)return;
+     const prepare=()=>{
+       if(project?.id!==id||document.hidden)return;
+       if(window.ScoreLocalProjects.assetUrl(id,'audio'))return;
+       void window.ScoreLocalProjects.ensureAudio(id).catch(error=>{
+         console.warn('Salamander background preparation:',error);
+       });
+     };
+     if(typeof window.requestIdleCallback==='function')window.requestIdleCallback(prepare,{timeout:2000});
+     else prepare();
+   },700);
+ }
+
  async function loadProject(meta){
    if(renderUiActive&&project&&meta.id!==project.id)return;
    if(portableSaveTimer!==null){clearTimeout(portableSaveTimer);portableSaveTimer=null;}
@@ -1124,7 +1143,9 @@
    $('scoreAlignmentInfo').classList.toggle('error',hasScore&&a?.status!=='ok');
    $('metadata').textContent=`${meta.note_count.toLocaleString()}개 MIDI 음표 · ${fmt(meta.audio_duration_sec)} · 템포 변화 ${meta.tempo_map.length}개 · ${hasScore?`악보/MIDI 음표 매칭 ${Math.round((a?.coverage||0)*100)}%`:'건반 전용'}${meta.generated_audio?' · Salamander Grand Piano':''}`;
    if(a?.status==='needs-review')message(`악보 ↔ MIDI 매칭 주의 (${Math.round(a.coverage*100)}%): ${a.message}`,true);
-   audio.src=window.ScoreLocalProjects?.enabled?window.ScoreLocalProjects.assetUrl(meta.id,'audio'):`/api/projects/${meta.id}/audio`;
+   const projectAudioUrl=window.ScoreLocalProjects?.enabled?window.ScoreLocalProjects.assetUrl(meta.id,'audio'):`/api/projects/${meta.id}/audio`;
+   if(projectAudioUrl)audio.src=projectAudioUrl;
+   else{audio.removeAttribute('src');audio.load();}
    $('totalTime').textContent=fmt(meta.audio_duration_sec);$('currentTime').textContent='00:00';
    $('seek').max=meta.audio_duration_sec;$('seek').value=0;
    $('offset').value=0;$('pianoOffset').value=0;updateLabels();
@@ -1167,6 +1188,10 @@
      message(`되돌이표 확인: ${meta.repeat_info.warning}`,true);
    }else if(!hasScore)message('MIDI 건반 영상 준비 완료. Salamander 피아노 음원과 MP4 출력에 동일하게 적용됩니다.');
    else message('악보 ↔ MIDI 실제 타건 시간 매칭 완료. 미리보기와 MP4에 동일하게 반영됩니다.');
+   if(window.ScoreLocalProjects?.enabled&&meta.generated_audio&&!projectAudioUrl){
+     message('프로젝트 준비 완료 · 피아노 음원은 편집 중 백그라운드에서 준비합니다.');
+     queueSalamanderWarmup(meta.id);
+   }
  }
  const portableText=(key,fallback,vars={})=>{
    const translated=window.ScoreI18n?.t?.('projectIO.'+key,vars);
@@ -1399,9 +1424,22 @@
    if(time===null){message('마디 위치를 읽지 못했습니다. 악보 로딩 상태를 확인해 주세요.',true);return;}
    seekTo(time);
  }
+ async function ensureLocalAudioReady(id){
+   if(!window.ScoreLocalProjects?.enabled||!project?.generated_audio)return;
+   const local=window.ScoreLocalProjects;
+   let source=local.assetUrl(id,'audio');
+   if(!source){
+     message('Salamander 피아노 음원 생성 중… 최초 1회만 필요합니다.');
+     await local.ensureAudio(id);
+     if(project?.id!==id)throw Error('음원 생성 중 프로젝트가 변경되었습니다.');
+     source=local.assetUrl(id,'audio');
+   }
+   if(!source)throw Error('생성된 피아노 음원을 찾을 수 없습니다.');
+   if(audio.src!==source){audio.src=source;audio.load();}
+ }
  async function toggle(){
    if(!project){message('먼저 MIDI 파일을 불러오세요.');return;}
-   if(audio.paused){try{await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
+   if(audio.paused){try{await ensureLocalAudioReady(project.id);await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
    else audio.pause();
  }
  const playerDock=$('playerDock');
@@ -1497,6 +1535,7 @@
    setRenderUi(true,{state:'queued',message:'WebCodecs MP4 준비 중',progress:0});
    $('progressWrap').hidden=false;$('progressBar').style.width='0%';$('percent').textContent='0%';
    try{
+     await ensureLocalAudioReady(projectId);
      await applySerial;
      if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
      const [width,height]=$('resolution').value.split('x').map(Number);
@@ -1585,6 +1624,7 @@
    audio.pause();$('webmRecordButton').disabled=true;$('exportButton').disabled=true;$('cancelWebmButton').hidden=false;
    setRenderUi(true,{webm:true,state:'queued',message:'녹화 장면 준비 중',progress:0});
    try{
+     await ensureLocalAudioReady(projectId);
      const recorder=webmRecorder=new window.ScoreWebmRecorder.Recorder(stage,{
        seconds,fps:Number($('fps').value),audio,onFrame(time){webmPosition=time;$('currentTime').textContent=fmt(time);$('seek').value=time;},
        onProgress({elapsed,total,progress,frames,dropped,stalls,hiddenSeconds}){

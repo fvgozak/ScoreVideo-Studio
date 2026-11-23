@@ -151,7 +151,14 @@
    }
    applyScoreVisibility(){
      const visible=this.settings.scoreVisible;
-     if(this.layer?.canvas)this.layer.canvas.style.display=visible?'':'none';
+     if(this.layer){
+       this.layer.scoreVisible=visible;
+       if(this.layer.canvas){
+         this.layer.canvas.style.display=visible&&!this.layer.scene?.minimalMode?'':'none';
+         if(!visible)this.layer.context?.clearRect?.(0,0,this.layer.canvas.width,this.layer.canvas.height);
+       }
+       if(!visible)this.layer.gpuCommands=[];
+     }
      if(this.follower?.glitterLayer)this.follower.glitterLayer.style.display=visible?'':'none';
    }
    static scoreTopPadding(settings){
@@ -187,7 +194,7 @@
    }
    drawScoreGpu(){
      const gpu=this.scoreGpu,score=this.scoreWindow;
-     if(!gpu||!this.follower)return;
+     if(!this.settings.scoreVisible||!gpu||!this.follower)return;
      const base=score.getBoundingClientRect(),stage=this.viewport.getBoundingClientRect();
      if(!base.width||!base.height||!stage.width||!stage.height)return;
      const commands=[],scoreScaleX=base.width/score.clientWidth,scoreScaleY=base.height/score.clientHeight;

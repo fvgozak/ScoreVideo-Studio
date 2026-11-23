@@ -293,11 +293,13 @@
       this.titleBox.innerHTML='<div class="studio-title"></div><div class="studio-artist"></div><div class="studio-credit"></div>';
       viewport.appendChild(this.atmosphere);viewport.appendChild(this.titleBox);
       this.scene=normalize({});
+      // Independent of scene presets: score FX must follow the score layer toggle.
+      this.scoreVisible=true;
     }
     setScene(value){
       this.scene=normalize(value);
-      this.canvas.style.display=this.scene.minimalMode?'none':'';
-      if(this.scene.minimalMode)this.context.clearRect(0,0,this.canvas.width,this.canvas.height);
+      this.canvas.style.display=this.scene.minimalMode||this.scoreVisible===false?'none':'';
+      if(this.scene.minimalMode||this.scoreVisible===false)this.context.clearRect(0,0,this.canvas.width,this.canvas.height);
     }
     resize(){
       const w=Math.max(1,this.viewport.clientWidth),h=Math.max(1,this.viewport.clientHeight),dpr=1;
@@ -330,7 +332,8 @@
       this.titleBox.style.color=s.animateBackground?(lightness(p.color)<.18?'#fffdf7':'#303039'):follower.colors().ink;
       this.gpuCommands=[];
       ctx.clearRect(0,0,w,h);
-      if(s.minimalMode)return;
+      // Preserve background/title updates, but never paint score light when notation is hidden.
+      if(s.minimalMode||this.scoreVisible===false)return;
       const gpuFx=Boolean(this.gpuLayer);
       const gpuTrails=gpuFx&&this.gpuEffects?.trails?.on;
       const sceneFxOn=s.fxMode!=='none'&&strength>0;

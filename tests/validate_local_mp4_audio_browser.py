@@ -1,5 +1,5 @@
 """Run .venv/bin/python tests/validate_local_mp4_audio_browser.py
-E2E: use the real local IndexedDB /api/projects/:id/audio shim and offline decoder.
+E2E: lazy piano synthesis, IndexedDB audio API, and offline decoder.
 """
 import pathlib, functools, threading, tempfile, struct, shutil
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
@@ -25,7 +25,22 @@ with tempfile.TemporaryDirectory() as tmp:
             page.goto(f'http://127.0.0.1:{server.server_port}/static/index.html?browser-local',wait_until='domcontentloaded')
             page.wait_for_function('window.ScoreLocalProjects?.enabled === true && typeof window.ScoreLocalProjects?.openProject === "function"',timeout=30000)
             page.locator('#midi').set_input_files(str(midi));page.locator('#uploadButton').click()
-            page.wait_for_function('window.__scoreVideoDebug?.getStage()?.meta?.id && !document.querySelector("#uploadButton").disabled',timeout=65000)
+            try:
+                page.wait_for_function('window.__scoreVideoDebug?.getStage()?.meta?.id && !document.querySelector("#uploadButton").disabled',timeout=20000)
+            except Exception as exc:
+                state=page.evaluate("""() => ({message:document.querySelector('#message')?.textContent,
+                  disabled:document.querySelector('#uploadButton')?.disabled,
+                  project:window.__scoreVideoDebug?.getStage()?.meta?.id,
+                  local:window.ScoreLocalProjects?.enabled})""")
+                raise AssertionError(f'Project creation timed out: {state}, page errors: {errors}') from exc
+            before=page.evaluate("""async () => {
+              const meta=window.__scoreVideoDebug.getStage().meta;
+              return {generated:meta.generated_audio,hasAudio:!!(await window.ScoreLocalProjects.openProject(meta.id))?.audio};
+            }""")
+            assert before=={'generated':True,'hasAudio':False},before
+            page.locator('#playButton').click()
+            page.wait_for_function('''window.ScoreLocalProjects?.assetUrl(
+              window.__scoreVideoDebug?.getStage()?.meta?.id, 'audio')''',timeout=30000)
             result=page.evaluate("""async () => {
               const meta=window.__scoreVideoDebug.getStage().meta;
               const record=await window.ScoreLocalProjects.openProject(meta.id);
@@ -41,8 +56,20 @@ with tempfile.TemporaryDirectory() as tmp:
             assert result['generated'] is True,result
             assert result['inputBytes']==result['storedBytes']==result['fetchedBytes'],result
             assert result['duration']>0,result
+            reused=page.evaluate("""async midiBytes => {
+              const firstId=window.__scoreVideoDebug.getStage().meta.id;
+              const first=await window.ScoreLocalProjects.openProject(firstId);
+              const next=await window.ScoreLocalProjects.createProject({
+                midi:new File([new Uint8Array(midiBytes)],'short.mid',{type:'audio/midi'})});
+              const wav=await window.ScoreLocalProjects.ensureAudio(next.id);
+              const oldBytes=new Uint8Array(await first.audio.arrayBuffer());
+              const newBytes=new Uint8Array(await wav.arrayBuffer());
+              return {cached:window.__scoreMotionSalamanderPerf?.cachedSamples,
+                identical:oldBytes.length===newBytes.length&&oldBytes.every((value,i)=>value===newBytes[i])};
+            }""",list(midi_bytes))
+            assert reused['cached']>=1 and reused['identical'],reused
             assert not errors,errors
-            print('PASS browser: browser-local MIDI -> IndexedDB Salamander WAV -> offline MP4 audio decoder',result)
+            print('PASS browser: lazy MIDI audio -> IndexedDB -> MP4 decoder; cached sample WAV identical',result)
             browser.close()
     finally:
         server.shutdown()

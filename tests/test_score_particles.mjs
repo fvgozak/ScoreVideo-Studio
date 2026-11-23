@@ -63,9 +63,19 @@ for(const id of ['scoreParticlesOn','scoreParticleStyle','scoreParticleCount','s
  assert.ok(app.includes(`'${id}'`),`Missing persistence ${id}`);
 }
 assert.ok(app.includes('scoreParticles:{on:'));
-for(const f of [html,exportHtml]){
- assert.ok(f.includes('/static/studio-scene.js?v=scoreparticles1'));
- assert.ok(f.includes('/static/pixi-fx.js?v=scoreparticles1'));
+// Verify that both pages load the installed FX modules. Cache revisions
+// may change when another feature patches studio-scene.js (e.g. scorehide1),
+// so validate unique URLs and preview/export parity rather than a stale tag.
+function uniqueScriptVersion(page,script){
+ const regex=new RegExp(`/static/${script}\\.js\\?v=([a-zA-Z0-9_.-]+)`,'g');
+ const matches=[...page.matchAll(regex)];
+ assert.equal(matches.length,1,`${script} must appear once on each page`);
+ return matches[0][1];
+}
+for(const script of ['studio-scene','pixi-fx']){
+ const preview=uniqueScriptVersion(html,script);
+ const exported=uniqueScriptVersion(exportHtml,script);
+ assert.equal(preview,exported,`${script}: preview and export cache versions must match`);
 }
 for(const locale of ['ko','en','ja']){
  const data=JSON.parse(read(`static/locales/${locale}.json`));
