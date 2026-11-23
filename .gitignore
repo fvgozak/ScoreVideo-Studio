@@ -38,6 +38,7 @@ static/*.bak*
 /static/staff-light-colors.js
 /tests/fixtures/
 /tests/validate_*.py
+!/tests/validate_local_mp4_audio_browser.py
 /tests/test_background_media_*.mjs
 /tests/test_staff_dynamic_v6.mjs
 /tests/test_staff_light_colors.mjs

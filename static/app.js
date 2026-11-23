@@ -1541,7 +1541,18 @@
      }
      await window.ScoreOfflineExport.release();
    }finally{
-     try{await restorePreviewStage();}catch(error){message(`미리보기 복원 실패: ${error.message}`,true);}
+     try{await restorePreviewStage();}catch(error){
+      const details={at:new Date().toISOString(),message:String(error?.message||error),
+        stack:String(error?.stack||''),exportGeometry,
+        stage:{width:stage?.settings?.width,height:stage?.settings?.height,
+          scoreGpu:!!stage?.scoreGpu,scoreGpuEpoch:stage?.scoreGpuEpoch,
+          pianoGpu:!!stage?.piano?.gpu,notesGpu:!!stage?.piano?.notesGpu,
+          keyboard3d:!!stage?.piano?.keyboard3d,dynamic:!!stage?.piano?.dynamic},
+        exportStats:window.__scoreMotionExportGpuStats||null};
+      window.__scoreMotionPreviewRestoreError=details;
+      console.error('[ScoreMotion preview restore]',error,details);
+      message(`미리보기 복원 실패: ${error.message}`,true);
+    }
      if(token===offlineEpoch){offlineActive=false;offlineCancelPending=false;$('cancelRenderButton').hidden=true;
        $('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';
        setRenderUi(false);updateExportUi();seekTo(offlineReturnTime);

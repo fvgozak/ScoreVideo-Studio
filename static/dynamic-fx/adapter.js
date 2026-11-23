@@ -63,8 +63,14 @@ export class ScoreDynamicFX {
     const scene=pianoSettings.lightingScene||{};
     const linked=keyboard.paletteLink===true||fx.groups?.keyboard?.colorPreset==='linked';
     const scoreAurora=scene.lightColorMode==='aurora';
-    const randomNoteColors=fx.groups?.keyboard?.colorPreset==='random'||
-      (linked&&scoreAurora&&scene.lightColorPreset==='random');
+    // Staff-color linking is an explicit user override of the score/keyboard
+    // Random presets. The previous Random-first order made blue/orange staff
+    // score lights appear as random keyboard lights in both preview and export.
+    const staffLinked=follower?.effects?.staffColors?.enabled===true&&
+      follower?.effects?.staffColors?.keyboard===true;
+    const randomNoteColors=!staffLinked&&(
+      fx.groups?.keyboard?.colorPreset==='random'||
+      (linked&&scoreAurora&&scene.lightColorPreset==='random'));
     const low=rgb(keyboard.colorLow),high=rgb(keyboard.colorHigh);
     const scoreLow=rgb(scene.auroraLow),scoreHigh=rgb(scene.auroraHigh);
     const solid=rgb(follower?.colors?.().accent)||rgb(follower?.eventLightColor?.(64));
@@ -88,7 +94,7 @@ export class ScoreDynamicFX {
       pianoSettings.keyStyle==='classic'?{white:rgb('#f1f1f5'),black:rgb('#151821')}:null;
     Object.assign(this.settings,{
       randomNoteColors,
-      staffKeyboardEnabled:follower?.effects?.staffColors?.enabled===true&&follower?.effects?.staffColors?.keyboard===true,
+      staffKeyboardEnabled:staffLinked,
       velocityLight:clamp(Number(pianoSettings.strength??1.4),0,4),
       velocityReactive:follower?.effects?.velocityReactive!==false,
       colorStops:colors,
@@ -170,9 +176,10 @@ export class ScoreDynamicFX {
   updateStaffColors(notes,palette){
     const linked=palette?.enabled===true&&palette?.keyboard===true;
     this.settings.staffKeyboardEnabled=linked;
-    const colorFor=note=>this.settings.randomNoteColors
-      ?(rgb(globalThis.ScoreStudio?.randomNoteColor?.(note))||(linked?note?.staffColor:null))
-      :(linked?note?.staffColor:null);
+    // In-place palette edits must honor the same priority as first load.
+    // Random remains available if staff synchronization is disabled.
+    const colorFor=note=>linked?(note?.staffColor||null):
+      (this.settings.randomNoteColors?rgb(globalThis.ScoreStudio?.randomNoteColor?.(note)):null);
     if(!this.engine)return;
     for(const event of this.engine.song.events||[]){
       if(event.type==='on')event.staffColor=colorFor(notes[event.noteIndex]);

@@ -24,17 +24,20 @@ const [fx,clears]=makeFx();
 fx.engine={song:{events:[{type:'on',noteIndex:0,staffColor:[1,0,0]},{type:'on',noteIndex:1,staffColor:[1,0,0]}]},notes:[{noteIndex:0},{noteIndex:1}],voices:[{noteIndex:0},{noteIndex:1}]};
 const linkedRandom={gpuEffects:{groups:{keyboard:{colorPreset:'linked'}},keyboard:{paletteLink:true}},lightingScene:{lightColorMode:'aurora',lightColorPreset:'random'},enabled:true,light:true};
 assert.doesNotThrow(()=>fx.configure(linkedRandom,follower),'palette change must not reference undefined `piano`');
-assert.equal(fx.settings.randomNoteColors,true);assert.equal(clears(),1);assert.equal(fx.time,null);
+assert.equal(fx.settings.randomNoteColors,false);assert.equal(clears(),1);assert.equal(fx.time,null);
 for(let i=0;i<notes.length;i++){
- const expected=rgb(studio.randomNoteColor(notes[i]));
+ const expected=[1,0,0];
  close(Array.from(fx.engine.song.events[i].staffColor),expected);
  close(Array.from(fx.engine.notes[i].staffColor),expected);
  close(Array.from(fx.engine.voices[i].staffColor),expected);
- assert.notDeepEqual(Array.from(fx.engine.voices[i].staffColor),[1,0,0]);
 }
 const independentRandom={gpuEffects:{groups:{keyboard:{colorPreset:'random'}},keyboard:{paletteLink:false}},lightingScene:{lightColorMode:'aurora',lightColorPreset:'aurora'},enabled:true,light:true};
+assert.doesNotThrow(()=>fx.configure(independentRandom,follower));assert.equal(fx.settings.randomNoteColors,false);
+// Explicit staff-color sync outranks independent Random too. Turn sync off to opt into Random.
+follower.effects.staffColors.keyboard=false;
 assert.doesNotThrow(()=>fx.configure(independentRandom,follower));assert.equal(fx.settings.randomNoteColors,true);
 const ordinary={gpuEffects:{groups:{keyboard:{colorPreset:'linked'}},keyboard:{paletteLink:true}},lightingScene:{lightColorMode:'aurora',lightColorPreset:'ocean'},enabled:true,light:true};
+follower.effects.staffColors.keyboard=true;
 assert.doesNotThrow(()=>fx.configure(ordinary,follower));assert.equal(fx.settings.randomNoteColors,false);
 for(let i=0;i<notes.length;i++)close(Array.from(fx.engine.voices[i].staffColor),[1,0,0]);
 const randomEvents=ctx.songFrom({notes,pedalEvents:[]},follower,true).events.filter(e=>e.type==='on');
@@ -64,6 +67,6 @@ for(const particle of realParticles.particles){
 assert.ok(adapter.includes('this.noteSource=piano.notes'));
 assert.ok(adapter.includes('this.updateStaffColors(this.noteSource'));
 assert.ok(!adapter.includes('this.engine&&piano.notes'),'undefined piano must not reappear in configure');
-assert.ok(file('piano-fall.js').includes('/static/dynamic-fx/adapter.js?v=randomkey2'));
-for(const page of ['index.html','render.html'])assert.ok(file(page).includes('/static/piano-fall.js?v=randomkey2'));
+assert.ok(file('piano-fall.js').includes('/static/dynamic-fx/adapter.js?v=staffpriority1'));
+for(const page of ['index.html','render.html'])assert.ok(file(page).includes('/static/piano-fall.js?v=staffpriority1'));
 console.log('PASS random-keyboard regression: configure(), linked/independent Random, MIDI note colors, staff-color priority, restore, preview/export cache');

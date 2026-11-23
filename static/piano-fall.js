@@ -186,6 +186,14 @@
       const hex=palette.colors?.[key];
       if(/^#[0-9a-f]{6}$/i.test(hex||''))found.push([1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255));
     }
+    if(!found.length){
+      // A transposed or unmatched MIDI attack must not silently fall back
+      // to the unrelated Random palette while staff-color sync is enabled.
+      // With no reliable staff attribution, blend the configured staff hues
+      // rather than guessing left/right from pitch (which fails on crossovers).
+      const valid=[...new Set(Object.values(palette.colors||{}).filter(hex=>/^#[0-9a-f]{6}$/i.test(hex||'')))];
+      for(const hex of valid)found.push([1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255));
+    }
     if(!found.length)return null;
     return [0,1,2].map(i=>found.reduce((sum,color)=>sum+color[i],0)/found.length);
   }
@@ -211,7 +219,7 @@
         },250);
       }
       this.notesReady=Promise.resolve();this.keyboardReady=Promise.resolve();
-      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=randomkey2').then(({ScoreDynamicFX})=>{
+      this.dynamicReady=import('/static/dynamic-fx/adapter.js?v=staffpriority1').then(({ScoreDynamicFX})=>{
         if(this.viewport!==viewport||viewport.__scorePianoFall!==this)return;
         this.dynamic=new ScoreDynamicFX(viewport);
         if(this.follower)this.dynamic.load(this,this.follower);

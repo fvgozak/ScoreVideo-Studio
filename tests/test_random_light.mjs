@@ -33,12 +33,28 @@ assert.ok(score.includes('this.minimalColor(entry.velocity,entry)'));
 assert.ok(keyboard.includes("keyboardPreset==='random'"));
 assert.ok(keyboard.includes('this.follower.eventLightColor(note.velocity,note)'));
 assert.ok(adapter.includes('randomNoteColors'));
+// Cache version numbers are allowed to change between patches. Verify each page
+// references each source exactly once, then check preview/export parity.
+const scripts=['score-core.js','studio-scene.js','piano-fall.js','stage-runtime.js'];
+const pageVersions=new Map();
 for(const page of ['index.html','render.html']){
  const html=get(page);
- const expected={'score-core.js':'random1','studio-scene.js':'scoreparticles1','piano-fall.js':'randomkey2','stage-runtime.js':'random1'};
- for(const [src,version] of Object.entries(expected))
-  assert.ok(html.includes(`/static/${src}?v=${version}`),`export and preview cache: ${page}/${src}`);
+ const versions=new Map();
+ for(const src of scripts){
+  const esc=src.replaceAll('.','\\.');
+  const ref=new RegExp(`/static/${esc}\\?v=([a-z0-9_-]+)(?=["'&])`,'ig');
+  const matches=[...html.matchAll(ref)];
+  assert.equal(matches.length,1,`export and preview cache: ${page}/${src} must have exactly one versioned reference`);
+  versions.set(src,matches[0][1]);
+ }
+ pageVersions.set(page,versions);
 }
+for(const src of scripts){
+ assert.equal(pageVersions.get('index.html').get(src),pageVersions.get('render.html').get(src),
+  `export and preview cache: mismatched versions for ${src}`);
+}
+assert.equal(pageVersions.get('index.html').get('piano-fall.js'),'staffpriority1',
+ 'keyboard priority patch must invalidate the piano-fall.js cache');
 // Exercise the actual GPU song adapter without a browser/WebGL context.
 const fxCtx={ScoreStudio:studio,console,AdaptiveLighting:{}};
 const adapterPrelude=adapter.replace(/^import .*?;\s*$/gm,'').split('export class ScoreDynamicFX')[0];

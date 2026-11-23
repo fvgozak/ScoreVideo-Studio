@@ -11,7 +11,6 @@ export async function decodeProjectAudio(meta,signal){
     bytes=await local.blob.arrayBuffer();
   }else{
     const localUrl=meta.local_project?meta.local_audio_url:null;
-    if(meta.local_project&&!localUrl)throw Error('로컬 오디오 파일이 없습니다.');
     const response=await fetch(localUrl||`/api/projects/${encodeURIComponent(meta.id)}/audio`,{signal});
     if(!response.ok)throw Error(`Source audio unavailable (HTTP ${response.status}).`);
     bytes=await response.arrayBuffer();

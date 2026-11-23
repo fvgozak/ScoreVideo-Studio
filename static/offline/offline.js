@@ -1,6 +1,6 @@
 /* Shared deterministic MP4 engine; experiment and production call this module. */
 import {Output, Mp4OutputFormat, BufferTarget, StreamTarget, NullTarget, CanvasSource, Quality} from './mediabunny.min.mjs';
-import {decodeProjectAudio,createAacSource,encodeAudioSamples} from './offline-audio.js';
+import {decodeProjectAudio,createAacSource,encodeAudioSamples} from './offline-audio.js?v=localaudio1';
 import {VideoEncodeQueue} from './video-encode-queue.js';
 import {findDirectEncoderConfig,DirectVideoEncoderSource} from './direct-video-encoder.js';
 import {Mp4Diagnostics} from './mp4-diagnostics.js?v=packetbacklog1';
