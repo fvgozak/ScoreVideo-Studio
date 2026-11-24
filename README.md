@@ -50,7 +50,7 @@ npx wrangler pages deploy dist --project-name scoremotion --branch main
 | --- | --- |
 | `app.py`, `render_video.py` | 로컬 API와 서버 영상 출력 |
 | `static/` | 공통 미리보기·영상 무대, 효과, 언어팩, 브라우저 저장소 |
-| `scripts/build_cloudflare_local.py` | API 없는 Cloudflare Pages 배포본 생성 |
+| `scripts/build_pages_static.py` | API 없는 Cloudflare Pages 정적 배포본 생성 |
 | `examples/` | 예제 목록과 MusicXML·MIDI 파일 |
 | `tests/` | Python·JavaScript 회귀 및 렌더링 검증 |
 | `docs/` | 배포 안내, 설계 기록, 이전 버전 기록 |
@@ -58,19 +58,18 @@ npx wrangler pages deploy dist --project-name scoremotion --branch main
 ## 개발 점검
 
 ```sh
-PYTHONPATH=. pytest -q
-for test in tests/*.js tests/*.mjs; do node "$test"; done
+.venv/bin/python -m pytest -q tests/test_browser_local_store.py
+node tests/test_realtime_salamander.mjs
+node tests/test_parallel_audio_pipeline.mjs
+.venv/bin/python tests/validate_local_mp4_audio_browser.py
 ```
 
-브라우저 화면과 실제 MP4 픽셀 검증에는 별도 검증 스크립트와 브라우저 환경이 필요합니다. 관련 기록은 [QA 문서](docs/qa/README.md)와 [렌더 엔진 점검](docs/RENDER_ENGINE_AUDIT_v20.md)을 참고하세요.
+브라우저 검증에는 Playwright Chromium이 필요합니다. 전체 회귀 검사와 실제 MP4 픽셀 검증의 범위는 [QA 문서](docs/qa/README.md)와 [렌더 엔진 점검](docs/RENDER_ENGINE_AUDIT_v20.md)을 참고하세요.
 
 ## 문서
 
+- [날짜별 변경 기록](CHANGELOG.md)
+- [문서 전체 안내·과거 패치 기록](docs/INDEX.md)
 - [브라우저 전용 Cloudflare Pages](docs/BROWSER_ONLY_CLOUDFLARE.md)
-- [이전 v26 브라우저 전용 구성](docs/CLOUDFLARE_CLIENT_ONLY.md)
-- [FastAPI 프록시를 사용하는 이전 Cloudflare 구성](docs/CLOUDFLARE_BETA.md)
-- [오선별 색상과 이조 악기](docs/STAFF_COLOR_TRANSPOSITION_V27.md)
-- [다국어 관리](docs/I18N.md)
-- [이전 버전 기록](docs/FEATURE_HISTORY.md)
 
 Salamander 피아노 샘플과 번들 라이브러리의 저작권 고지는 각각 `static/audio/salamander/NOTICE.txt`와 해당 라이브러리의 LICENSE 파일에 있습니다.
