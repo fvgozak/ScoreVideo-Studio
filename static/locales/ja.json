@@ -236,7 +236,11 @@
     "projectIO.replaceFailed": "ファイルの差し替えに失敗しました: {error}",
     "projectIO.undone": "以前の原本ファイルに戻しました。",
     "projectIO.undoFailed": "差し替えを元に戻せません: {error}",
-    "projectIO.legacyScore": "以前のプロジェクトには元のMXLが残っていないため、変換済みMusicXMLを保存しました。"
+    "projectIO.legacyScore": "以前のプロジェクトには元のMXLが残っていないため、変換済みMusicXMLを保存しました。",
+    "bit.toggle": "BIT ピクセルアートモード切替",
+    "bit.pixelSize": "ピクセルサイズ",
+    "bit.error": "BIT プレビューに失敗したため通常モードに戻しました。",
+    "bit.offlineOnly": "BIT モードはブラウザー MP4 出力を使用してください。"
   },
   "legacy": {
     " (저장 공간 부족)": " (out of storage)",

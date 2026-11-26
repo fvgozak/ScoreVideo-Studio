@@ -236,7 +236,11 @@
     "projectIO.replaceFailed": "File replacement failed: {error}",
     "projectIO.undone": "Restored the previous original file.",
     "projectIO.undoFailed": "Could not undo replacement: {error}",
-    "projectIO.legacyScore": "This legacy project did not retain the original MXL; the converted MusicXML was included instead."
+    "projectIO.legacyScore": "This legacy project did not retain the original MXL; the converted MusicXML was included instead.",
+    "bit.toggle": "Toggle BIT pixel-art mode",
+    "bit.pixelSize": "Pixel size",
+    "bit.error": "BIT preview failed; restored normal mode.",
+    "bit.offlineOnly": "Use browser MP4 export for BIT mode."
   },
   "legacy": {
     " (저장 공간 부족)": " (out of storage)",

@@ -89,7 +89,7 @@
          review_state:old.timeline?.synchronization?.review_state||'valid',
          dependencies:old.timeline?.synchronization?.dependencies||{}},
        camera:{schema_version:1,camera_points:readCameraPoints()}},
-     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),melody_highlight:window.ScoreMelodyHighlight?.getState?.(),palette_snapshot:window.ScoreFxGroups?.getPaletteSnapshot?.()}};
+     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),melody_highlight:window.ScoreMelodyHighlight?.getState?.(),palette_snapshot:window.ScoreFxGroups?.getPaletteSnapshot?.(),bit_mode:window.ScoreMotionBit?.getState?.()}};
  }
  function validateProjectState(state){
    if(!state||state.schema_version!==1||!state.settings?.controls||!state.timeline?.synchronization)throw Error('프로젝트 상태가 유효하지 않습니다.');
@@ -123,6 +123,7 @@
    validateProjectState(state);
    restoringPortableState=true;
    window.ScoreMelodyHighlight?.restoreState?.(state.extensions?.melody_highlight);
+   window.ScoreMotionBit?.restore(state.extensions?.bit_mode);
    try{
      activeProjectState=structuredClone(state);
      for(const [id,value] of Object.entries(state.settings.controls||{})){
@@ -276,6 +277,7 @@
    if(active!==renderUiActive){
      renderUiActive=active;
      document.body.classList.toggle('render-ui-active',active);
+     void window.ScoreMotionBit?.setSuspended(active);
      for(const element of renderEditTargets())element.inert=active;
      if(active){window.ScoreVisualEditor?.setEditing(false);$('scoreEditOverlay').hidden=true;}
    }
@@ -434,6 +436,7 @@
    return note?.width&&frame?.width?note.width/frame.width:0;
  }
  async function prepareExportStage(){
+   await window.ScoreMotionBit?.waitIdle();
    const previewWidth=relativeNoteheadWidth();
    exportGeometry=true;resizePreview();
    let settings=config();
@@ -1088,7 +1091,7 @@
    if(portableSaveTimer!==null){clearTimeout(portableSaveTimer);portableSaveTimer=null;}
    activeProjectState=null;
    ++renderPollEpoch;
-   const previousStage=stage;stage=null;revision++;await applySerial.catch(()=>{});
+   const previousStage=stage;stage=null;revision++;await window.ScoreMotionBit?.bindStage(null);window.ScoreMotionBit?.restore(null);await applySerial.catch(()=>{});
    previousStage?.piano?.dispose();
    ++backgroundSerial;pendingBackgroundFile=null;
    window.ScoreVisualEditor?.setEditing(false);
@@ -1172,7 +1175,7 @@
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:previewConfig()});
-   await stage.load();window.ScoreMelodyHighlight?.bindStage?.(stage);
+   await stage.load();window.ScoreMelodyHighlight?.bindStage?.(stage);await window.ScoreMotionBit?.bindStage(stage);
    const savedPlayhead=Math.max(0,Math.min(Number(activeProjectState?.preview?.playhead_sec)||0,Number(meta.audio_duration_sec)||0));
    if(savedPlayhead>0){try{setPreviewTime(savedPlayhead);}catch(_){}}
    stage.seek(savedPlayhead);$('seek').value=String(savedPlayhead);$('currentTime').textContent=fmt(savedPlayhead);
@@ -1668,6 +1671,7 @@
  }
  $('exportButton').addEventListener('click',async()=>{
    if(selectedExportMode()==='offline'){void startOfflineRender();return;}
+   if(window.ScoreMotionBit?.getState().enabled){message(window.ScoreI18n?.t('bit.offlineOnly')||'BIT requires browser MP4 export.',true);return;}
    if(!project||renderUiActive)return;const projectId=project.id,epoch=++renderPollEpoch;cancelReturnTime=null;activeDownloadJob=null;renderUiJob=null;legacyStartPending=true;legacyCancelPending=false;$('exportButton').disabled=true;$('downloadLink').hidden=true;
    if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;await window.ScoreOfflineExport.release();}
    setRenderUi(true,{state:'queued',message:'영상 설정 저장 중',progress:0});
@@ -1818,6 +1822,7 @@
  })();
  // SCOREMOTION_MELODY_BETA_V1
  window.ScoreMelodyHighlight?.init?.({getStage:()=>stage,onChange:()=>schedulePortableAutosave()});
+ window.ScoreMotionBit?.init({onChange:()=>schedulePortableAutosave()});
  document.addEventListener('scorevideo:languagechange',()=>window.ScoreMelodyHighlight?.bindStage?.(stage));
  // A narrow debug hook to verify preview/export settings parity in browser tests.
  window.__scoreVideoDebug={serializeProjectState,restoreProjectState,validateProjectState,config,sceneOptions,getStage:()=>stage,resizePreview,transport,seekTo,moveByMeasure,measureAxis,visualEditor:()=>window.ScoreVisualEditor};

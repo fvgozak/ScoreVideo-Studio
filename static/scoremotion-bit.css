@@ -1,0 +1,10 @@
+/* Editor chrome is deliberately never pixelated. */
+#bitToggle{margin-left:8px;padding:5px 10px;border:1px solid #526774;background:#1b2935;color:#b8d0de;border-radius:5px;font:700 12px ui-monospace,monospace;cursor:pointer;letter-spacing:.08em}
+#bitToggle[aria-pressed=true]{background:#a7e2e6;color:#13262e;border-color:#a7e2e6;box-shadow:2px 2px 0 #486e80}
+#bitToggle:disabled{opacity:.45;cursor:default}
+.bit-size-control{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);white-space:nowrap}
+.bit-size-control[hidden],#bitStatus[hidden]{display:none!important}
+.bit-size-control input{width:80px}#bitPixelValue{min-width:35px;font-variant-numeric:tabular-nums}
+.scoremotion-bit-preview{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:21;pointer-events:none;image-rendering:pixelated;}
+#bitStatus{color:#ffb09f;font-size:11px}
+@media(max-width:700px){.bit-size-control input{width:54px}#bitToggle{margin-left:4px}}

@@ -400,6 +400,7 @@
      this.layer?.draw(this.time,this.follower);
      this.piano?.draw(this.time);
      this.drawScoreGpu();
+     root.ScoreMotionBit?.mark(this);
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}
    setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.piano?.setFollower(this.follower);this.seek(this.time);}}

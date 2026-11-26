@@ -236,7 +236,11 @@
     "projectIO.replaceFailed": "파일 교체 실패: {error}",
     "projectIO.undone": "이전 원본 파일로 복원했습니다.",
     "projectIO.undoFailed": "교체 취소 실패: {error}",
-    "projectIO.legacyScore": "이전 프로젝트에는 원본 MXL이 없어 변환된 MusicXML을 대신 저장했습니다."
+    "projectIO.legacyScore": "이전 프로젝트에는 원본 MXL이 없어 변환된 MusicXML을 대신 저장했습니다.",
+    "bit.toggle": "BIT 픽셀아트 모드 전환",
+    "bit.pixelSize": "픽셀 크기",
+    "bit.error": "BIT 미리보기 실패 · 기본 모드로 복귀했습니다.",
+    "bit.offlineOnly": "BIT 모드는 브라우저 고속 MP4 출력을 사용해 주세요."
   },
   "legacy": {
     " (저장 공간 부족)": " (저장 공간 부족)",

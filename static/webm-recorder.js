@@ -154,7 +154,7 @@
  }
  async function createDiagnosticComposer(stage){
    if(!root.ScoreGpuComposer)throw Error('GPU 합성 모듈이 로드되지 않았습니다.');
-   return root.ScoreGpuComposer.createDiagnosticComposer(stage);
+   return root.ScoreMotionBit?.getState().enabled?root.ScoreMotionBit.exportComposer(stage):root.ScoreGpuComposer.createDiagnosticComposer(stage);
  }
  class Recorder{
    constructor(stage,{seconds=10,fps=30,audio=null,onProgress=()=>{},onFrame=()=>{}}={}){
@@ -177,8 +177,8 @@
      const composer=await createDiagnosticComposer(stage),canvas=composer.canvas;
      if(this.cancelled){composer.close();throw Error('녹화가 취소되었습니다.');}
      const bitrate=Math.min(20_000_000,Math.max(5_000_000,width*height*this.fps*.18));
-     if(navigator.storage?.estimate){try{const {quota,usage}=await navigator.storage.estimate();const free=quota-usage,needed=this.seconds*(bitrate+256_000)/8*1.1+16*1024*1024;if(Number.isFinite(free)&&free<needed)throw Error(`WebM 저장 공간이 부족할 수 있습니다. 예상 필요 공간 ${Math.ceil(needed/1048576)}MB, 사용 가능 약 ${Math.floor(free/1048576)}MB.`);}catch(error){if(error.message?.startsWith('WebM 저장 공간'))throw error;}}
-     const store=await chunkStore(error=>{this.error=error;this.cancel();});this.store=store;
+     if(navigator.storage?.estimate){try{const {quota,usage}=await navigator.storage.estimate();const free=quota-usage,needed=this.seconds*(bitrate+256_000)/8*1.1+16*1024*1024;if(Number.isFinite(free)&&free<needed)throw Error(`WebM 저장 공간이 부족할 수 있습니다. 예상 필요 공간 ${Math.ceil(needed/1048576)}MB, 사용 가능 약 ${Math.floor(free/1048576)}MB.`);}catch(error){if(error.message?.startsWith('WebM 저장 공간')){composer.close();throw error;}}}
+     let store;try{store=await chunkStore(error=>{this.error=error;this.cancel();});}catch(error){composer.close();throw error;}this.store=store;
      stage.seek(0);this.onFrame(0);
      if(this.audio){
        this.audio.pause();this.audio.currentTime=0;
