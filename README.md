@@ -37,9 +37,9 @@ npx wrangler pages deploy dist --project-name scoremotion --branch main
 
 ## 사용 흐름
 
-1. MIDI를 올립니다. MusicXML을 함께 올리면 악보와 연주를 정렬하고, MIDI만 올리면 건반 중심 영상을 만듭니다.
+1. MIDI를 올립니다. MusicXML을 함께 올리면 악보와 연주를 정렬하고, MIDI만 올리면 건반 중심 영상을 만듭니다. 브라우저 전용 모드에서는 자동·V1·V2-A/B/C 정렬을 선택하거나 기존 프로젝트를 재분석할 수 있습니다.
 2. 음원이 없으면 미리보기는 Salamander 피아노 샘플을 실시간으로 재생하고, MP4 출력 시 필요한 오디오를 구간별로 생성합니다. 음원과 배경 이미지를 직접 지정할 수도 있습니다.
-3. 악보 배치, 건반·낙하 노트, 색상·빛 효과, 카메라와 싱크를 조정한 뒤 미리보기를 확인합니다.
+3. 악보 배치, 건반·낙하 노트, 색상·빛 효과, 카메라와 싱크를 조정한 뒤 미리보기를 확인합니다. 악보가 있으면 멜로디 강조 베타를 켜고 분석 방식과 발광 강도를 조절할 수 있습니다.
 4. 지원 브라우저에서는 WebCodecs로 MP4를 출력합니다. 로컬 앱은 Chromium·FFmpeg 호환 출력도 제공합니다.
 
 한국어·영어·일본어 UI를 제공하며, MusicXML의 이조 정보와 오선별 악보 발광색을 지원합니다. 브라우저 전용 버전의 복잡한 반복기호·자동 싱크와 지원 브라우저에는 [알려진 제한](docs/BROWSER_ONLY_CLOUDFLARE.md#주요-차이제약)이 있습니다.
@@ -65,6 +65,8 @@ node tests/test_parallel_audio_pipeline.mjs
 ```
 
 브라우저 검증에는 Playwright Chromium이 필요합니다. 전체 회귀 검사와 실제 MP4 픽셀 검증의 범위는 [QA 문서](docs/qa/README.md)와 [렌더 엔진 점검](docs/RENDER_ENGINE_AUDIT_v20.md)을 참고하세요.
+
+새 정렬·멜로디 기능의 검사와 결과 범위는 [변경 기록](CHANGELOG.md)에 정리했습니다.
 
 ## 문서
 
