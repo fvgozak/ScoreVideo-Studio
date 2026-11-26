@@ -2,17 +2,17 @@
 
 이 문서는 멜로디 강조 베타의 **연구 배경과 현재 구현의 관계**를 정리합니다. 사용자가 제공한 「ScoreMotion 개발기: 악보와 MIDI의 동기화, 그리고 멜로디 검출 알고리즘」에 소개된 논문을 원문·출판 정보와 대조했습니다. 논문의 모델·학습 데이터·실험 결과를 그대로 재현하거나 해당 연구의 정확도를 ScoreMotion에 적용했다고 주장하지 않습니다.
 
-악보↔MIDI 정렬 V1·V2-A/B/C는 [별도의 브라우저 정렬 코드](../static/score-alignment-v2.js)에 구현되어 있습니다. 아래 논문들은 주로 **멜로디 검출**의 배경입니다. 악보 정렬의 성능 수치와 검증 범위는 [변경 기록](../CHANGELOG.md)을 참고하세요.
+악보↔MIDI 정렬 V1·V2-A/B/C는 [별도의 브라우저 정렬 코드](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/score-alignment-v2.js#L126)에 구현되어 있습니다. 아래 논문들은 주로 **멜로디 검출**의 배경입니다. 악보 정렬의 성능 수치와 검증 범위는 [변경 기록](../CHANGELOG.md)을 참고하세요. 코드 링크는 기능 커밋 `6ba5a00`에 고정해 해당 시점의 구현을 보여줍니다.
 
 ## 연구와 구현의 연결
 
-| ScoreMotion 방식 | 참고한 연구·아이디어 | 현재 구현과의 관계 |
-| --- | --- | --- |
-| V1 · 휴리스틱 | [Uitdenbogerd & Zobel (1998)](https://doi.org/10.1145/290747.290776)의 다성 음악에서 단선율 후보를 추출하는 문제 설정 | 음높이만으로 멜로디를 결정하지 않고 길이·벨로시티·박자 위치·주변 음과 반주 패턴을 함께 평가합니다. 논문의 추출 절차를 복제한 것은 아닙니다. |
-| V2-A · 음악인지 특징 | [Friberg & Ahlbäck (2009)](https://doi.org/10.1080/09298210903215900)의 지각 특징과 맥락 활용 | 음역, 지속시간, 아티큘레이션, 음량, 화음 질감과 선율 연속성을 점수화합니다. 논문의 회귀·SVM 모델이나 학습 데이터를 사용하지 않습니다. |
-| V2-B · 엔트로피·반복성 | [Madsen & Widmer (2007)](https://ijcai.org/proceedings/2007/72)의 국소적 음악 정보량과 선율 인식 관점 | 짧은 구간의 음높이·음정·리듬·음길이 다양성과 반복 패턴을 참고해 후보 점수를 조절합니다. 반복되는 선율도 있으므로 반복성은 주변의 경쟁 성부가 있을 때만 부드럽게 감점합니다. |
-| V2-C · 선율 경로 | [Simonetta et al. (2019)](https://arxiv.org/abs/1906.10547)의 음표 후보를 그래프로 연결하는 후처리 | 제한된 후보·시간 창에서 음높이 이동과 시간 연속성을 평가합니다. CNN, 학습된 확률 또는 논문의 Bellman–Ford 구현을 사용하지 않습니다. |
-| V2-D · 성부 분리 | [Chew & Wu (CMMR 2004)](https://doi.org/10.1007/978-3-540-31807-1_1)의 성부 연결 문제와 [Cambouropoulos (2008)](https://doi.org/10.1525/mp.2008.26.1.75)의 청각적 흐름 관점 | 기존 악보 성부를 존중하면서 음높이·시간·음길이로 성부 후보를 가볍게 연결한 뒤 V2-A/B/C 점수를 결합합니다. Contig Mapping/VoSA나 해당 논문의 지각 모형을 그대로 구현하지 않습니다. |
+| ScoreMotion 방식 | 참고한 연구·아이디어 | 현재 구현과의 관계 | 코드 |
+| --- | --- | --- | --- |
+| V1 · 휴리스틱 | [Uitdenbogerd & Zobel (1998)](https://doi.org/10.1145/290747.290776)의 다성 음악에서 단선율 후보를 추출하는 문제 설정 | 음높이만으로 멜로디를 결정하지 않고 길이·벨로시티·박자 위치·주변 음과 반주 패턴을 함께 평가합니다. 논문의 추출 절차를 복제한 것은 아닙니다. | [analyzeV1](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/melody-highlight.js#L89) |
+| V2-A · 음악인지 특징 | [Friberg & Ahlbäck (2009)](https://doi.org/10.1080/09298210903215900)의 지각 특징과 맥락 활용 | 음역, 지속시간, 아티큘레이션, 음량, 화음 질감과 선율 연속성을 점수화합니다. 논문의 회귀·SVM 모델이나 학습 데이터를 사용하지 않습니다. | [perceptualScores](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/melody-highlight.js#L173) |
+| V2-B · 엔트로피·반복성 | [Madsen & Widmer (2007)](https://ijcai.org/proceedings/2007/72)의 국소적 음악 정보량과 선율 인식 관점 | 짧은 구간의 음높이·음정·리듬·음길이 다양성과 반복 패턴을 참고해 후보 점수를 조절합니다. 반복되는 선율도 있으므로 반복성은 주변의 경쟁 성부가 있을 때만 부드럽게 감점합니다. | [entropyScores](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/melody-highlight.js#L235) |
+| V2-C · 선율 경로 | [Simonetta et al. (2019)](https://arxiv.org/abs/1906.10547)의 음표 후보를 그래프로 연결하는 후처리 | 제한된 후보·시간 창에서 음높이 이동과 시간 연속성을 평가합니다. CNN, 학습된 확률 또는 논문의 Bellman–Ford 구현을 사용하지 않습니다. | [pathScores](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/melody-highlight.js#L281) |
+| V2-D · 성부 분리 | [Chew & Wu (CMMR 2004)](https://doi.org/10.1007/978-3-540-31807-1_1)의 성부 연결 문제와 [Cambouropoulos (2008)](https://doi.org/10.1525/mp.2008.26.1.75)의 청각적 흐름 관점 | 기존 악보 성부를 존중하면서 음높이·시간·음길이로 성부 후보를 가볍게 연결한 뒤 V2-A/B/C 점수를 결합합니다. Contig Mapping/VoSA나 해당 논문의 지각 모형을 그대로 구현하지 않습니다. | [inferVoices](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/melody-highlight.js#L326), [separatedScores](https://github.com/fvgozak/ScoreVideo-Studio/blob/6ba5a0083235f34f571e7c78e8df3de5d98b8514/static/melody-highlight.js#L351) |
 
 구현 위치: [멜로디 분석과 발광 설정](../static/melody-highlight.js), [브라우저 Worker](../static/melody-worker.js), [악보 빛 효과](../static/score-core.js), [무대 효과](../static/studio-scene.js). 모든 분석은 브라우저에서 실행됩니다.
 
