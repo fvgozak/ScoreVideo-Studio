@@ -89,7 +89,7 @@
          review_state:old.timeline?.synchronization?.review_state||'valid',
          dependencies:old.timeline?.synchronization?.dependencies||{}},
        camera:{schema_version:1,camera_points:readCameraPoints()}},
-     preview:{playhead_sec:Number(previewTime())||0},extensions:old.extensions||{}};
+     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),melody_highlight:window.ScoreMelodyHighlight?.getState?.()}};
  }
  function validateProjectState(state){
    if(!state||state.schema_version!==1||!state.settings?.controls||!state.timeline?.synchronization)throw Error('프로젝트 상태가 유효하지 않습니다.');
@@ -122,6 +122,7 @@
    if(!state)return;
    validateProjectState(state);
    restoringPortableState=true;
+   window.ScoreMelodyHighlight?.restoreState?.(state.extensions?.melody_highlight);
    try{
      activeProjectState=structuredClone(state);
      for(const [id,value] of Object.entries(state.settings.controls||{})){
@@ -409,7 +410,7 @@
  }
  function config(){
    const [width,height]=$('resolution').value.split('x').map(Number);
-   return {width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,video_quality:$('videoQuality').value,video_bitrate:$('videoBitrate').value,fx_renderer:$('fxRenderer').value,gpu_effects:gpuEffects(),minimal_palette:minimalPalette(),download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
+   return {melody_highlight:window.ScoreMelodyHighlight?.getState?.(),width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,video_quality:$('videoQuality').value,video_bitrate:$('videoBitrate').value,fx_renderer:$('fxRenderer').value,gpu_effects:gpuEffects(),minimal_palette:minimalPalette(),download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
       paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
       staff_colors:window.ScoreStaffColors?.getConfig?.()||{enabled:false,keyboard:false,colors:{}},
       glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
@@ -1034,6 +1035,7 @@
    $('syncAdjustPopover').hidden=true;$('syncAdjustToggle').setAttribute('aria-expanded','false');
  });
  document.addEventListener('keydown',event=>{
+   if(alignmentBusy)return;
    if(event.key==='Escape'&&!$('syncAdjustPopover').hidden){$('syncAdjustPopover').hidden=true;$('syncAdjustToggle').setAttribute('aria-expanded','false');}
  });
  $('removeBackground').addEventListener('click',async()=>{
@@ -1090,7 +1092,7 @@
    ++backgroundSerial;pendingBackgroundFile=null;
    window.ScoreVisualEditor?.setEditing(false);
    $('scoreEditOverlay').hidden=true;
-   project=meta;window.ScoreStaffColors?.setProject(meta);
+   project=meta;window.ScoreStaffColors?.setProject(meta);window.ScoreMelodyHighlight?.setProject?.(meta.id);
    if(meta.has_score!==false&&!meta.staff_groups?.length)await window.ScoreStaffColors?.recoverCatalog?.(meta);
    mp4MeasuredFps=0;experimentalOptIn=false;$('downloadName').value='';selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);pausePreview();if(liveSampler){await liveSampler.dispose();liveSampler=null;}
    for(const [id,value] of Object.entries(meta.effect_settings||{})){
@@ -1122,6 +1124,7 @@
    $('editScoreFromSidebar').disabled=!hasScore;
    if(!hasScore)$('pianoEnabled').checked=true;
    const a=meta.score_alignment;
+   refreshAlignmentPanel(meta);
    const alignmentText=a?
      `악보↔MIDI 매칭 ${Math.round(a.coverage*100)}% · ${a.matched_notes}/${a.total_notes}개 음표 · ${a.status==='ok'?'실제 타건 시점 적용':'매칭되지 않은 음표 있음'}`:
      '악보↔MIDI 매칭 정보 없음';
@@ -1168,7 +1171,7 @@
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:previewConfig()});
-   await stage.load();
+   await stage.load();window.ScoreMelodyHighlight?.bindStage?.(stage);
    const savedPlayhead=Math.max(0,Math.min(Number(activeProjectState?.preview?.playhead_sec)||0,Number(meta.audio_duration_sec)||0));
    if(savedPlayhead>0){try{setPreviewTime(savedPlayhead);}catch(_){}}
    stage.seek(savedPlayhead);$('seek').value=String(savedPlayhead);$('currentTime').textContent=fmt(savedPlayhead);
@@ -1213,6 +1216,46 @@
    }
    message(text,isError);
  };
+ const alignmentText=(key,fallback,vars={})=>{
+   const t=window.ScoreI18n?.t?.('alignment.'+key,vars);
+   return t&&t!=='alignment.'+key?t:fallback.replace(/\{(\w+)\}/g,(_,k)=>String(vars[k]??''));
+ };
+ let alignmentBusy=false;
+ function refreshAlignmentPanel(meta){
+   const panel=$('scoreAlignmentPanel');if(!panel)return;
+   panel.hidden=!window.ScoreLocalProjects?.enabled;
+   const a=meta?.score_alignment,requested=a?.requested_mode||'v1';
+   if(meta?.has_score!==false&&a)$('scoreAlignmentMode').value=['auto','v1','v2a','v2b','v2c'].includes(requested)?requested:'auto';
+   $('scoreAlignmentReanalyze').disabled=!meta?.has_score||alignmentBusy;
+   const status=$('scoreAlignmentResult');status.textContent='';status.classList.remove('error');
+   if(!a)return;
+   const method=({'score-beat-v2a':'V2-A','adaptive-sequence-v2b':'V2-B','adaptive-sequence-v2c':'V2-C','pitch-onset-anchors-v1':'V1'})[a.method]||a.method||'V1';
+   status.textContent=alignmentText('result','{method} · {matched}/{total} notes · {coverage}%',{method,matched:a.matched_notes,total:a.total_notes,coverage:Math.round(a.coverage*100)});
+   if(Number.isFinite(a.midi_precision))status.textContent+=' · '+alignmentText('midiCoverage','MIDI {percent}%',{percent:Math.round(a.midi_precision*100)});
+   if(a.limited)status.textContent+=' · '+alignmentText('limited','Search limited; V1 fallback.');
+   if(a.status!=='ok')status.textContent+=' · '+alignmentText('review','Review recommended');
+   const bars=(a.measure_diagnostics||[]).filter(m=>m.status!=='ok');
+   if(bars.length)status.textContent+='\n'+alignmentText('bars','Review playback measures: {bars}',{bars:bars.slice(0,30).map(m=>m.measure).join(', ')+(bars.length>30?' …':'')});
+   status.style.whiteSpace='pre-line';status.classList.toggle('error',a.status!=='ok'||bars.length>0);
+ }
+ refreshAlignmentPanel(null);
+ $('scoreAlignmentReanalyze').addEventListener('click',async()=>{
+   if(alignmentBusy)return;
+   const oldMeta=project,mode=$('scoreAlignmentMode').value,main=document.querySelector('main');let committed=false,locked=false;
+   try{
+     portableLocal();if(!oldMeta?.has_score)throw Error(alignmentText('noScore','MusicXML is required.'));
+     if($('uploadButton').disabled)throw Error(alignmentText('busy','Wait for current file processing.'));
+     alignmentBusy=true;locked=true;main.inert=true;$('scoreAlignmentReanalyze').disabled=true;
+     pausePreview();await applySerial;await backgroundTask;await paletteSaveTask;await saveCurrentProjectState();
+     message(alignmentText('analyzing','Analyzing score and MIDI locally…'));
+     const meta=await window.ScoreLocalProjects.reanalyzeAlignment(oldMeta.id,mode);committed=true;
+     await loadProject(meta);
+     message(meta.score_alignment?.status==='ok'?alignmentText('done','Score/MIDI alignment updated.'):alignmentText('review','Review recommended'),meta.score_alignment?.status!=='ok');
+   }catch(error){
+     if(committed){try{await loadProject(await window.ScoreLocalProjects.restoreAlignment(oldMeta.id,oldMeta.score_alignment));}catch(rollback){console.error('Alignment rollback:',rollback);}}
+     message(alignmentText('failed','Alignment failed: {error}',{error:error.message}),true);
+   }finally{if(locked){alignmentBusy=false;main.inert=false;refreshAlignmentPanel(project);}}
+ });
  const portableLocal=()=>{
    if(!window.ScoreLocalProjects?.enabled)throw Error('프로젝트 ZIP 저장/열기는 브라우저 로컬 모드에서 지원합니다.');
    if(renderUiActive||offlineActive||webmRecorder)throw Error('영상 출력 중에는 프로젝트를 전환할 수 없습니다.');
@@ -1327,6 +1370,7 @@
  async function importProjectFiles(files,{backgroundFile=null}={}){
    $('uploadButton').disabled=true;$('demoButton').disabled=true;message(window.ScoreLocalProjects?.enabled?'브라우저에서 MIDI·MusicXML 분석 및 로컬 저장 중…':'파일 분석 및 필요한 피아노 음원 생성 중...');
    const form=new FormData();for(const name of inputIds)if(files[name])form.append(name,files[name]);
+   if(window.ScoreLocalProjects?.enabled)form.append('alignmentMode',$('scoreAlignmentMode').value);
    try{
      const r=await fetch('/api/projects',{method:'POST',body:form});const data=await r.json();if(!r.ok)throw Error(data.detail||'파일 처리 실패');
      const selectedBackground=pendingBackgroundFile||backgroundFile;
@@ -1491,6 +1535,7 @@
  // Capture before the focused slider/colour/button swallows Space or arrows.
  // Actual text editing is exempt so titles can contain spaces and punctuation.
  window.addEventListener('keydown',e=>{
+   if(alignmentBusy)return;
    // Range inputs need their own arrow keys for 0.01-second sync tuning.
    if(e.target?.closest?.('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
    if((e.key==='f'||e.key==='F')&&!renderUiActive&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!transport.isTextEditing(e.target)&&!e.repeat){
@@ -1770,6 +1815,9 @@
      }
    }catch(e){message('이전 프로젝트 복원 실패: '+e.message,true);}
  })();
+ // SCOREMOTION_MELODY_BETA_V1
+ window.ScoreMelodyHighlight?.init?.({getStage:()=>stage,onChange:()=>schedulePortableAutosave()});
+ document.addEventListener('scorevideo:languagechange',()=>window.ScoreMelodyHighlight?.bindStage?.(stage));
  // A narrow debug hook to verify preview/export settings parity in browser tests.
  window.__scoreVideoDebug={serializeProjectState,restoreProjectState,validateProjectState,config,sceneOptions,getStage:()=>stage,resizePreview,transport,seekTo,moveByMeasure,measureAxis,visualEditor:()=>window.ScoreVisualEditor};
 })();

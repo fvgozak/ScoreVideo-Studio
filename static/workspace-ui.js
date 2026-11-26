@@ -7,7 +7,10 @@
   const effectsPanel = document.querySelector('[data-editor-panel="effects"]');
   const scorePanel = document.querySelector('[data-editor-panel="score"] > .panel');
   if (!scenePanel || !backgroundPanel || !effectsPanel || !scorePanel) return;
-  const source = [...effectsPanel.children].find(node => node.matches('.panel:not(.image-palette-studio):not(.video-background-panel)'));
+  // SCOREMOTION_MELODY_UI_LAYOUT_V1: identify the original effect settings by its controls.
+  // Independent extension panels (e.g. Melody Highlight beta) must stay visible.
+  const source = [...effectsPanel.children].find(node =>
+    node.matches('.panel') && node.querySelector('#gpuPreset') && node.querySelector('#fxMode'));
   const background = effectsPanel.querySelector('.video-background-panel');
   const palette = effectsPanel.querySelector('.image-palette-studio');
   if (!source || !background || !palette) return;
@@ -22,7 +25,7 @@
   scene.innerHTML = '<div class="panel-title"><h2 data-i18n="nav.scene">장면</h2></div>';
   scenePanel.appendChild(scene);
   backgroundPanel.append(palette, background);
-  for (const id of ['sceneTemplate', 'cameraMode', 'cameraPointTools', 'pianoKeyStyle', 'titleText']) {
+  for (const id of ['sceneTemplate', 'cameraMode', 'cameraPointTools', 'titleText']) {
     const block = directBlock(id);
     if (block) scene.appendChild(block);
   }

@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+const root=process.argv[2]||'.';
+const ui=fs.readFileSync(path.join(root,'static/workspace-ui.js'),'utf8');
+const html=fs.readFileSync(path.join(root,'static/index.html'),'utf8');
+assert.match(ui,/SCOREMOTION_MELODY_UI_LAYOUT_V1/);
+assert.match(ui,/node\.querySelector\('#gpuPreset'\) && node\.querySelector\('#fxMode'\)/);
+assert.doesNotMatch(ui,/node => node\.matches\('\.panel:not\(/);
+assert.match(ui,/\['sceneTemplate', 'cameraMode', 'cameraPointTools', 'titleText'\]/);
+assert.match(ui,/if \(drawScore\) scorePanel\.appendChild\(drawScore\)/);
+assert.match(ui,/backgroundPanel\.append\(palette, background\)/);
+assert.match(html,/data-editor-panel="effects"/);
+assert.match(html,/id="melodyEnabled"/);
+assert.match(html,/\/static\/workspace-ui\.js\?v=[^"']*melodyUiFix1/);
+console.log('PASS melody UI static: effects source identified by controls; beta visible; scene/camera/title moved; score animation moved; piano lighting preserved; cache busted');

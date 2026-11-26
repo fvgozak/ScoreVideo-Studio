@@ -1,0 +1,9 @@
+/* Editor-only markers: never loaded in render.html/MP4 output. */
+.melody-highlight-panel{border-left:3px solid #67a9ef}
+.melody-highlight-panel .melody-grid{display:grid;gap:9px}
+.melody-highlight-panel .melody-note-tools{display:flex;flex-wrap:wrap;gap:5px}
+.melody-highlight-panel .melody-note-tools button{min-height:30px;font-size:12px}
+.melody-highlight-panel .melody-hint{font-size:12px;opacity:.73;line-height:1.45}
+#scoreViewport:has(#osmdContainer [data-melody-mark]) [data-melody-mark="melody"]{outline:1px solid rgba(71,177,255,.45);outline-offset:3px}
+#scoreViewport [data-melody-mark="manual"]{outline:1px dashed #ffbb6f;outline-offset:3px}
+#scoreViewport [data-melody-mark="selected"]{outline:2px solid #63aafa;outline-offset:4px}

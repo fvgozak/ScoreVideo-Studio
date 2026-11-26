@@ -78,7 +78,8 @@
        key:String(p?.key||'').slice(0,80),zoom:clamp(number(p?.zoom,1.3),1.05,1.6),
        duration:clamp(number(p?.duration,1.6),.4,5),shake:clamp(number(p?.shake,0),0,1),timing:clamp(number(p?.timing,-.6),-2,1.5)
      })).filter(p=>p.key),
-     effects:effect,gpuEffects,scene,
+     // SCOREMOTION_MELODY_BETA_V1: same config in preview and render.html
+     effects:{...effect,melodyHighlight:s.melody_highlight||null},gpuEffects,scene,
      piano:{enabled:s.piano_enabled!==false,light:s.piano_light!==false,minimalMode:Boolean(s.minimal_mode),
        fxRenderer:['canvas','auto','pixi'].includes(s.fx_renderer)?s.fx_renderer:'canvas',
        gpuEffects,minimalPalette:effect.minimalPalette,

@@ -2,7 +2,8 @@
 (function(){
   'use strict';
   const $=id=>document.getElementById(id);
-  const panel=document.querySelector('[data-editor-panel="effects"] .panel:not(.image-palette-studio):not(.video-background-panel)');
+  // SCOREMOTION_MELODY_BOOTSTRAP_HOTFIX_V1: select the legacy controls, not the first extension panel.
+  const panel=[...document.querySelectorAll('[data-editor-panel="effects"] > .panel')].find(node => node.querySelector('.effect-basics') && node.querySelector('.effect-advanced'));
   const basics=panel?.querySelector('.effect-basics'),legacy=panel?.querySelector('.effect-advanced');
   if(!basics||!legacy)return;
   const field=id=>$(id)?.closest('.field,.toggle-line,.trail-options');

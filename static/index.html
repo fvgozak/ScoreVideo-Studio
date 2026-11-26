@@ -2,7 +2,8 @@
 
 <html lang="ko"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title data-i18n="app.title">ScoreMotion · 작업공간</title>
-<link href="/static/project-io.css?v=portable1" rel="stylesheet"/><link href="/static/staff-colors.css?v=staffrestore20261120" rel="stylesheet"/><link href="/static/style.css?v=background1" rel="stylesheet"/><link href="/static/effects.css?v=background1" rel="stylesheet"/><link href="/static/stage.css?v=dynamic16h" rel="stylesheet"/><link href="/static/workspace-ui.css?v=fxui4" rel="stylesheet"/></head>
+<link href="/static/project-io.css?v=portable1" rel="stylesheet"/><link href="/static/staff-colors.css?v=staffrestore20261120" rel="stylesheet"/><link href="/static/style.css?v=background1" rel="stylesheet"/><link href="/static/effects.css?v=background1" rel="stylesheet"/><link href="/static/stage.css?v=dynamic16h" rel="stylesheet"/><link href="/static/workspace-ui.css?v=fxui4" rel="stylesheet"/><link rel="stylesheet" href="/static/melody-highlight.css?v=melodyBeta1">
+</head>
 <body><div class="app">
 <header class="topbar"><div class="logo"><span class="logo-mark">𝄞</span><div><strong>ScoreMotion</strong><small>STUDIO 0.19.31</small></div></div>
 <div class="top-right"><button class="header-export" id="openExportTab" type="button" data-i18n="nav.exportAction">내보내기</button><label class="language-picker"><span data-i18n="common.language">언어</span><select id="languageSelect" aria-label="언어 선택"><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option></select></label><span class="local-run"><span class="dot"></span> 이 컴퓨터에서만 실행</span> <span class="beta">v0.19.32</span></div></header>
@@ -19,6 +20,12 @@
 <label class="filebox"><span class="file-symbol">♫</span><span class="file-desc"><strong>완성 오디오</strong><small id="audioName">.mp3 / .wav / .m4a 등</small></span><span class="choose">선택</span><input accept="audio/*,.flac,.m4a,.aac" id="audio" type="file"/></label>
 <button class="primary" id="uploadButton" type="submit">프로젝트 만들기 <span>→</span></button>
 </form>
+<details class="compact-details" id="scoreAlignmentPanel" open><summary data-i18n="alignment.title">악보 ↔ MIDI 동기화 (beta)</summary>
+<div class="field"><label for="scoreAlignmentMode" data-i18n="alignment.mode">정렬 알고리즘</label>
+<select id="scoreAlignmentMode"><option value="auto" data-i18n="alignment.auto">자동 추천</option><option value="v1" data-i18n="alignment.v1">V1 · 기존 알고리즘</option><option value="v2a" data-i18n="alignment.v2a">V2-A · 악보 박자 기반</option><option value="v2b" data-i18n="alignment.v2b">V2-B · 평탄화 / 실연 MIDI</option><option value="v2c" data-i18n="alignment.v2c">V2-C · 유연한 음표 정렬</option></select>
+<small data-i18n="alignment.help">새 프로젝트에 적용됩니다. 기존 프로젝트는 아래 버튼으로 재분석하세요. MIDI 원본과 음원은 변경하지 않습니다.</small></div>
+<button id="scoreAlignmentReanalyze" type="button" class="secondary-button" disabled data-i18n="alignment.reanalyze">현재 프로젝트 재분석</button>
+<p class="hint" id="scoreAlignmentResult" role="status" aria-live="polite" data-i18n-ignore></p></details>
 <button class="secondary-button demo-load-button" id="demoButton" type="button"><span aria-hidden="true">▶ </span><span id="demoButtonTitle" data-i18n-ignore></span><span data-i18n="example.try">예제 바로 체험하기</span></button>
 <p class="hint" data-i18n="example.help">예제 MusicXML과 MIDI를 불러옵니다. 피아노 소리는 브라우저에서 Salamander로 생성합니다.</p>
 <p class="hint">MIDI는 필수입니다. MusicXML을 함께 올리면 악보가 표시되고, MIDI만 올리면 건반 전용 영상이 됩니다. 오디오는 없으면 Salamander 피아노로 만듭니다.</p>
@@ -100,6 +107,17 @@
 <input id="motionStrength" max="2" min="0" step="0.1" type="range" value="1"/><div class="field-foot"><span>0%</span><span>200%</span></div>
 <small>0%에서는 벨로시티 효과가 적용되지 않습니다. 오선과 음표 사이의 간격은 변하지 않습니다.</small></div>
 </details></section></div><div class="editor-tab-panel" data-editor-panel="scene" hidden=""></div><div class="editor-tab-panel" data-editor-panel="background" hidden=""></div><div class="editor-tab-panel" data-editor-panel="effects" hidden="">
+<!-- SCOREMOTION_MELODY_BETA_V1 -->
+<section class="panel melody-highlight-panel" data-i18n-ignore=""><div class="panel-title"><h2 data-melody-i18n="title">Melody Highlight (beta)</h2></div>
+<div class="melody-grid"><p class="melody-hint" data-melody-i18n="description"></p>
+<label class="toggle-line"><span data-melody-i18n="enabled">Enable melody highlight</span><input id="melodyEnabled" type="checkbox"></label>
+<div class="field"><label for="melodyAlgorithm" data-melody-i18n="algorithm">Automatic detection algorithm</label><select id="melodyAlgorithm"><option value="v1" data-melody-i18n="v1">V1 · Original heuristic</option><option value="v2a" data-melody-i18n="v2a">V2-A · Perceptual (experimental)</option><option value="v2b" data-melody-i18n="v2b">V2-B · Entropy / repetition (experimental)</option><option value="v2c" data-melody-i18n="v2c">V2-C · Melody path (experimental)</option><option value="v2d" data-melody-i18n="v2d">V2-D · Voice separation (experimental)</option></select></div>
+<div class="field"><label for="melodySensitivity"><span data-melody-i18n="sensitivity">Melody threshold</span> <output id="melodySensitivityValue">65%</output></label><input id="melodySensitivity" type="range" min="30" max="95" step="5" value="65"></div>
+<div class="field"><label for="melodyGain"><span data-melody-i18n="strong">Melody glow</span> <output id="melodyGainValue">170%</output></label><input id="melodyGain" type="range" min="0" max="300" step="5" value="170"></div>
+<div class="field"><label for="melodyOtherGain"><span data-melody-i18n="weak">Other-note glow</span> <output id="melodyOtherGainValue">25%</output></label><input id="melodyOtherGain" type="range" min="0" max="100" step="5" value="25"></div>
+<small id="melodyLegacyStatus" hidden></small>
+<small id="melodyStatus" role="status" aria-live="polite"></small><p class="melody-hint" data-melody-i18n="hint"></p></div></section>
+
 <section class="panel image-palette-studio">
   <div class="panel-title"><h2 data-i18n="palette.title">✦ 악보 색상 조합</h2></div>
   <p class="palette-help" data-i18n="palette.themeHelp">테마를 바로 선택하거나 앨범 커버·사진에서 색상을 추출할 수 있어요. 영상 배경은 별도로 지정합니다.</p>
@@ -353,8 +371,9 @@
 </main>
 <footer>ScoreMotion · 프로젝트 파일은 현재 기기에서 처리되며 외부 저장소로 업로드되지 않습니다.</footer>
 </div>
-<script src="/static/local-project-codec.js?v=local1"></script>
-<script src="/static/local-projects.js?v=portable1&sampler=available28&lazyAudio1&salamanderFast1&livePreview1"></script>
+<script src="/static/score-alignment-v2.js?v=sync2"></script>
+<script src="/static/local-project-codec.js?v=sync2"></script>
+<script src="/static/local-projects.js?v=portable1&sampler=available28&lazyAudio1&salamanderFast1&livePreview1&sync2"></script>
 <script src="/static/project-archive.js?v=portable1"></script>
 <script src="/static/project-io.js?v=portable1"></script>
 <script src="/static/vendor-loader.js?v=0.19.12"></script>
@@ -363,15 +382,16 @@
 <script src="/static/image-palette.js?v=background1"></script>
 <script src="/static/camera-auto.js?v=0.19.31"></script>
 
-<script src="/static/score-core.js?v=random1"></script>
-<script src="/static/studio-scene.js?v=scorehide1"></script>
+<script src="/static/melody-highlight.js?v=melodyBeta1&accomp1&perceptual1&engines2bcd1"></script>
+<script src="/static/score-core.js?v=random1&melodyBeta1&perceptual1&engines2bcd1"></script>
+<script src="/static/studio-scene.js?v=scorehide1&melodyBeta1"></script>
 <script src="/static/piano-shadow-sprite.js?v=1"></script>
 <script src="/static/pixi-fx.js?v=scoreparticles1"></script>
 <script src="/static/pixi-notes.js?v=1"></script>
 <script src="/static/three-keyboard.js?v=1"></script>
 <script src="/static/piano-fall.js?v=staffpriority1"></script>
-<script src="/static/stage-runtime.js?v=scorehide1"></script>
+<script src="/static/stage-runtime.js?v=scorehide1&melodyBeta1"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>
-<script src="/static/workspace-ui.js?v=3"></script><script src="/static/fx-groups.js?v=scoreparticles1"></script><script src="/static/visual-editor.js?v=0.19.25"></script><script src="/static/gpu-composer.js?v=minink2"></script><script src="/static/webm-recorder.js?v=minink2"></script><script src="/static/output-size.js?v=3"></script><script src="/static/offline-export.js?v=localaudio1&parallelAudio1"></script><script src="/static/staff-colors.js?v=staffrestore20261120"></script><script src="/static/palette-director.js?v=cdsafe2"></script><script src="/static/realtime-salamander.js?v=livePreview1"></script><script src="/static/app.js?v=previewrestore1&lazyAudio1&salamanderFast1&livePreview1&parallelAudio1"></script>
+<script src="/static/workspace-ui.js?v=3&melodyUiFix1"></script><script src="/static/fx-groups.js?v=scoreparticles1&melodyBoot1"></script><script src="/static/visual-editor.js?v=0.19.25"></script><script src="/static/gpu-composer.js?v=minink2"></script><script src="/static/webm-recorder.js?v=minink2"></script><script src="/static/output-size.js?v=3"></script><script src="/static/offline-export.js?v=localaudio1&parallelAudio1"></script><script src="/static/staff-colors.js?v=staffrestore20261120&melodyBoot1"></script><script src="/static/palette-director.js?v=cdsafe2"></script><script src="/static/realtime-salamander.js?v=livePreview1"></script><script src="/static/app.js?v=previewrestore1&lazyAudio1&salamanderFast1&livePreview1&parallelAudio1&melodyBeta1&sync2"></script>
 </body></html>

@@ -496,6 +496,8 @@
         this.playbackCursor.style.setProperty('--playback-cursor-color',cursor);
         this.playbackCursor.hidden=this.effects.cursorVisible===false;
       }
+      // SCOREMOTION_MELODY_BETA_V1
+      window.ScoreMelodyHighlight?.annotate?.(this.noteTriggers,this.effects.melodyHighlight);
       if(this.activeNodes.length) this.colorActiveNodes();
     }
     static singleLineRules(rules){
@@ -729,6 +731,7 @@
                     midiEnd:Number.isFinite(midiEnd)&&midiEnd>=midiOn?midiEnd:null,
                     velocity:attack.velocity,pitch,soundingPitch,groupKey:group?.key||null,beat:val*4,scoreKey,measure:Number(gm?.MeasureNumber)||measureIndex+1,audio:0,localY,noteX,noteY,headEl:noteHeadEl,
                     staffId:Number.isFinite(staffId)?staffId:null,instrumentRef,handHint,
+                    voiceId:gn?.sourceNote?.ParentVoiceEntry?.ParentVoice?.VoiceId??null,
                     systemKey:systemIds.get(systemToken)});
               }else if(origin){
                 const begin=this.scoreBeatToMidi(val*4);
@@ -763,6 +766,7 @@
       this.buildEffectLayers();
       this.rebuildAudioAxis();
       this.prepareDrawing();
+      await window.ScoreMelodyHighlight?.prepare?.(this.noteTriggers,this.effects.melodyHighlight);
       this.setEffects({});
       this.seek(0,true);
       return this.timestamps.length;
@@ -1117,6 +1121,7 @@
         while(lo<hi){const m=(lo+hi)>>>1;if(events[m].audio<earliest)lo=m+1;else hi=m;}
         const activate=entry=>{
           const el=entry.headEl||entry.el;if(!el)return;
+          if((window.ScoreMelodyHighlight?.gain?.(entry,effect.melodyHighlight)??1)<=0)return;
           el.classList.add('score-minimal-active');
           el.style.setProperty('--score-minimal-color',this.minimalColor(entry.velocity,entry));
           this.activeNodes.push({el,motionEl:entry.el,velocity:entry.velocity,entry});
@@ -1138,11 +1143,13 @@
         for(const hold of this.activeTies(t)){
           const motionEl=hold.el,el=hold.headEl||motionEl;
           const remaining=clamp((hold.endAudio-t)/.28,0,1);
+          const melodyGain=window.ScoreMelodyHighlight?.gain?.(hold,effect.melodyHighlight)??1;
+          if(melodyGain<=0)continue;
           el.classList.add('score-glowing');
-          el.style.setProperty('--score-note-active',this.eventLightColor(hold.velocity,hold));
+          el.style.setProperty('--score-note-active',window.ScoreMelodyHighlight?.lightColor?.(this.eventLightColor(hold.velocity,hold),melodyGain,this.colors().ink)||this.eventLightColor(hold.velocity,hold));
           const spread=window.ScoreStudio?.pitchLightProfile(hold.pitch)?.spread||1;
-          el.style.setProperty('--score-glow-blur',`${((1.8+1.4*remaining)*spread).toFixed(2)}px`);
-          this.activeNodes.push({el,motionEl,velocity:hold.velocity,entry:hold,age:1,seed:hold.pitch+hold.audio});
+          el.style.setProperty('--score-glow-blur',`${((1.8+1.4*remaining)*spread*Math.sqrt(melodyGain)).toFixed(2)}px`);
+          this.activeNodes.push({el,motionEl,velocity:hold.velocity,entry:hold,age:1,seed:hold.pitch+hold.audio,melodyGain});
         }
       }
       const box=this.container.getBoundingClientRect();
@@ -1151,8 +1158,10 @@
         const dyn=ScoreFollower.dynamics(entry.velocity,elapsed,effect);
         if(!dyn.alive)continue;
         const motionEl=entry.el,el=entry.headEl||motionEl;
-        const noteLightColor=this.eventLightColor(entry.velocity,entry);
-        this.activeNodes.push({el,motionEl,velocity:entry.velocity,entry,age:elapsed,seed:entry.pitch+entry.audio});
+        const melodyGain=window.ScoreMelodyHighlight?.gain?.(entry,effect.melodyHighlight)??1;
+        if(melodyGain<=0)continue;
+        const noteLightColor=window.ScoreMelodyHighlight?.lightColor?.(this.eventLightColor(entry.velocity,entry),melodyGain,this.colors().ink)||this.eventLightColor(entry.velocity,entry);
+        this.activeNodes.push({el,motionEl,velocity:entry.velocity,entry,age:elapsed,seed:entry.pitch+entry.audio,melodyGain});
         el.classList.toggle('score-glowing',Boolean(effect.sparkle));
         motionEl.classList.toggle('score-note-moving',Boolean(effect.noteMotion));
         if(effect.noteMotion){
@@ -1161,11 +1170,11 @@
         }
         el.style.setProperty('--score-note-active',noteLightColor);
         const spread=window.ScoreStudio?.pitchLightProfile(entry.pitch)?.spread||1;
-        el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread).toFixed(2)}px`);
+        el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread*Math.sqrt(melodyGain)).toFixed(2)}px`);
         for(const extra of entry.fallbackHeads||[]){
           extra.el.classList.toggle('score-glowing',Boolean(effect.sparkle));
           extra.el.style.setProperty('--score-note-active',noteLightColor);
-          extra.el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread).toFixed(2)}px`);
+          extra.el.style.setProperty('--score-glow-blur',`${((2+dyn.intensity*2.2)*spread*Math.sqrt(melodyGain)).toFixed(2)}px`);
           this.activeNodes.push({el:extra.el,velocity:entry.velocity,age:elapsed,seed:entry.pitch+entry.audio});
         }
         if(!effect.sparkle||!this.overlay)continue;
@@ -1188,7 +1197,7 @@
           trail.style.left=`${cx+Math.sin(phase)*13*dyn.progress}px`;
           trail.style.top=`${cy-7-22*dyn.progress-j*6}px`;
           trail.style.width=`${12+dyn.intensity*17}px`;
-          trail.style.opacity=String(dyn.opacity*(.34-j*.075));
+          trail.style.opacity=String(clamp(dyn.opacity*(.34-j*.075)*melodyGain,0,1));
           trail.style.setProperty('--score-glow',noteLightColor);
           trail.style.transform=`translate(-50%,-50%) rotate(${-52+j*31}deg)`;
           this.overlay.appendChild(trail);
@@ -1200,7 +1209,7 @@
           const star=document.createElement('i');star.className='note-star';
           star.style.left=`${cx+Math.cos(theta)*radius}px`;
           star.style.top=`${cy+Math.sin(theta)*radius*.75-7*dyn.progress}px`;
-          star.style.opacity=String(dyn.opacity*(.35+.65*Math.sin(elapsed*17+j*2)**2));
+          star.style.opacity=String(clamp(dyn.opacity*(.35+.65*Math.sin(elapsed*17+j*2)**2)*melodyGain,0,1));
           star.style.setProperty('--score-accent',noteLightColor);
           star.style.transform=`translate(-50%,-50%) rotate(45deg) scale(${(.25+dyn.intensity*.58).toFixed(3)})`;
           this.overlay.appendChild(star);

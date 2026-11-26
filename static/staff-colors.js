@@ -88,7 +88,8 @@
  }
  const storageKey=id=>`scoremotion.staffColors.v1.${id}`;
  let projectId=null,catalog=[],current={enabled:false,keyboard:false,colors:{}},pitchMode=null;
- const panel=document.querySelector('[data-editor-panel="effects"] .panel:not(.image-palette-studio):not(.video-background-panel)');
+ // SCOREMOTION_MELODY_BOOTSTRAP_HOTFIX_V1: staff controls belong to the real generated Score FX panel.
+ const panel=[...document.querySelectorAll('[data-editor-panel="effects"] > .panel')].find(node => node.querySelector('.fx-quick-group[data-fx-group="score"]'));
  const parent=panel?.querySelector('.fx-quick-group[data-fx-group="score"]');
  let section=null,list=null,check=null,keyboardCheck=null,status=null,refresh=null;
  let metaRef=null,loading=false,lastError='';

@@ -147,10 +147,10 @@ function decodeScore(xmlText){
   }
   const title=titleCandidates.find(s=>s&&!['untitled','untitled score','title'].includes(s.toLowerCase()))||'';
   const hasRepeats=Array.from(rootNode.getElementsByTagName('*')).some(n=>['repeat','ending'].includes(n.localName)||n.localName==='sound'&&['dacapo','dalsegno','tocoda'].some(k=>n.hasAttribute(k)));
-  return {title:title.slice(0,120),groups:[...groups].sort((a,b)=>a[0]-b[0]).map(([beat,pitches])=>({beat,pitches:pitches.sort((a,b)=>a-b)})),tieContinuations,
+  return {title:title.slice(0,120),measureStarts:starts,groups:[...groups].sort((a,b)=>a[0]-b[0]).map(([beat,pitches])=>({beat,pitches:pitches.sort((a,b)=>a-b)})),tieContinuations,
     repeat_info:{mode:'original',warning:hasRepeats?'반복·도돌이표가 포함되어 있습니다. 브라우저 모드에서는 아직 연주 순서로 전개하지 않으므로 싱크를 확인하세요.':''}};
 }
-function alignScore(score,midiTiming){
+function alignScoreV1(score,midiTiming){
   const notes=score.groups,events=midiTiming.note_events;
   const groups=[];
   for(const e of [...events].sort((a,b)=>a.second-b.second||a.pitch-b.pitch)){
@@ -207,6 +207,27 @@ function alignScore(score,midiTiming){
   return {method:'pitch-onset-anchors-v1',status,matched_groups:clean.length,total_groups:notes.length,
     matched_notes:note_matches.length,total_notes,coverage,anchors:clean,note_matches,
     message:status==='ok'?'음표·MIDI 타건 시점을 연결했습니다.':'MusicXML과 MIDI가 일부 불일치합니다. 반복·전조·아르페지오를 확인하세요.'};
+}
+function alignScore(score,timing,mode='auto'){
+  return root.ScoreAlignmentV2?root.ScoreAlignmentV2.analyze(score,timing,mode,alignScoreV1):alignScoreV1(score,timing);
+}
+async function alignScoreAsync(score,timing,mode='auto'){
+  if(mode==='v1'||typeof Worker!=='function')return alignScore(score,timing,mode);
+  let worker;
+  try{
+    worker=new Worker('/static/score-alignment-worker.js?v=sync2');
+    return await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>reject(Error('Score alignment worker timed out')),90000);
+      const finish=(fn,value)=>{clearTimeout(timer);fn(value);};
+      worker.onmessage=e=>e.data.error?finish(reject,Error(e.data.error)):finish(resolve,e.data.result);
+      worker.onerror=e=>finish(reject,Error(e.message||'Score alignment worker failed'));
+      worker.postMessage({score,timing:{note_events:timing.note_events,tempo_map:timing.tempo_map,note_count:timing.note_count,velocity_events_truncated:timing.velocity_events_truncated},mode});
+    });
+  }catch(error){
+    // Fail explicitly rather than blocking the UI with a large main-thread DP.
+    console.warn('Score alignment worker:',error);
+    return {...alignScoreV1(score,timing),requested_mode:mode,status:'needs-review',limited:true,message:'Alignment worker unavailable; legacy alignment shown.'};
+  }finally{worker?.terminate();}
 }
 async function unzipMxl(file){
   const bytes=new Uint8Array(await file.arrayBuffer()),view=new DataView(bytes.buffer);
@@ -306,13 +327,13 @@ function unfoldScore(xmlText){
   }
   return {xml:new XMLSerializer().serializeToString(doc),source_measures:count,playback_measures:order.length,spans};
 }
-function selectPerformance(xml,timing){
-  const parsed=decodeScore(xml),alignment=alignScore(parsed,timing);
+function selectPerformance(xml,timing,mode='auto'){
+  const parsed=decodeScore(xml),alignment=alignScore(parsed,timing,mode);
   if(!parsed.repeat_info.warning)return {xml,parsed,alignment,repeat_info:{mode:'written',warning:'',expanded:false}};
   let expanded;
   try{expanded=unfoldScore(xml);}catch(error){return {xml,parsed,alignment,repeat_info:{mode:'written',warning:'반복기호 자동 전개 제한: '+error.message,expanded:false}};}
   if(!expanded)return {xml,parsed,alignment,repeat_info:{mode:'written',warning:'반복기호는 있으나 자동 전개 가능한 도돌이표가 없습니다.',expanded:false}};
-  const playback=decodeScore(expanded.xml),matched=alignScore(playback,timing);
+  const playback=decodeScore(expanded.xml),matched=alignScore(playback,timing,mode);
   const delta=matched.matched_notes-alignment.matched_notes;
   const added=Math.max(0,matched.total_notes-alignment.total_notes);
   const r1=alignment.matched_notes/Math.max(1,timing.note_count),r2=matched.matched_notes/Math.max(1,timing.note_count);
@@ -323,5 +344,22 @@ function selectPerformance(xml,timing){
     warning:global||short?'되돌이표를 MIDI 연주 순서로 전개했습니다.':'되돌이표가 있지만 MIDI의 반복 연주가 확인되지 않아 원본 악보를 사용합니다.'};
   return global||short?{xml:expanded.xml,parsed:playback,alignment:matched,repeat_info:info}:{xml,parsed,alignment,repeat_info:info};
 }
-root.ScoreLocalCodec={midiTiming,decodeScore,alignScore,selectPerformance,async readScore(file){return file.name.toLowerCase().endsWith('.mxl')?unzipMxl(file):file.text();}};
-})(window);
+async function selectPerformanceAsync(xml,timing,mode='auto'){
+  const parsed=decodeScore(xml),alignment=await alignScoreAsync(parsed,timing,mode);
+  if(!parsed.repeat_info.warning)return {xml,parsed,alignment,repeat_info:{mode:'written',warning:'',expanded:false}};
+  let expanded;
+  try{expanded=unfoldScore(xml);}catch(error){return {xml,parsed,alignment,repeat_info:{mode:'written',warning:'반복기호 자동 전개 제한: '+error.message,expanded:false}};}
+  if(!expanded)return {xml,parsed,alignment,repeat_info:{mode:'written',warning:'반복기호는 있으나 자동 전개 가능한 도돌이표가 없습니다.',expanded:false}};
+  const playback=decodeScore(expanded.xml),matched=await alignScoreAsync(playback,timing,mode);
+  const delta=matched.matched_notes-alignment.matched_notes;
+  const added=Math.max(0,matched.total_notes-alignment.total_notes);
+  const r1=alignment.matched_notes/Math.max(1,timing.note_count),r2=matched.matched_notes/Math.max(1,timing.note_count);
+  const global=delta>=2&&matched.matched_notes>=alignment.matched_notes*1.12&&r2>=Math.max(.68,r1+.08)&&matched.coverage>=.68;
+  const short=added>=2&&delta>=Math.max(2,Math.ceil(added*.7))&&r2>=.92&&matched.coverage>=.9&&r2>r1;
+  const info={mode:global||short?'unfolded':'written',expanded:global||short,source_measures:expanded.source_measures,
+    playback_measures:expanded.playback_measures,spans:expanded.spans,
+    warning:global||short?'되돌이표를 MIDI 연주 순서로 전개했습니다.':'되돌이표가 있지만 MIDI의 반복 연주가 확인되지 않아 원본 악보를 사용합니다.'};
+  return global||short?{xml:expanded.xml,parsed:playback,alignment:matched,repeat_info:info}:{xml,parsed,alignment,repeat_info:info};
+}
+root.ScoreLocalCodec={midiTiming,decodeScore,alignScore,alignScoreV1,alignScoreAsync,selectPerformance,selectPerformanceAsync,async readScore(file){return file.name.toLowerCase().endsWith('.mxl')?unzipMxl(file):file.text();}};
+})(typeof window!=='undefined'?window:self);

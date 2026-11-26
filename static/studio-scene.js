@@ -367,6 +367,9 @@
       while(accentIndex<accents.length&&accents[accentIndex].time<(events[low]?.audio??t)-.075)accentIndex++;
       for(let i=low;i<events.length&&events[i].audio<=t+.015;i++){
         const e=events[i],age=t-e.audio;
+        // SCOREMOTION_MELODY_BETA_V1
+        const melodyGain=root.ScoreMelodyHighlight?.gain?.(e,follower.effects?.melodyHighlight)??1;
+        if(melodyGain<=0)continue;
         if(age<0||age>history)continue;
         while(accentIndex<accents.length&&accents[accentIndex].time<e.audio-.075)accentIndex++;
         const emphasis=Math.abs((accents[accentIndex]?.time??Infinity)-e.audio)<=.075?
@@ -381,11 +384,12 @@
         }
         if(x<-70||x>w+70||y<-70||y>h+70)continue;
         const velocity=(follower.effects.velocityReactive===false?78:e.velocity)/127;
-        const power=clamp((.24+.76*velocity**1.25)*strength,0,4);
+        const power=clamp((.24+.76*velocity**1.25)*strength*melodyGain,0,4);
         const decay=Math.exp(-age*((s.fxMode==='trail'||gpuTrails)?1.9:3.4));
         const solidColor=(s.fxMode==='trail'||gpuTrails)?(e.hand==='lower'?s.trailLower:s.trailUpper):p.glow;
-        const lightColor=follower.effects?.staffColors?.enabled&&follower.effects.staffColors.colors?.[e.groupKey]?
+        let lightColor=follower.effects?.staffColors?.enabled&&follower.effects.staffColors.colors?.[e.groupKey]?
           follower.eventLightColor(e.velocity,e):noteLightColor(s,e.velocity,solidColor,follower.velocityRange,e);
+        lightColor=root.ScoreMelodyHighlight?.lightColor?.(lightColor,melodyGain,follower.colors().ink)||lightColor;
         const pitchLight=pitchLightProfile(e.pitch);
         const duration=Math.max(.08,(Number(e.endAudio)||e.audio+.4)-e.audio);
         const impact=root.ScorePianoFall?.impactEnvelope(age,duration,velocity)
@@ -407,8 +411,8 @@
         }
         if(scoreImpactOn){
           if(gpuFx)this.gpuCommands.push({kind:'piano',space:'stage',x,y,unit:10,keyWidth:10,keyHeight:24,
-            energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity,e)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
-          else this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity,e)||lightColor,e);
+            energy:impact*s.scoreImpactStrength*melodyGain,strength:s.scoreImpactStrength*melodyGain,color:follower.eventLightColor?.(e.velocity,e)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+          else this.drawScoreImpact(ctx,x,y,age,s.scoreImpactStrength*melodyGain,follower.eventLightColor?.(e.velocity,e)||lightColor,e);
         }
         for(const extra of e.fallbackHeads||[]){
           const extraPoint=gpuFx?gpuScorePoint(extra.el,this.viewport):null;
@@ -422,8 +426,8 @@
           }
           if(scoreImpactOn){
             if(gpuFx)this.gpuCommands.push({kind:'piano',space:'stage',x:extraX,y:extraY,unit:10,keyWidth:10,keyHeight:24,
-              energy:impact*s.scoreImpactStrength,strength:s.scoreImpactStrength,color:follower.eventLightColor?.(e.velocity,e)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
-            else this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength,follower.eventLightColor?.(e.velocity,e)||lightColor,e);
+              energy:impact*s.scoreImpactStrength*melodyGain,strength:s.scoreImpactStrength*melodyGain,color:follower.eventLightColor?.(e.velocity,e)||lightColor,age,velocity,emphasis,seed:e.pitch+e.audio});
+            else this.drawScoreImpact(ctx,extraX,extraY,age,s.scoreImpactStrength*melodyGain,follower.eventLightColor?.(e.velocity,e)||lightColor,e);
           }
         }
         if(sceneFxOn&&s.fxMode==='resonance'){
@@ -442,13 +446,15 @@
       // velocity color with gentle sustained illumination only (no particles).
       for(const hold of (sceneFxOn?(follower.activeTies?.(t)||follower.tieContinuations||[]):[])){
         if(t<hold.audio||t>hold.endAudio)continue;
+        const holdGain=root.ScoreMelodyHighlight?.gain?.(hold,follower.effects?.melodyHighlight)??1;
+        if(holdGain<=0)continue;
         const holdPoint=gpuFx?gpuScorePoint(hold.headEl||hold.el,this.viewport):null;
         let x=holdPoint?.x??containerX+hold.noteX*cameraScale,
           y=holdPoint?.y??containerY+hold.noteY*cameraScale;
         if(!Number.isFinite(x)||!Number.isFinite(y)||x<-60||x>w+60||y<-60||y>h+60)continue;
         const color=noteLightColor(s,hold.velocity,p.glow,follower.velocityRange,hold);
         const remain=clamp((hold.endAudio-t)/.28,0,1);
-        const energy=Math.min(.48,.21+hold.velocity/127*.22)*remain*strength,size=12+hold.velocity/127*12;
+        const energy=Math.min(.48,.21+hold.velocity/127*.22)*remain*strength*holdGain,size=12+hold.velocity/127*12;
         if(gpuFx)this.gpuCommands.push({kind:'note',space:'stage',x,y,radius:size*.82,energy:clamp(energy*.4,0,.9),color,age:1,velocity:hold.velocity/127,seed:hold.pitch+hold.audio});
         else this.drawBloom(ctx,x,y,energy,color,size);
       }

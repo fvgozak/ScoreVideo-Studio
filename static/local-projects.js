@@ -175,7 +175,7 @@ async function generatedPianoAudio(timing){
   return new File([buffer],'Salamander Grand Piano.wav',{type:'audio/wav'});
 }
 
-async function createProject(files,{save=true}={}){
+async function createProject(files,{save=true,alignmentMode='auto'}={}){
   const {score,midi}=files;let {audio}=files;
   if(!midi)throw Error('MIDI 파일이 필요합니다.');
   if(!/\.midi?$/i.test(midi.name))throw Error('MIDI는 .mid 또는 .midi 파일이어야 합니다.');
@@ -197,7 +197,7 @@ async function createProject(files,{save=true}={}){
   const duration=generated_audio?Math.min(600,Math.max(timing.midi_duration_sec+3,3)):await durationFromAudio(audio);
   if(!Number.isFinite(duration)||duration<=0||duration>3600)throw Error('오디오 길이를 확인할 수 없습니다.');
   let alignment=null,repeatInfo=parsed?.repeat_info||{mode:'none',warning:''};
-  if(parsed){const selected=codec.selectPerformance(scoreText,timing);scoreText=selected.xml;parsed=selected.parsed;alignment=selected.alignment;repeatInfo=selected.repeat_info;}
+  if(parsed){const selected=await codec.selectPerformanceAsync(scoreText,timing,alignmentMode);scoreText=selected.xml;parsed=selected.parsed;alignment=selected.alignment;repeatInfo=selected.repeat_info;}
   const id=crypto.randomUUID().replace(/-/g,'');
   const meta={id,local_project:true,has_score:!!score,generated_midi:false,generated_audio,
     score_name:score?.name||'',musicxml_title:parsed?.title||score?.name.replace(/\.(mxl|xml|musicxml)$/i,'')||midi.name.replace(/\.midi?$/i,''),
@@ -377,6 +377,23 @@ async function importRecord(candidate){
   }
   await storeWithState(candidate);cacheAssets(candidate);return {meta:candidate.meta,copied,id:candidate.id};
 }
+// Re-align the already selected playback score: no repeat expansion changes,
+// original asset replacement, MIDI timing mutation or audio regeneration.
+async function reanalyzeAlignment(id,mode){
+  const record=await load(id);
+  if(!record?.score||record.meta.has_score===false)throw Error('MusicXML is required.');
+  const parsed=codec.decodeScore(record.score);
+  const alignment=await codec.alignScoreAsync(parsed,record.meta,mode);
+  const latest=await load(id);
+  if(!latest||latest.score!==record.score||latest.midi!==record.midi)throw Error('Project assets changed during alignment.');
+  const updated={...latest,meta:{...latest.meta,score_alignment:alignment}};
+  await store(updated);return updated.meta;
+}
+async function restoreAlignment(id,previous){
+  const record=await load(id);if(!record)throw Error('Project not found.');
+  const updated={...record,meta:{...record.meta,score_alignment:previous}};
+  await store(updated);return updated.meta;
+}
 async function replaceAsset(id,role,file){
   if(!['score','midi','audio','background','palette_source'].includes(role)||!(file instanceof Blob))throw Error('파일 교체 대상이 올바르지 않습니다.');
   const record=await load(id);if(!record)throw Error('프로젝트가 없습니다.');
@@ -393,7 +410,7 @@ async function replaceAsset(id,role,file){
     const oldAudio=record.meta.generated_audio?null:record.audio;
     const inputs={score:role==='score'?file:source,midi:role==='midi'?file:record.midi,
       audio:role==='audio'?file:role==='midi'&&record.meta.generated_audio?null:record.audio};
-    updated=await createProject(inputs,{save:false});
+    updated=await createProject(inputs,{save:false,alignmentMode:record.meta.score_alignment?.requested_mode||'v1'});
     updated.id=id;updated.meta.id=id;
     if(role==='score')updated.meta.generated_audio=record.meta.generated_audio;
     updated.meta.effect_settings=record.meta.effect_settings;
@@ -426,7 +443,7 @@ async function apiFetch(input,init={}){
   try{
     if(path==='/api/projects'&&method==='POST'){
       const form=init.body instanceof FormData?init.body:await request.formData();
-      return json(await createProject({score:form.get('score'),midi:form.get('midi'),audio:form.get('audio')}));
+      return json(await createProject({score:form.get('score'),midi:form.get('midi'),audio:form.get('audio')},{alignmentMode:form.get('alignmentMode')||'auto'}));
     }
     if(path==='/api/palette/themes'){
       const palette={space:['#4754a8','#8e5ec9','#1e274f'],sea:['#247ba0','#48b6c7','#0f3b60'],forest:['#367a55','#94ba62','#1f4536'],wood:['#9a6640','#c99661','#593a2d']};
@@ -486,7 +503,7 @@ root.ScoreLocalProjects={enabled:true,assetUrl,openProject:load,createProject,co
         const anchor=sampleName(Number(pitch));
         return decodedSalamanderSample(anchor.name,anchor.sourcePitch,()=>context);
       },
-  saveState,savePaletteSource,importRecord,replaceAsset,undoReplace,forget,ensureAudio,validateAudio:durationFromAudio,
+  saveState,savePaletteSource,importRecord,replaceAsset,undoReplace,reanalyzeAlignment,restoreAlignment,forget,ensureAudio,validateAudio:durationFromAudio,
   async setStaffGroups(id,groups){
     const record=await load(id);if(!record)throw Error('프로젝트를 찾지 못했습니다.');
     record.meta.staff_groups=groups;await store(record);return groups;
