@@ -12,6 +12,41 @@
  // scrolling camera therefore reuses identical decoded SVG snapshots.
  const TILE_PX=1024;
  const MAX_TILE_BYTES=128*1024*1024;
+ const MAX_EFFECT_BYTES=24*1024*1024;
+ const MAX_EFFECT_ENTRIES=768;
+ const roundGeometry=n=>Math.round(n*64)/64;
+ const quantizeBlur=n=>Math.max(0,Math.min(128,Math.round((Number(n)||0)*2)/2));
+ // Reusable white glyph/halo masks. Blur is expressed in normalized glyph
+ // pixels, independent of the camera, live color or individual note ID.
+ const HEAD_WIDTH=48,HEAD_MAX_BLUR=128,HEAD_TINT_LIMIT=16;
+ const headRound=n=>Math.round(n*64)/64;
+ const HEAD_BLURS=[0,2,4,6,8,10,12,14,16,20,24,28,32,40,48,56,64,80,96,112,HEAD_MAX_BLUR];
+ const headBlur=n=>{n=Math.max(0,Number(n)||0);let best=0;for(const v of HEAD_BLURS){if(Math.abs(v-n)<Math.abs(best-n))best=v;}return best;};
+ const headBox=(rect,tile)=>{const x=rect.width/tile.width,y=rect.height/tile.height;
+   return {x:rect.x-tile.pad*x,y:rect.y-tile.pad*y,width:(tile.width+2*tile.pad)*x,height:(tile.height+2*tile.pad)*y};};
+ // VexFlow paths often encode the staff position in absolute coordinates.
+ // Remove that translation so identical glyphs on different notes can share
+ // the same mask. Never approximate the path's relative shape or arc flags.
+ function normalizePath(d){
+   const tokens=String(d||'').match(/[a-zA-Z]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g)||[];
+   if(tokens[0]!=='M'&&tokens[0]!=='m')return null;
+   const ox=Number(tokens[1]),oy=Number(tokens[2]);if(!Number.isFinite(ox)||!Number.isFinite(oy))return null;
+   // Arc flags can legally be adjacent without whitespace. Leave arc paths
+   // untouched rather than risking parsing an ambiguous compact encoding.
+   if(/[aA]/.test(d))return null;
+   const sizes={M:2,L:2,H:1,V:1,C:6,S:4,Q:4,T:2,Z:0};
+   let i=0,cmd='',first=true;const out=[];
+   while(i<tokens.length){
+     if(/^[a-zA-Z]$/.test(tokens[i])){cmd=tokens[i++];out.push(cmd);if(cmd.toUpperCase()==='Z'){cmd='';continue;}}
+     const upper=cmd.toUpperCase(),n=sizes[upper];if(!n||i+n>tokens.length)return null;
+     const a=tokens.slice(i,i+n).map(Number);if(a.some(v=>!Number.isFinite(v)))return null;i+=n;
+     if(cmd===upper||first){for(let j=0;j<n;j++)a[j]-=upper==='H'?ox:upper==='V'?oy:j%2?oy:ox;}
+     out.push(...a.map(v=>Math.round(v*1e6)/1e6));first=false;
+     if(upper==='M')cmd=cmd==='M'?'L':'l';
+   }
+   return {d:out.join(' '),x:ox,y:oy};
+ }
+ const paddedBox=(rect,pad)=>({x:rect.x-pad,y:rect.y-pad,width:rect.width+2*pad,height:rect.height+2*pad});
  // A dynamic piano canvas spans the whole stage; CSS transforms must not
  // redefine its destination box for the deterministic MP4 compositor.
  const pianoLayerBox=(canvas,viewport,width,height,measured)=>
@@ -55,11 +90,13 @@
      // walked, and removeChildren() detaches sprites without destroying them.
      this.spriteCache=new Map();this.ownedSources=new Set();
      this.svgCache=new WeakMap();this.headCache=new WeakMap();
+     this.headMasks=new Map();this.headPools=new Map();this.headMaskBytes=0;
+     this.headStats={requests:0,decodes:0,hits:0,geometryBuilds:0,evictions:0,tintEvictions:0};
      this.canvasMirrors=new WeakMap();
      this.tileCache=new Map();this.tileBytes=0;this.smallSvgBytes=0;this.maxTileBytes=MAX_TILE_BYTES;
      this.svgIds=new WeakMap();this.nextSvgId=0;this.frameNumber=0;
      this.retiredImages=[];this.smallSvgEntries=new Set();
-     this.titleCache=new Map();this.photo=null;this.photoKey='';
+     this.titleCache=new Map();this.cursorCache=new Map();this.effectCache=new Map();this.effectBytes=0;this.atmosphereTiles=null;this.photo=null;this.photoKey='';
      this.placed=[];this.isClosed=false;
      const lifetime=root.__scoreMotionExportGpuStats ||= {created:0,closed:0,active:0,lastClosed:null};
      lifetime.created++;lifetime.active++;
@@ -103,7 +140,7 @@
    place(source,box,group=this.root,alpha=1){
      const sprite=this.ensureSprite(source);
      sprite.x=box.x;sprite.y=box.y;sprite.width=Math.max(0,box.width);sprite.height=Math.max(0,box.height);
-     sprite.alpha=alpha;group.addChild(sprite);this.placed.push(sprite);
+     sprite.alpha=alpha;sprite.blendMode='normal';group.addChild(sprite);this.placed.push(sprite);return sprite;
    }
    async getPhoto(url){
      if(!url)return null;
@@ -136,6 +173,8 @@
    // previous frame. LRU eviction never touches tiles used in this frame.
    retireRaster(image){if(image)this.retiredImages.push(image);}
    disposeRaster(image){
+     const pool=this.headPools?.get(image);
+     if(pool){this.destroyHeadPool(pool);this.headPools.delete(image);}
      const sprite=this.spriteCache.get(image);
      if(sprite){sprite.destroy({texture:true,textureSource:true});this.spriteCache.delete(image);}
      this.ownedSources.delete(image);
@@ -236,33 +275,215 @@
      }
      return image;
    }
-   async getHead(head,color){
-     let palette=this.headCache.get(head);
-     if(!palette){palette=new Map();this.headCache.set(head,palette);}
-     if(palette.has(color))return palette.get(color);
-     let box;
-     try{box=head.getBBox();}catch(_){return null;}
-     if(!box?.width||!box?.height)return null;
-     const copy=head.cloneNode(true);
-     const paths=copy.matches?.('path')?[copy]:[...copy.querySelectorAll('path')];
-     for(const path of paths){
-       if(path.getAttribute('fill')!=='none')path.setAttribute('fill',color);
-       path.setAttribute('stroke',path.getAttribute('stroke')==='none'?'none':color);
-     }
-     const pad=2;
-     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(box.width+2*pad)}" height="${Math.ceil(box.height+2*pad)}" viewBox="${box.x-pad} ${box.y-pad} ${box.width+pad*2} ${box.height+pad*2}">${new XMLSerializer().serializeToString(copy)}</svg>`;
+   // Keep frequently changing velocity/blur/camera variants bounded; dispose
+   // only after render so the previous/current frame never references a dead texture.
+   async effectTile(cache,key,xml,pad){
+     let entry=cache.get(key);
+     if(entry){entry.usedFrame=this.frameNumber;return entry;}
      const image=await svgImage(xml);
-     this.ownedSources.add(image);
-     palette.set(color,image);return image;
+     entry={image,pad,usedFrame:this.frameNumber,bytes:Math.max(1,image.naturalWidth||image.width||1)*Math.max(1,image.naturalHeight||image.height||1)*4,cache,key};
+     this.ownedSources.add(image);cache.set(key,entry);this.effectCache.set(entry,entry);this.effectBytes+=entry.bytes;
+     return entry;
+   }
+   pruneEffects(){
+     if(this.effectBytes<=MAX_EFFECT_BYTES&&this.effectCache.size<=MAX_EFFECT_ENTRIES)return;
+     const candidates=[...this.effectCache.values()].filter(e=>e.usedFrame!==this.frameNumber).sort((a,b)=>a.usedFrame-b.usedFrame);
+     for(const entry of candidates){
+       if(this.effectBytes<=MAX_EFFECT_BYTES&&this.effectCache.size<=MAX_EFFECT_ENTRIES)break;
+       entry.cache.delete(entry.key);this.effectCache.delete(entry);this.effectBytes-=entry.bytes;
+       if(entry.cache===this.headMasks){this.headStats.evictions++;this.headMaskBytes-=entry.bytes;}
+       this.disposeRaster(entry.image);
+     }
+   }
+   // Only compute normalized geometry once per DOM head + stable notation
+   // style. Position, scale, blur, opacity and color are NOT geometry keys.
+   headGeometry(head,rect,sx,sy,styleKey){
+     let modes=this.headCache.get(head);if(!modes){modes=new Map();this.headCache.set(head,modes);}
+     const cached=modes.get(styleKey);if(cached)return cached;
+     const selector='path,ellipse,circle,use,rect,polygon,polyline,line';
+     const glyphs=head.matches(selector)?[head]:[...head.querySelectorAll(selector)];
+     if(!glyphs.length)return null;
+     const width=HEAD_WIDTH,height=Math.max(1,headRound(HEAD_WIDTH*rect.height/rect.width));
+     const kx=width/rect.width,ky=height/rect.height,raw=rect.raw;
+     const serializer=new XMLSerializer(),parts=[];
+     const paint=['fill','fill-opacity','fill-rule','stroke','stroke-opacity','stroke-width','stroke-linecap','stroke-linejoin','stroke-miterlimit','stroke-dasharray','stroke-dashoffset','paint-order','vector-effect'];
+     for(const glyph of glyphs){
+       const matrix=glyph.getScreenCTM?.(),style=getComputedStyle(glyph);
+       if(!matrix||style.display==='none'||style.visibility==='hidden')continue;
+       const clone=glyph.cloneNode(true);
+       clone.removeAttribute('transform');clone.removeAttribute('style');clone.removeAttribute('class');clone.removeAttribute('id');
+       for(const attr of paint){let value=style.getPropertyValue(attr);if(!value)continue;
+         if(attr==='fill'||attr==='stroke')value=value==='none'?'none':'#ffffff';
+         clone.setAttribute(attr,value);
+       }
+       let opacity=1;
+       for(let node=glyph;node&&node!==head;node=node.parentElement){const v=Number(getComputedStyle(node).opacity);if(Number.isFinite(v))opacity*=v;}
+       clone.setAttribute('opacity',String(opacity));
+       let ox=0,oy=0;
+       if(glyph.localName==='path'){
+         const normalized=normalizePath(glyph.getAttribute('d'));
+         if(normalized){clone.setAttribute('d',normalized.d);ox=normalized.x;oy=normalized.y;}
+       }else if(glyph.localName==='ellipse'||glyph.localName==='circle'||glyph.localName==='rect'){
+         const [ax,ay]=glyph.localName==='rect'?['x','y']:['cx','cy'];
+         ox=Number(glyph.getAttribute(ax)||0);oy=Number(glyph.getAttribute(ay)||0);
+         if(Number.isFinite(ox)&&Number.isFinite(oy)){clone.setAttribute(ax,'0');clone.setAttribute(ay,'0');}else{ox=0;oy=0;}
+       }
+       const m=[matrix.a*sx*kx,matrix.b*sy*ky,matrix.c*sx*kx,matrix.d*sy*ky,
+         (matrix.e+matrix.a*ox+matrix.c*oy-raw.left)*sx*kx,(matrix.f+matrix.b*ox+matrix.d*oy-raw.top)*sy*ky].map(headRound);
+       parts.push(`<g transform="matrix(${m.join(' ')})">${serializer.serializeToString(clone)}</g>`);
+     }
+     if(!parts.length)return null;
+     const defs=glyphs.some(g=>g.localName==='use')?[...head.ownerSVGElement.querySelectorAll('defs')].map(el=>serializer.serializeToString(el)).join(''):'';
+     const content=parts.join('');
+     const geometry={width,height,content,defs,key:[width,height,defs,content].join('|')};
+     // Maximum three active modes per DOM head (glowing/minimal/moving),
+     // and a small bound if a caller changes notation styles repeatedly.
+     if(modes.size>=6)modes.delete(modes.keys().next().value);
+     modes.set(styleKey,geometry);this.headStats.geometryBuilds++;return geometry;
+   }
+   async getHead(head,color,blur,rect,sx,sy,styleKey='',style=null){
+     if(!(rect.width>0&&rect.height>0))return null;
+     this.headStats.requests++;
+     const geometry=this.headGeometry(head,rect,sx,sy,styleKey);
+     if(!geometry)return null;
+     const {width,height,content,defs}=geometry;
+     // Quantize only the blur in normalized mask pixels (typically a fraction
+     // of an output pixel). Never include live color, scale or translation.
+     const radius=headBlur(blur*width/rect.width),pad=Math.ceil(radius*3+3);
+     const key=geometry.key+'|'+radius;
+     let tile=this.headMasks.get(key);
+     if(tile){tile.usedFrame=this.frameNumber;this.headStats.hits++;}
+     else{
+       const filter=radius?`<defs><filter id="scoremotion-head-halo" x="${-pad}" y="${-pad}" width="${width+2*pad}" height="${height+2*pad}" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceAlpha" stdDeviation="${radius}" result="soft"/><feFlood flood-color="#ffffff" result="white"/><feComposite in="white" in2="soft" operator="in" result="halo"/><feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`:'';
+       // SourceAlpha is black; flood white before combining with the white
+       // silhouette. The sprite tint applies the actual live note color.
+
+       const xml=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${Math.ceil(width+2*pad)}" height="${Math.ceil(height+2*pad)}" viewBox="${-pad} ${-pad} ${width+2*pad} ${height+2*pad}" preserveAspectRatio="none">${defs}${filter}<g ${radius?'filter="url(#scoremotion-head-halo)"':''}>${content}</g></svg>`;
+       tile=await this.effectTile(this.headMasks,key,xml,pad);tile.width=width;tile.height=height;this.headStats.decodes++;this.headMaskBytes+=tile.bytes;
+     }
+     const opacity=Number((style||getComputedStyle(head)).opacity);
+     return {tile,image:tile.image,pad:tile.pad,width,height,color,alpha:Number.isFinite(opacity)?Math.min(1,Math.max(0,opacity)):1};
+   }
+   // Several simultaneous notes may use one mask. Use one texture plus a
+   // separate reusable Sprite for every occurrence, not ensureSprite(image).
+   placeHead(result,rect,group){
+     const {image,color,alpha}=result;
+     let pool=this.headPools.get(image);
+     if(!pool){pool={texture:this.PIXI.Texture.from(image),sprites:[],used:0,frame:-1};this.headPools.set(image,pool);}
+     if(pool.frame!==this.frameNumber){pool.frame=this.frameNumber;pool.used=0;}
+     let sprite=pool.sprites[pool.used];if(!sprite){sprite=new this.PIXI.Sprite(pool.texture);pool.sprites.push(sprite);}pool.used++;
+     const box=headBox(rect,result);
+     sprite.x=box.x;sprite.y=box.y;sprite.width=box.width;sprite.height=box.height;
+     sprite.tint=this.tint(color);sprite.alpha=alpha;sprite.blendMode='normal';group.addChild(sprite);this.placed.push(sprite);
+   }
+   destroyHeadPool(pool){
+     for(const sprite of pool.sprites)if(!sprite.destroyed)sprite.destroy();
+     this.clearHeadTints(pool.texture,0);pool.texture.destroy(true);
+   }
+   clearHeadTints(texture,limit){
+     // Pixi 8.23 Canvas renderer caches tint canvases by RGB on Texture.
+     // GPU uses native sprite tint, so this is a no-op there. Keep exact
+     // colors for the current frame, bound retained canvases AFTER rendering.
+     const cache=texture.tintCache;if(!cache)return;
+     const keys=Object.keys(cache);
+     for(let i=0;i<keys.length-limit;i++){
+       const item=cache[keys[i]];delete cache[keys[i]];
+       if(typeof HTMLCanvasElement!=='undefined'&&item instanceof HTMLCanvasElement){item.width=0;item.height=0;}
+       this.headStats.tintEvictions++;
+     }
+   }
+   pruneHeadTints(){
+     if(this.app.renderer.gl)return;
+     // Bound the total retained canvas tint pixels as well as per-texture
+     // color count; no tint allocations persist unbounded across a song.
+     let remaining=8*1024*1024;
+     for(const [image,pool] of this.headPools){
+       const bytes=Math.max(1,image.naturalWidth||image.width||1)*Math.max(1,image.naturalHeight||image.height||1)*4;
+       const limit=Math.min(HEAD_TINT_LIMIT,Math.floor(remaining/bytes));
+       this.clearHeadTints(pool.texture,limit);
+       remaining-=Object.keys(pool.texture.tintCache||{}).length*bytes;
+     }
+   }
+   // CSS atmosphere lives between the photo (z=0) and keyboard (z=3).
+   // Use two reusable GPU-tinted radial sprites rather than a full-frame
+   // Canvas2D copy or a new full-resolution texture on every animation frame.
+   async getAtmosphereTiles(){
+     if(!this.atmosphereTiles){
+       const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><defs><radialGradient id="atmosphere" cx="50%" cy="50%" r="50%"><stop stop-color="#ffffff" stop-opacity="1"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient></defs><rect width="256" height="256" fill="url(#atmosphere)"/></svg>`;
+       // Two different Image objects: place() reuses one Sprite per source.
+       this.atmosphereTiles=Promise.all([svgImage(xml),svgImage(xml)]);
+       this.atmosphereTiles.then(images=>{for(const image of images)this.ownedSources.add(image);});
+     }
+     return this.atmosphereTiles;
+   }
+   async placeAtmosphere(stage,time,width,height){
+     const element=stage.layer?.atmosphere||stage.viewport.querySelector('.studio-atmosphere');
+     if(!element||stage.settings.scene.minimalMode)return;
+     const style=getComputedStyle(element);
+     if(style.display==='none'||style.visibility==='hidden'||style.backgroundImage==='none')return;
+     const opacity=Math.max(0,Math.min(1,Number(style.opacity)||0));
+     if(opacity<=0)return;
+     const scene=stage.settings.scene;
+     const color=scene.animateBackground?root.ScoreStudio.frame(scene,time).glow:stage.follower.colors().glow;
+     const tiles=await this.getAtmosphereTiles();
+     const positions=[...String(style.backgroundImage).matchAll(/at\s+([\d.]+)%\s+([\d.]+)%/g)];
+     const centers=[[25+Math.sin(time*.09)*17,18,.207843],[85,87,.133333]];
+     positions.slice(0,2).forEach((m,i)=>{centers[i][0]=Number(m[1]);centers[i][1]=Number(m[2]);});
+     centers.forEach(([x,y,alpha],i)=>{
+       const cx=width*x/100,cy=height*y/100;
+       // Approximate CSS elliptical farthest-corner gradient at its 58/60% stop.
+       const stop=i===0?.58:.60;
+       const rx=Math.max(cx,width-cx)*Math.SQRT2*stop;
+       const ry=Math.max(cy,height-cy)*Math.SQRT2*stop;
+       this.place(tiles[i],{x:cx-rx,y:cy-ry,width:2*rx,height:2*ry},this.root,opacity*alpha);
+       const sprite=this.spriteCache.get(tiles[i]);
+       sprite.tint=this.tint(color);
+       // Canvas fallback has a known screen-state leak in this Pixi release.
+       // For an opaque solid background, screen is exactly a normal alpha
+       // blend towards screen(background, glow). No blend-state mutation.
+       if(!this.photo){
+         const bg=this.tint(stage.follower?.bgLayer?.style.backgroundColor||stage.settings.effects.paper);
+         const channel=shift=>255-Math.round((255-((bg>>shift)&255))*(255-((sprite.tint>>shift)&255))/255);
+         sprite.tint=(channel(16)<<16)|(channel(8)<<8)|channel(0);
+       }else if(this.app.renderer.gl)sprite.blendMode='screen';
+       // With a photo and Canvas fallback, use a normal low-opacity gradient.
+
+     });
+   }
+   // CSS cursor is a rounded, glowing rectangle with 72% element opacity.
+   // Render it as an SVG filter sprite, preserving the computed blur in video pixels.
+   async getCursor(color,width,height,blurPx,radiusPx){
+     const w=Math.max(1,Math.ceil(width)),h=Math.max(1,Math.ceil(height));
+     const blur=Math.max(0,Math.min(64,Math.round(blurPx)));
+     const r=Math.max(0,Math.round(radiusPx));
+     const key=[color,w,h,blur,r].join('|');
+
+     const pad=blur?Math.ceil(blur*2+2):1;
+     const shadow=blur?`<rect x="${pad}" y="${pad}" width="${w}" height="${h}" rx="${r}" fill="${esc(color)}" filter="url(#cursor-soft)"/>`:'';
+     const defs=blur?`<defs><filter id="cursor-soft" x="-500%" y="-500%" width="1100%" height="1100%"><feGaussianBlur stdDeviation="${(blur*.5).toFixed(2)}"/></filter></defs>`:'';
+     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${w+2*pad}" height="${h+2*pad}" viewBox="0 0 ${w+2*pad} ${h+2*pad}">${defs}${shadow}<rect x="${pad}" y="${pad}" width="${w}" height="${h}" rx="${r}" fill="${esc(color)}"/></svg>`;
+     return this.effectTile(this.cursorCache,key,xml,pad);
    }
    async getTitle(text,style,width,height){
-     const key=[text,style.color,style.fontSize,style.fontFamily,style.fontWeight,Math.ceil(width),Math.ceil(height)].join('|');
-     if(this.titleCache.has(key))return this.titleCache.get(key);
+     const key=[text,style.color,style.fontSize,style.fontFamily,style.fontWeight,
+       style.letterSpacing,style.textShadow,Math.ceil(width),Math.ceil(height)].join('|');
+
      const w=Math.max(1,Math.ceil(width)),h=Math.max(1,Math.ceil(height));
      const fontSize=Math.max(1,parseFloat(style.fontSize)||18);
-     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><text x="${w/2}" y="${Math.min(h,Math.ceil(fontSize*1.12))}" text-anchor="middle" fill="${esc(style.color)}" font-size="${fontSize}" font-weight="${esc(style.fontWeight)}" font-family="${esc(style.fontFamily)}">${esc(text)}</text></svg>`;
-     const image=await svgImage(xml);this.ownedSources.add(image);this.titleCache.set(key,image);
-     return image;
+     // Text shadow is inherited by .studio-title/.studio-artist/.studio-credit.
+     // The previous SVG replacement dropped it and clipped any outward glow.
+     const numbers=String(style.textShadow||'').match(/(-?[\d.]+)px\s+(-?[\d.]+)px\s+([\d.]+)px/);
+     const dx=numbers?Number(numbers[1]):0,dy=numbers?Number(numbers[2]):0,
+       blur=numbers?Number(numbers[3]):0;
+     const pad=blur?Math.ceil(blur*3+Math.max(Math.abs(dx),Math.abs(dy))+2):1;
+     const rawColor=String(style.textShadow||'').match(/rgba?\([^)]*\)|#[0-9a-f]{3,8}/i)?.[0]||'#000000';
+     const colorParts=rawColor.match(/^rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)(?:[, /]+\s*([\d.]+))?/i);
+     const shadowColor=colorParts?`rgb(${colorParts[1]},${colorParts[2]},${colorParts[3]})`:rawColor;
+     const shadowAlpha=colorParts&&colorParts[4]?Math.max(0,Math.min(1,Number(colorParts[4]))):1;
+     const defs=blur?`<defs><filter id="title-shadow" x="-200%" y="-200%" width="500%" height="500%"><feDropShadow dx="${dx}" dy="${dy}" stdDeviation="${(blur/2).toFixed(2)}" flood-color="${esc(shadowColor)}" flood-opacity="${shadowAlpha}"/></filter></defs>`:'';
+     const x=w/2+pad,y=Math.min(h,Math.ceil(fontSize*1.12))+pad;
+     const xml=`<svg xmlns="http://www.w3.org/2000/svg" width="${w+2*pad}" height="${h+2*pad}" viewBox="0 0 ${w+2*pad} ${h+2*pad}">${defs}<text x="${x}" y="${y}" text-anchor="middle" fill="${esc(style.color)}" font-size="${fontSize}" font-weight="${esc(style.fontWeight)}" font-family="${esc(style.fontFamily)}" letter-spacing="${esc(style.letterSpacing||'normal')}" ${blur?'filter="url(#title-shadow)"':''}>${esc(text)}</text></svg>`;
+     return this.effectTile(this.titleCache,key,xml,pad);
    }
    async compose(time){
      const stage=this.stage,settings=stage.settings,w=settings.width,h=settings.height;
@@ -282,10 +503,11 @@
        this.place(photo,{x:(w-dw)*settings.effects.backgroundPositionX/100,
          y:(h-dh)*settings.effects.backgroundPositionY/100,width:dw,height:dh},this.root,settings.effects.backgroundOpacity);
      }
+     await this.placeAtmosphere(stage,time,w,h);
      metrics.backgroundMs=performance.now()-t0;
      const pianoStart=performance.now();
      const visibleCanvas=kind=>[...stage.viewport.querySelectorAll('canvas')].filter(canvas=>
-       canvas.width&&canvas.height&&getComputedStyle(canvas).display!=='none'&&kind(canvas));
+       canvas.width&&canvas.height&&getComputedStyle(canvas).display!=='none'&&getComputedStyle(canvas).visibility!=='hidden'&&kind(canvas));
      const addCanvas=(canvas,group=this.root)=>this.place(canvas,this.rectOf(canvas,base,sx,sy),group);
      const piano=visibleCanvas(c=>/piano-fall-canvas|piano-three-canvas|piano-dynamic-canvas|score-pixi-piano/.test(c.className));
      piano.sort((a,b)=>(parseInt(getComputedStyle(a).zIndex)||0)-(parseInt(getComputedStyle(b).zIndex)||0));
@@ -395,8 +617,6 @@
          }
          this.scoreGroup.addChild(this.drawOverlayGroup,this.drawMask);
        }
-       const scoreEffects=visibleCanvas(c=>c.classList.contains('score-pixi-score'));
-       for(const canvas of scoreEffects)addCanvas(canvas,this.scoreGroup);
        // True SVG notehead silhouettes, not bounding-box glow. These cached
        // glyph images replace the obsolete Canvas2D score-glow overlay.
        const seen=new Set();
@@ -410,21 +630,59 @@
          const color=minimal?(style.getPropertyValue('--score-minimal-color').trim()||stage.follower.colors().accent):
            glowing?(style.getPropertyValue('--score-note-active').trim()||stage.follower.colors().glow):
              stage.follower.colors().ink;
-         const image=await this.getHead(head,color);
-         if(!image)continue;
-         this.place(image,this.rectOf(head,base,sx,sy),this.scoreGroup);
+         const rect=this.rectOf(head,base,sx,sy);
+         const blur=glowing?(parseFloat(style.getPropertyValue('--score-glow-blur'))||3)*w/Math.max(1,stage.viewport.clientWidth):0;
+         // Avoid building raster variants for notes outside the clipped region.
+         const pad=Math.ceil(quantizeBlur(blur)*3+2);
+         if(rect.x+rect.width+pad<region.x||rect.x-pad>region.x+region.width||rect.y+rect.height+pad<region.y||rect.y-pad>region.y+region.height)continue;
+         const headTile=await this.getHead(head,color,blur,rect,sx,sy,[settings.scene.notationStyle,glowing,minimal,moving&&!glowing&&!minimal].join('|'),style);
+         if(headTile)this.placeHead(headTile,rect,this.scoreGroup);
        }
+       // The cursor is in #osmdContainer (score-scroll z=1), so its CSS
+       // box-shadow is below the score Pixi canvas (z=2), not above it.
        const cursor=stage.follower?.playbackCursor;
-       this.cursor.clear();
-       if(cursor&&!cursor.hidden){const box=this.rectOf(cursor,base,sx,sy);
-         this.cursor.rect(box.x,box.y,Math.max(1,box.width),box.height)
-           .fill({color:this.tint(settings.effects.cursor),alpha:.8});
-         this.scoreGroup.addChild(this.cursor);
+       if(cursor&&!cursor.hidden&&getComputedStyle(cursor).display!=='none'){
+         const box=this.rectOf(cursor,base,sx,sy),style=getComputedStyle(cursor);
+         const scale=w/Math.max(1,stage.viewport.clientWidth);
+         const glow=settings.effects.minimalMode?0:(parseFloat(style.getPropertyValue('--playback-cursor-glow'))||7)*scale;
+         const radius=(parseFloat(style.borderTopLeftRadius)||3)*scale;
+         const tile=await this.getCursor(style.backgroundColor||settings.effects.cursor,
+           box.width,box.height,glow,radius);
+         this.place(tile.image,paddedBox(box,tile.pad),
+           this.scoreGroup,Number.isFinite(Number(style.opacity))?Number(style.opacity):.72);
+       }
+       // Pixi score bloom sits above OSMD engraving and its playback cursor.
+       // IMPORTANT: this is an independently rendered WebGL canvas. Importing
+       // it directly as a Pixi Texture can lose its low-alpha, wide elliptical
+       // halo in the second WebGL context (or retain stale GPU pixels).
+       // Mirror its *actual* premultiplied output through a persistent 2D
+       // canvas first, exactly as we already do for the dynamic piano GPU.
+       // No halo is synthesized: the same preview bloom is transferred.
+       const scoreEffects=visibleCanvas(c=>c.classList.contains('score-pixi-score'));
+       for(const canvas of scoreEffects){
+         const mirrored=this.mirrorCanvas(canvas);
+         this.place(mirrored,this.rectOf(canvas,base,sx,sy),this.scoreGroup);
+       }
+       if(this.frameNumber===1){
+         metrics.scoreGlowTransferInfo={
+           canvases:scoreEffects.length,
+           mode:'live-score-pixi-canvas-to-persistent-2d-mirror',
+           rendererType:stage.scoreGpu?.app?.renderer?.type??null,
+           // Pixi 8: WebGL=1, WebGPU=2, Canvas=4. Custom note shaders
+           // in score-pixi-fx.js currently require WebGL.
+           canvasSizes:scoreEffects.map(canvas=>[canvas.width,canvas.height]),
+           layerBoxes:scoreEffects.map(canvas=>{
+             const b=this.rectOf(canvas,base,sx,sy);
+             return [b.x,b.y,b.width,b.height].map(n=>Math.round(n*100)/100);
+           })
+         };
        }
        this.root.addChild(this.scoreGroup,this.scoreMask);
      }
      metrics.scoreMs=performance.now()-scoreStart;
      const effectsStart=performance.now();
+     // The preview's scene canvas is above the score (z=8), below titles.
+     for(const canvas of visibleCanvas(c=>c.classList.contains('studio-fx-canvas')))addCanvas(canvas,this.root);
      const box=stage.viewport.querySelector('.studio-titles');
      if(box&&!box.hidden){const boxStyle=getComputedStyle(box);
        if(boxStyle.display!=='none'&&boxStyle.visibility!=='hidden')for(const title of box.children){
@@ -432,8 +690,8 @@
          const style=getComputedStyle(title),alpha=(Number(boxStyle.opacity)||0)*(Number(style.opacity)||0);
          if(alpha<=0||style.visibility==='hidden'||style.display==='none')continue;
          const rect=this.rectOf(title,base,sx,sy);
-         const image=await this.getTitle(title.textContent,style,rect.width,rect.height);
-         this.place(image,rect,this.root,alpha);
+         const tile=await this.getTitle(title.textContent,style,rect.width,rect.height);
+         this.place(tile.image,{x:rect.x-tile.pad,y:rect.y-tile.pad,width:Math.ceil(rect.width)+2*tile.pad,height:Math.ceil(rect.height)+2*tile.pad},this.root,alpha);
        }
      }
      this.app.render();
@@ -469,7 +727,11 @@
      }
      for(const image of this.retiredImages)this.disposeRaster(image);
      this.retiredImages.length=0;
-     this.pruneTiles();
+     this.pruneTiles();this.pruneEffects();this.pruneHeadTints();
+     metrics.headMaskStats={...this.headStats,entries:this.headMasks.size,pools:this.headPools.size,frame:this.frameNumber,maskBytes:this.headMaskBytes};
+     root.__scoreMotionHeadMaskStats=metrics.headMaskStats;
+     metrics.composerRendererType=this.app.renderer.type;metrics.composerWebGL=Boolean(this.app.renderer.gl);
+     metrics.effectCacheBytes=this.effectBytes;metrics.effectCacheEntries=this.effectCache.size;
      metrics.tileCacheHits=this.cacheHits;
      metrics.tileCacheBytes=this.tileBytes;
      metrics.svgCacheBytes=this.smallSvgBytes;
@@ -509,6 +771,8 @@
            ?{texture:true,textureSource:true}:undefined);
        }
        this.spriteCache.clear();
+       for(const pool of this.headPools.values())this.destroyHeadPool(pool);
+       this.headPools.clear();this.headMasks.clear();this.headMaskBytes=0;
        for(const source of this.ownedSources){
          source.close?.();
          // Reset only private mirror canvases, not live stage canvases.
@@ -517,7 +781,7 @@
          }
        }
        this.ownedSources.clear();
-       this.titleCache.clear();
+       this.titleCache.clear();this.cursorCache.clear();this.effectCache.clear();this.effectBytes=0;this.atmosphereTiles=null;
        this.headCache=new WeakMap();this.svgCache=new WeakMap();this.canvasMirrors=new WeakMap();
        this.photo=null;this.photoKey='';this.placed.length=0;
        // Pixi v8: request explicit destruction of the *export-only* WebGL
@@ -540,5 +804,5 @@
  async function createSimpleComposer(width=1280,height=720){return GPUComposer.create(null,width,height);}
 
  root.ScoreGpuComposer={createDiagnosticComposer,createSimpleComposer,
-   _test:{tileRange,TILE_PX,MAX_TILE_BYTES,pianoLayerBox,GPUComposer}};
+   _test:{tileRange,TILE_PX,MAX_TILE_BYTES,pianoLayerBox,GPUComposer,paddedBox,quantizeBlur,MAX_EFFECT_BYTES,MAX_EFFECT_ENTRIES,headBox,headBlur,normalizePath}};
 })(window);
