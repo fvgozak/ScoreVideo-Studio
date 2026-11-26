@@ -1,6 +1,7 @@
 # QA 기록
 
 - [미리보기와 MP4 출력 정합성](PREVIEW_EXPORT_PARITY_AUDIT.md)
+- [2026-11-27 MP4 합성기 점검](GPU_COMPOSER_PARITY_2026-11-27.md)
 - [건반 그림자 스프라이트 검증](PREVIEW_SHADOW_SPRITE_VALIDATION.md)
 - [디자인 점검](design-qa.md)
 
