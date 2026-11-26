@@ -1,8 +1,18 @@
 # 변경 기록
 
-이 문서는 [ScoreVideo-Studio 저장소](https://github.com/fvgozak/ScoreVideo-Studio)의 주요 기능·수정 커밋을 날짜순으로 정리합니다. 날짜는 Git 커밋 날짜입니다. 각 항목은 **그 시점에 반영된 변경**을 뜻하며, 현재 사용법과 제한은 [README](README.md) 및 [브라우저 전용 안내](docs/BROWSER_ONLY_CLOUDFLARE.md)를 기준으로 확인하세요.
+이 문서는 [ScoreVideo-Studio 저장소](https://github.com/fvgozak/ScoreVideo-Studio)의 기능·수정·문서 정리 커밋을 날짜순으로 정리합니다. 날짜는 Git 커밋 날짜입니다. 각 항목은 **그 시점에 반영된 변경**을 뜻하며, 현재 사용법과 제한은 [README](README.md) 및 [브라우저 전용 안내](docs/BROWSER_ONLY_CLOUDFLARE.md)를 기준으로 확인하세요.
 
 이전 버전 설명은 [기능 이력](docs/FEATURE_HISTORY.md)에, 별도로 전달된 초기 v1–v15 패치 작업 기록은 [패치 이력 요약](docs/PATCH_HISTORY_V1_V15.md)에 보관합니다. 패치 작업 기록은 이 저장소의 배포 이력과 동일하지 않습니다.
+
+## 기록 범위
+
+| 자료 | 확인 기준 | 읽는 방법 |
+| --- | --- | --- |
+| 이 변경 기록 | `main`에 반영된 Git 커밋 | 날짜와 커밋 링크로 실제 저장소 변경을 확인합니다. |
+| [이전 기능 이력](docs/FEATURE_HISTORY.md) | 과거 README의 v0.16–v0.19 설명 | 당시 기능과 설정을 확인합니다. 현재 동작은 README를 기준으로 합니다. |
+| [초기 패치 v1–v15](docs/PATCH_HISTORY_V1_V15.md) | 별도로 전달된 ScoreMotion 작업 메모 | 패치 순서와 당시 측정·미해결 문제를 확인합니다. Git 릴리스 번호로 해석하지 않습니다. |
+
+브라우저 전용 빌드는 기기·사이트별 IndexedDB에 프로젝트를 저장하고, `.scoremotion` 파일로 내보내거나 엽니다. `project.json`의 `schema_version`은 1입니다. 서버를 사용하는 로컬 실행과 지원 범위가 다르므로 배포 방식은 [README](README.md)를 확인하세요. 아래 검증 기록은 명시된 환경과 범위의 결과입니다.
 
 ## 2026-11-24 — 실시간 미리보기와 브라우저 MP4 오디오
 
@@ -14,6 +24,7 @@
 | 악보 표시 | 악보를 숨기면 남아 있던 악보 발광 캔버스·GPU 명령도 숨기거나 지웁니다. | [38cacda](https://github.com/fvgozak/ScoreVideo-Studio/commit/38cacda) |
 | 오선별 색상 | 사용자가 건반에 오선별 색상 연동을 켠 경우 Random 색상보다 이를 우선합니다. 미리보기와 출력에서 같은 모듈 버전을 사용합니다. | [544a806](https://github.com/fvgozak/ScoreVideo-Studio/commit/544a806) |
 | 로컬 MP4 음원 | 브라우저 프로젝트에 레거시 오디오 URL이 없어도 브라우저의 `/api/projects/:id/audio` 경로에서 음원을 읽습니다. | [544a806](https://github.com/fvgozak/ScoreVideo-Studio/commit/544a806) |
+| 문서 | 날짜별 변경 기록과 과거 v1–v15 패치 기록을 분리하고 문서 안내를 정리했습니다. | [2e4a2e4](https://github.com/fvgozak/ScoreVideo-Studio/commit/2e4a2e4) |
 
 검증 기록: 실시간 재생과 병렬 오디오 단위 검사, Chromium의 IndexedDB·음원 디코딩 검사, 짧은 MIDI의 실제 1920×1080 MP4 출력(42프레임·AAC 패킷 168개)을 확인했습니다. 긴 곡은 모의 인코딩까지 확인했으며 실제 전곡 출력 결과로 일반화하지 않습니다.
 
@@ -60,7 +71,9 @@
 
 ## 2026-11-13 — 악보·피아노 작업 흐름
 
-악보와 피아노를 함께 편집·출력하는 흐름을 완성하고 MP4 렌더링을 개선했습니다. [f7be3a7](https://github.com/fvgozak/ScoreVideo-Studio/commit/f7be3a7)
+| 영역 | 반영 내용 | 커밋 |
+| --- | --- | --- |
+| 편집·출력 | 악보와 피아노를 함께 편집·출력하는 흐름을 완성하고 MP4 렌더링을 개선했습니다. | [f7be3a7](https://github.com/fvgozak/ScoreVideo-Studio/commit/f7be3a7) |
 
 ## 2026-11-12 — 동기화된 낙하 음표와 건반
 
@@ -73,4 +86,6 @@
 
 ## 2026-11-10 — 발광 범위
 
-빛 효과 강도 범위를 400%까지 확장했습니다. [c5d7b02](https://github.com/fvgozak/ScoreVideo-Studio/commit/c5d7b02)
+| 영역 | 반영 내용 | 커밋 |
+| --- | --- | --- |
+| 빛 효과 | 강도 범위를 400%까지 확장했습니다. | [c5d7b02](https://github.com/fvgozak/ScoreVideo-Studio/commit/c5d7b02) |
