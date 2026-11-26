@@ -71,6 +71,7 @@ node tests/test_parallel_audio_pipeline.mjs
 ## 문서
 
 - [날짜별 변경 기록](CHANGELOG.md)
+- [멜로디 강조 연구 참고 자료와 구현 범위](docs/MELODY_RESEARCH_REFERENCES.md)
 - [문서 전체 안내·과거 패치 기록](docs/INDEX.md)
 - [브라우저 전용 Cloudflare Pages](docs/BROWSER_ONLY_CLOUDFLARE.md)
 

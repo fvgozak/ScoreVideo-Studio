@@ -18,6 +18,7 @@
 | [데이터 명세 v3.2 보충](PROJECT_SAVE_LOAD_V3_2_ADDENDUM.md) | 선택 음원·파일명·MusicXML DTD에 관한 추가 규칙 |
 | [렌더 엔진 감사 v20](RENDER_ENGINE_AUDIT_v20.md) | 렌더링 경로·정리 대상 검토 |
 | [오선 색상·이조 악기 v27](STAFF_COLOR_TRANSPOSITION_V27.md) | 악보 파트, 오선 색상, MIDI 연결 기록 |
+| [멜로디 강조 연구 참고 자료](MELODY_RESEARCH_REFERENCES.md) | V1·V2-A/B/C/D 설계에 참고한 논문과 현재 코드의 차이 |
 
 ## MP4 성능·진단 기록
 
