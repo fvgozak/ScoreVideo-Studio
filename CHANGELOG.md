@@ -14,6 +14,18 @@ ScoreMotion을 만들면서 바꾼 내용을 커밋 날짜순으로 남긴다. �
 
 브라우저 전용 버전의 프로젝트는 그 기기·사이트의 IndexedDB에 저장된다. `.scoremotion` 파일로 내보내거나 다시 열 수 있고, `project.json`의 `schema_version`은 1이다. 로컬 서버 버전과의 차이는 [README](README.md)에 적었다. 아래 측정값은 해당 곡과 환경에서 확인한 결과다.
 
+## 2026-11-27 — BIT 픽셀아트 모드
+
+악보와 건반이 있는 무대 전체를 픽셀아트로 볼 수 있게 상단에 BIT 스위치를 넣었다. 픽셀 크기를 바꿔 미리보고, 출력할 때도 같은 최종 화면 효과를 쓴다.
+
+| 영역 | 바꾼 내용 | 커밋 |
+| --- | --- | --- |
+| 미리보기·출력 | 무대 합성 결과에 픽셀 효과를 적용한다. 전환 중에는 픽셀 크기가 부드럽게 바뀌고, 출력에는 선택한 크기를 고정해서 쓴다. 편집 화면 자체에는 효과를 씌우지 않는다. | [0c5c3e8](https://github.com/fvgozak/ScoreVideo-Studio/commit/0c5c3e8) |
+| 프로젝트 저장 | BIT 켜짐 상태와 픽셀 크기를 `extensions.bit_mode`에 저장·복원한다. 기존 프로젝트는 기본값으로 열리며 `schema_version`은 1 그대로다. | [0c5c3e8](https://github.com/fvgozak/ScoreVideo-Studio/commit/0c5c3e8) |
+| 출력 중 정리 | 출력이 시작되면 BIT 미리보기를 멈추고, 출력 합성기를 닫을 때 사용한 리소스를 해제한다. 로컬 서버 MP4 경로에서 BIT를 켠 채 출력하려 하면 브라우저 MP4 경로를 안내한다. | [0c5c3e8](https://github.com/fvgozak/ScoreVideo-Studio/commit/0c5c3e8) |
+
+확인한 것: BIT 상태의 프로젝트 ZIP 왕복, JavaScript 구문, Cloudflare Pages 빌드가 통과했다. Chromium 브라우저 전용 모드에서 BIT 켜기·끄기, 픽셀 크기 변경, 출력 합성기 한 프레임(1920×1080, Canvas 경로)을 확인했다. 이번 확인에는 전곡 MP4 출력과 WebGL 경로의 시각 비교를 넣지 않았다.
+
 ## 2026-11-27 — 이미지 색상과 프로젝트별 팔레트
 
 이미지를 넣었는데 추천 색이 사진의 실제 색과 멀어지는 경우가 있었다. 사진에서 대표 색을 다시 고르고, 추천 디자인을 적용한 뒤 다른 프로젝트를 열어도 이전 색이 섞이지 않게 했다.
