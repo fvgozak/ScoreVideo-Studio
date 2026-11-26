@@ -17,6 +17,7 @@ for(const name of ['paper','dark','muted','vivid']){
 }
 assert(outputs.dark.white<outputs.muted.white,'dark should be dimmer than muted');
 assert(outputs.muted.white<outputs.paper.white,'paper should be brighter than muted');
-assert(outputs.paper.white<outputs.vivid.white,'vivid should be brightest');
+assert(outputs.vivid.white<outputs.paper.white,'V3.1 vivid should not overpower paper');
+assert(outputs.vivid.white>outputs.dark.white,'vivid should retain more light than midnight');
 assert(outputs.dark.reflection>outputs.muted.reflection);
 console.log('PASS: actual adaptive-lighting keyboard material changes with selected design',JSON.stringify(Object.fromEntries(Object.entries(outputs).map(([k,v])=>[k,{white:v.white,black:v.black,reflection:v.reflection}]))));

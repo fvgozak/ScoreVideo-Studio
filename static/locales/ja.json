@@ -1,6 +1,14 @@
 {
   "locale": "ja",
   "messages": {
+    "palette.backgroundAndColors": "背景とカラー",
+    "palette.videoBackground": "動画の背景画像",
+    "palette.designColors": "楽譜デザインの色",
+    "palette.designSourceHelp": "動画背景から色を抽出するか、別の参照画像やテーマを使用します。",
+    "palette.referenceTitle": "別の画像から色を抽出（任意）",
+    "palette.referenceHelp": "アルバムジャケットなどの参照画像から色だけを取得します。動画背景は変わりません。",
+    "palette.useReferenceAsBackground": "この参照画像を動画背景に使用",
+    "palette.referencePlaceholder": "▧ 色抽出用の画像を選択またはドラッグ＆ドロップ",
     "alignment.title": "楽譜 ↔ MIDI 同期 (beta)",
     "alignment.mode": "整列アルゴリズム",
     "alignment.auto": "自動選択（推奨）",

@@ -119,23 +119,28 @@
 <small id="melodyStatus" role="status" aria-live="polite"></small><p class="melody-hint" data-melody-i18n="hint"></p></div></section>
 
 <section class="panel image-palette-studio">
-  <div class="panel-title"><h2 data-i18n="palette.title">✦ 악보 색상 조합</h2></div>
-  <p class="palette-help" data-i18n="palette.themeHelp">테마를 바로 선택하거나 앨범 커버·사진에서 색상을 추출할 수 있어요. 영상 배경은 별도로 지정합니다.</p>
+  <div class="panel-title"><h2 data-i18n="palette.backgroundAndColors">배경 및 색상</h2></div>
+  <div class="palette-background-controls" style="border-top:0;margin-top:0;padding-top:0">
+    <strong data-i18n="palette.videoBackground">영상 배경 이미지</strong>
+    <div class="background-selection"><img id="backgroundPreview" alt="현재 영상 배경 미리보기" hidden=""/><small id="backgroundName">선택된 배경 이미지 없음</small></div>
+    <div class="background-actions"><label class="secondary-button" for="backgroundFile">배경 이미지 지정<input id="backgroundFile" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden=""/></label><button class="subtle-button" hidden="" id="removeBackground" type="button">배경 이미지만 제거</button></div>
+    <button type="button" class="secondary-button palette-set-background" id="paletteFromBackground" hidden="">현재 영상 배경에서 색상 추출</button>
+    <div id="backgroundStatus" class="palette-status" aria-live="polite"></div>
+  </div>
+  <div class="palette-subtitle"><strong data-i18n="palette.designColors">악보 디자인 색상</strong></div>
+  <p class="palette-help" data-i18n="palette.designSourceHelp">영상 배경에서 색상을 추출하거나 별도의 참조 이미지·테마를 사용하세요.</p>
+  <div class="field" id="paletteThemeControls"><label for="paletteTheme" data-i18n="palette.themeLabel">테마 · 배경 이미지 없이 색상 선택</label><select id="paletteTheme"><option value="space" data-i18n="palette.space">우주</option><option value="sea" data-i18n="palette.sea">바다</option><option value="forest" data-i18n="palette.forest">숲</option><option value="wood" data-i18n="palette.wood">나무</option></select></div>
+  <details class="compact-details" id="paletteReferenceDetails">
+    <summary data-i18n="palette.referenceTitle">다른 이미지에서 색상 추출 (선택)</summary>
+    <p class="palette-help" data-i18n="palette.referenceHelp">앨범 커버 등 색상만 참고할 이미지를 선택합니다. 영상 배경은 바뀌지 않습니다.</p>
   <label class="palette-image-upload" id="paletteDropZone" for="paletteImageFile">
     <img id="paletteArtworkPreview" alt="선택한 이미지 미리보기" hidden=""/>
     <span class="palette-upload-hint" id="paletteUploadHint">▧ 색상 추출용 이미지 선택 또는 드래그 앤 드롭<span>PNG · JPG · WebP · 최대 20MB</span></span>
     <input type="file" id="paletteImageFile" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden=""/>
   </label>
-  <button class="secondary-button palette-set-background" disabled="" id="paletteSetBackground" type="button">이 이미지를 영상 배경으로 지정</button>
-  <div class="palette-background-controls">
-    <strong>영상 배경 · 색상과 별도로 선택</strong>
-    <div class="background-selection"><img id="backgroundPreview" alt="현재 영상 배경 미리보기" hidden=""/><small id="backgroundName">선택된 배경 이미지 없음</small></div>
-    <div class="background-actions"><label class="secondary-button" for="backgroundFile">배경 이미지 지정<input id="backgroundFile" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden=""/></label><button class="subtle-button" hidden="" id="removeBackground" type="button">배경 이미지만 제거</button></div>
-    <button type="button" class="palette-existing" id="paletteFromBackground" hidden="">현재 영상 배경에서 색상 추출</button>
-    <div id="backgroundStatus" class="palette-status" aria-live="polite"></div>
-  </div>
-  <div id="paletteStatus" class="palette-status" aria-live="polite">색상 추출용 이미지는 영상 배경을 자동으로 바꾸지 않습니다.</div>
-  <div class="field" id="paletteThemeControls"><label for="paletteTheme" data-i18n="palette.themeLabel">테마 · 배경 이미지 없이 색상 선택</label><select id="paletteTheme"><option value="space" data-i18n="palette.space">우주</option><option value="sea" data-i18n="palette.sea">바다</option><option value="forest" data-i18n="palette.forest">숲</option><option value="wood" data-i18n="palette.wood">나무</option></select></div>
+  <button class="secondary-button palette-set-background" disabled="" id="paletteSetBackground" data-i18n="palette.useReferenceAsBackground" type="button">이 참조 이미지를 영상 배경으로 사용</button>
+  </details>
+  <div id="paletteStatus" class="palette-status" aria-live="polite"></div>
   <div id="paletteResults" hidden="">
     <div class="palette-subtitle"><span id="paletteColorsTitle" data-i18n="palette.themeColors">테마 대표 색상</span> <span>HEX</span></div>
     <div class="palette-chips" id="paletteChips"></div>
@@ -373,7 +378,7 @@
 </div>
 <script src="/static/score-alignment-v2.js?v=sync2"></script>
 <script src="/static/local-project-codec.js?v=sync2"></script>
-<script src="/static/local-projects.js?v=portable1&sampler=available28&lazyAudio1&salamanderFast1&livePreview1&sync2"></script>
+<script src="/static/local-projects.js?v=portable1&sampler=available28&lazyAudio1&salamanderFast1&livePreview1&sync2&colorDirectorV3"></script>
 <script src="/static/project-archive.js?v=portable1"></script>
 <script src="/static/project-io.js?v=portable1"></script>
 <script src="/static/vendor-loader.js?v=0.19.12"></script>
@@ -393,5 +398,5 @@
 <script src="/static/stage-runtime.js?v=scorehide1&melodyBeta1"></script>
 <script src="/static/transport.js?v=0.19.12"></script>
 <script src="/static/hex-colors.js?v=0.19.12"></script>
-<script src="/static/workspace-ui.js?v=3&melodyUiFix1"></script><script src="/static/fx-groups.js?v=scoreparticles1&melodyBoot1"></script><script src="/static/visual-editor.js?v=0.19.25"></script><script src="/static/gpu-composer.js?v=renderParityV2"></script><script src="/static/webm-recorder.js?v=minink2"></script><script src="/static/output-size.js?v=3"></script><script src="/static/offline-export.js?v=localaudio1&parallelAudio1"></script><script src="/static/staff-colors.js?v=staffrestore20261120&melodyBoot1"></script><script src="/static/palette-director.js?v=cdsafe2"></script><script src="/static/realtime-salamander.js?v=livePreview1"></script><script src="/static/app.js?v=previewrestore1&lazyAudio1&salamanderFast1&livePreview1&parallelAudio1&melodyBeta1&sync2"></script>
+<script src="/static/workspace-ui.js?v=3&melodyUiFix1"></script><script src="/static/fx-groups.js?v=scoreparticles1&melodyBoot1&colorDirectorV32"></script><script src="/static/visual-editor.js?v=0.19.25"></script><script src="/static/gpu-composer.js?v=renderParityV2"></script><script src="/static/webm-recorder.js?v=minink2"></script><script src="/static/output-size.js?v=3"></script><script src="/static/offline-export.js?v=localaudio1&parallelAudio1"></script><script src="/static/staff-colors.js?v=staffrestore20261120&melodyBoot1"></script><script src="/static/palette-director.js?v=cdsafe2&colorDirectorV3&colorDirectorV31"></script><script src="/static/realtime-salamander.js?v=livePreview1"></script><script src="/static/app.js?v=previewrestore1&lazyAudio1&salamanderFast1&livePreview1&parallelAudio1&melodyBeta1&sync2&colorDirectorV31&colorDirectorV32"></script>
 </body></html>

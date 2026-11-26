@@ -210,6 +210,83 @@
     set('keyboardColorLow',$('auroraLow').value);
     set('keyboardColorHigh',$('auroraHigh').value);
   };
+  // SCOREMOTION_PROJECT_PALETTE_V32: project-scoped snapshot, not the last-project key.
+  const validHex=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v);
+  const cleanHex=v=>validHex(v)?v.toUpperCase():null;
+  const mixHex=(a,b,t)=>'#'+[1,3,5].map(i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('').toUpperCase();
+  const sourceColors=items=>[...new Set((Array.isArray(items)?items.slice(0,16):[]).map(p=>cleanHex(typeof p==='string'?p:p?.hex)).filter(Boolean))].slice(0,5);
+  function buildPalette(c,source=[]){
+    const low=cleanHex(c?.aurora_low)||cleanHex(c?.glow),high=cleanHex(c?.aurora_high)||cleanHex(c?.accent);
+    if(!low||!high)return null;
+    const raw=sourceColors(source),director=window.ScorePaletteDirector;
+    // Keep design endpoints and their lightness range. Intermediate hues come
+    // from the actual extracted colors, not a hardcoded RGB theme.
+    const candidates=sourceColors([...raw,c?.glow,c?.accent]).filter(v=>v!==low&&v!==high);
+    const stops=[low];
+    if(director?.lab&&director?.hexFromLab&&candidates.length){
+      const a=director.lab(low),b=director.lab(high),dist=(x,y)=>Math.hypot(...x.map((v,i)=>v-y[i]));
+      const chosen=candidates.map(hex=>({hex,v:director.lab(hex)})).sort((x,y)=>dist(x.v,a)-dist(y.v,a));
+      for(let i=1;i<=2;i++){
+        const t=i/3,mid=a.map((v,j)=>v*(1-t)+b[j]*t),p=chosen[Math.round((chosen.length-1)*t)].v;
+        // Preserve the selected design's chroma envelope rather than forcing
+        // dark source colors into the glow or making Vivid excessively bright.
+        const maxC=Math.max(Math.hypot(a[1],a[2]),Math.hypot(b[1],b[2]));
+        let x=mid[1]*.4+p[1]*.6,y=mid[2]*.4+p[2]*.6;
+        const scale=Math.min(1,maxC/Math.max(1e-9,Math.hypot(x,y)));x*=scale;y*=scale;
+        stops.push(director.hexFromLab([mid[0],x,y]));
+      }
+    }else stops.push(mixHex(low,high,1/3),mixHex(low,high,2/3));
+    stops.push(high);return {stops,glow:cleanHex(c.glow)||high,source:raw};
+  }
+  function normalizePalette(p){
+    if(!p||!Array.isArray(p.stops)||p.stops.length!==4||!p.stops.every(validHex))return null;
+    return {stops:p.stops.map(cleanHex),glow:cleanHex(p.glow)||cleanHex(p.stops[3]),source:sourceColors(p.source)};
+  }
+  let paletteProjectId=null,projectPalettes={score:null,keyboard:null};
+  function setPaletteProject(id){
+    paletteProjectId=id||null;projectPalettes={score:null,keyboard:null};
+    if(!id)return;
+    // Only migrate the legacy key for the actual active project. Never read
+    // the old last-project pointer or the shared 'current' bucket.
+    try{const legacy=JSON.parse(localStorage.getItem(`scorevideo_fx_palette_${id}`)||'null');
+      if(legacy){const p=buildPalette(legacy);projectPalettes={score:p,keyboard:p};}
+    }catch(_){}
+  }
+  function restorePaletteSnapshot(snapshot,controls={}){
+    if(snapshot?.version===1){projectPalettes={score:normalizePalette(snapshot.score),keyboard:normalizePalette(snapshot.keyboard)};}
+    else {
+      // Old archives may have only saved endpoints. Preserve them rather than
+      // pulling unrelated colors from global localStorage.
+      if(!projectPalettes.score&&controls.scoreColorPreset==='project')projectPalettes.score=buildPalette({aurora_low:controls.auroraLow,aurora_high:controls.auroraHigh,glow:controls.glowColor});
+      if(!projectPalettes.keyboard&&controls.keyboardColorPreset==='project')projectPalettes.keyboard=buildPalette({aurora_low:controls.keyboardColorLow,aurora_high:controls.keyboardColorHigh});
+    }
+  }
+  function getPaletteSnapshot(){return {version:1,score:normalizePalette(projectPalettes.score),keyboard:normalizePalette(projectPalettes.keyboard)};}
+  function getProjectPalette(kind='score'){return projectPalettes[kind]||buildPalette({aurora_low:lightPalettes.aurora[0],aurora_high:lightPalettes.aurora[1]});}
+  function getLightStops(preset,kind='score'){
+    const stops=preset==='project'?getProjectPalette(kind).stops:harmonicStops[preset];
+    return Array.isArray(stops)?[...stops]:null;
+  }
+  function applyProjectEndpoints(kind){
+    const p=getProjectPalette(kind),pair=[p.stops[0],p.stops[3]];
+    set(kind==='score'?'auroraLow':'keyboardColorLow',pair[0]);
+    set(kind==='score'?'auroraHigh':'keyboardColorHigh',pair[1]);
+    if(kind==='score'){set('glowColor',p.glow);set('auroraPreset','custom');}
+  }
+  function updateProjectPalette(c){
+    if(!paletteProjectId||c.projectId!==paletteProjectId)return;
+    const p=buildPalette(c,c.sourcePalette);if(!p)return;
+    const linked=$('keyboardPaletteLink').checked||$('keyboardColorPreset').value==='linked';
+    // An excluded linked keyboard must not change through shared score stops.
+    if(c.scope?.glow&&(!linked||c.scope.keys)){
+      projectPalettes.score=p;
+      if($('scoreColorPreset').value==='project')applyProjectEndpoints('score');
+    }
+    if(c.scope?.keys){
+      projectPalettes.keyboard=p;
+      if(!linked&&$('keyboardColorPreset').value==='project')applyProjectEndpoints('keyboard');
+    }
+  }
   const syncPreview=(options={})=>{
     if(options.syncKeyboard!==false)syncLinkedKeyboard();
     for(const [kind,low,high] of [['score',$('auroraLow')?.value,$('auroraHigh')?.value],['keyboard',$('keyboardColorLow').value,$('keyboardColorHigh').value]]){
@@ -217,7 +294,7 @@
       const preset=$(kind+'ColorPreset').value;
       const linked=kind==='keyboard'&&(preset==='linked'||$('keyboardPaletteLink').checked);
       const chosen=linked?$('scoreColorPreset').value:preset;
-      const stops=chosen==='random'?randomSwatches:(harmonicStops[chosen]||[low||'#3ac7db',high||'#aa80e8']);
+      const stops=chosen==='random'?randomSwatches:(getLightStops(chosen,linked?'score':kind)||[linked?$('auroraLow').value:low||'#3ac7db',linked?$('auroraHigh').value:high||'#aa80e8']);
       preview.style.background=`linear-gradient(90deg,${stops.join(',')})`;
       // Tooltips are created dynamically, so translate them through semantic
       // messages instead of leaving Korean strings outside the locale packs.
@@ -226,7 +303,7 @@
       preview.title=chosen==='random'
         ?t('effects.paletteRandomTooltip','각 음표에 고정된 랜덤 색상 · 벨로시티는 밝기에 반영')
         :t('effects.paletteGradientTooltip',`약한 음 ${low} → ${stops.slice(1,-1).join(' → ')} → 강한 음 ${high}`,
-            {low,middle:stops.slice(1,-1).join(' → '),high});
+            {low:stops[0],middle:stops.slice(1,-1).join(' → '),high:stops[stops.length-1]});
     }
   };
   const onScoreInput=e=>{if(e.target.id==='scoreFxPreset'||e.target.id==='scoreColorPreset')return;
@@ -255,20 +332,19 @@
   };
   $('scoreFxPreset').addEventListener('change',applyScore);
   $('keyboardFxPreset').addEventListener('change',applyKeyboard);
-  const paletteKey=()=>`scorevideo_fx_palette_${localStorage.getItem('scorevideo_last_project')||'current'}`;
   for(const kind of ['score','keyboard'])$(kind+'ColorPreset').addEventListener('change',()=>{
     const value=$(kind+'ColorPreset').value;
-    let project=null;try{project=JSON.parse(localStorage.getItem(paletteKey())||'null')}catch(_){}
-    const pair=lightPalettes[value]||(value==='project'&&project?[project.aurora_low||project.glow,project.aurora_high||project.accent]:null);
-    if(pair){
+    const pair=lightPalettes[value];
+    if(value==='project')applyProjectEndpoints(kind);
+    else if(pair){
       set(kind==='score'?'auroraLow':'keyboardColorLow',pair[0]);
       set(kind==='score'?'auroraHigh':'keyboardColorHigh',pair[1]);
       if(kind==='score'){
-        set('glowColor',value==='project'&&project?.glow?project.glow:pair[1]);
+        set('glowColor',pair[1]);
         set('auroraPreset','custom');
       }
     }
-    if(kind==='score'){set('lightColorMode','aurora');if(harmonicStops[value])set('velocityScale','relative');}
+    if(kind==='score'){set('lightColorMode','aurora');if(harmonicStops[value]||value==='project')set('velocityScale','relative');}
     else set('keyboardPaletteLink',value==='linked');
     syncPreview();syncCustomColors();
   });
@@ -284,14 +360,12 @@
   document.addEventListener('score-palette-applied',event=>{const c=event.detail||{};
     // SCOREMOTION_COLOR_DIRECTOR_SAFE_V2: do not mutate any preset or keyboard
     // color here. The recommendation's checked scopes were applied in app.js.
-    // Keep legacy project palette data for the existing 'project' color preset
-    // only when the user has explicitly applied score/glow colors.
-    if(c.projectId&&c.scope?.glow===true)
-      localStorage.setItem(`scorevideo_fx_palette_${c.projectId}`,JSON.stringify(c));
+    // Snapshot each selected channel. All OFF / background-only is a no-op.
+    if(c.scope?.glow||c.scope?.keys)updateProjectPalette(c);
     syncPreview({syncKeyboard:c.scope?.keys===true});syncCustomColors();
   });
   // Recompute tooltip text when users switch ko/en/ja without reloading.
   document.addEventListener('scorevideo:languagechange',()=>syncPreview({syncKeyboard:false}));
   syncPreview();syncLightingUi();syncCustomColors();syncBoundaryUi();syncNoteBarUi();
-  window.ScoreFxGroups={syncPreview,syncLightingUi,syncCustomColors,syncBoundaryUi,syncNoteBarUi,applyScore,applyKeyboard,lightPalettes,harmonicStops};
+  window.ScoreFxGroups={syncPreview,syncLightingUi,syncCustomColors,syncBoundaryUi,syncNoteBarUi,applyScore,applyKeyboard,lightPalettes,harmonicStops,getLightStops,setPaletteProject,restorePaletteSnapshot,getPaletteSnapshot};
 })();

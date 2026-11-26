@@ -233,28 +233,14 @@ async function ensureAudio(id){
   try{return await job;}finally{if(audioJobs.get(id)===job)audioJobs.delete(id);}
 }
 function svgPalette(colors){
-  const main=colors.main,secondary=colors.secondary,shadow=colors.shadow;
-  const schemes=[
-    {id:'paper',name:'Gallery Paper',description:'가독성 높은 밝은 악보',paper:'#f9f8f2',background:'#eaeef0',ink:'#172129',staff:'#4a5055',accent:main,glow:secondary,panel:'#f9f8f2',panel_opacity:.68},
-    {id:'dark',name:'Midnight',description:'사진에 어울리는 어두운 악보',paper:'#111722',background:'#0c1020',ink:'#f5f6fc',staff:'#abb7c8',accent:secondary,glow:main,panel:'#141a23',panel_opacity:.83},
-    {id:'muted',name:'Soft Canvas',description:'절제된 색감과 따뜻한 질감',paper:'#f1e9de',background:'#d9dfdc',ink:'#263136',staff:'#59636a',accent:main,glow:secondary,panel:'#f1e9de',panel_opacity:.72},
-    {id:'vivid',name:'Vivid Contrast',description:'선명한 음표와 색채 대비',paper:'#1b1932',background:'#110f22',ink:'#fafaff',staff:'#c7bfd9',accent:secondary,glow:main,panel:'#211d35',panel_opacity:.83}
-  ];
-  return {palette:[{name:'기본',hex:main},{name:'강조',hex:secondary},{name:'그림자',hex:shadow}],primary:main,
-    schemes:schemes.map(s=>({id:s.id,name:s.name,description:s.description,panel_opacity:s.panel_opacity,
-      colors:{paper:s.paper,background:s.background,ink:s.ink,staff:s.staff,accent:s.accent,glow:s.glow,cursor:s.accent,
-        panel:s.panel,trail_upper:s.glow,trail_lower:s.accent,aurora_low:main,aurora_high:secondary}}))};
+  return root.ScorePaletteDirector.recommend([
+    {name:'기본',hex:colors.main,weight:.55},
+    {name:'강조',hex:colors.secondary,weight:.30},
+    {name:'그림자',hex:colors.shadow,weight:.15}
+  ]);
 }
 async function paletteFromFile(file){
-  const bitmap=await createImageBitmap(file),canvas=document.createElement('canvas');canvas.width=80;canvas.height=80;
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(bitmap,0,0,80,80);bitmap.close?.();
-  const rgba=ctx.getImageData(0,0,80,80).data,bins=new Map();
-  for(let i=0;i<rgba.length;i+=4){const [r,g,b,a]=rgba.slice(i,i+4);if(a<80||Math.max(r,g,b)<35||Math.min(r,g,b)>238)continue;
-    const bin=[r,g,b].map(c=>Math.min(255,Math.round(c/32)*32));const key=bin.join(',');bins.set(key,(bins.get(key)||0)+1);}
-  const palette=[...bins].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([value])=>'#'+value.split(',').map(c=>Number(c).toString(16).padStart(2,'0')).join(''));
-  const main=palette[0]||'#4754a8',secondary=palette[1]||'#48b6c7',shadow=palette[2]||'#1e274f';
-  const result=svgPalette({main,secondary,shadow});
-  result.palette=palette.map((hex,i)=>({name:`대표색 ${i+1}`,hex}));return result;
+  return root.ScorePaletteDirector.extract(file);
 }
 // ScoreMotion first-sound sync v3: stereo + adaptive onset
 // Adaptive stereo audio onset detection; MIDI timeline remains unchanged.

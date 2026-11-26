@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
+const root=path.resolve(process.argv[2]||'.'),h=require(path.join(root,'static/palette-director.js'));
+const fixtures=[['#E0E0C0','#E0C0C0','#202020','#C0C0C0','#402020'],['#173F53','#4497A7','#B1D7DA'],['#23482C','#78914C','#D0D8A0'],['#754654','#D08266','#F0C5A2'],['#000000','#FFFFFF'],['#FF0000'],['#00FF00'],['#0000FF']];
+for(const colors of fixtures){const result=h.recommend(colors.map(hex=>({hex})));const c=result.schemes.find(s=>s.id==='vivid').colors;for(const [role,max] of Object.entries({paper:.24,background:.155,ink:.97,staff:.74,accent:.74,glow:.78,aurora_high:.79,aurora_low:.57}))assert(h.lab(c[role])[0]<=max,role+' '+c[role]);for(const [role,min] of Object.entries({ink:7,staff:4.5,accent:3,glow:3}))assert(h.contrast(c[role],c.paper)>=min,role);console.log('PASS: vivid',colors[0],JSON.stringify(c));}
+const light=h.keyboardLighting('vivid');assert(light.baseBrightness<1.20&&light.whiteBrightness<1.15&&light.blackBrightness<1.10&&light.reflectionStrength<1.40);assert.equal(light.brightnessOffset,0);
+const html=fs.readFileSync(path.join(root,'static/index.html'),'utf8');
+for(const id of ['backgroundFile','paletteImageFile','paletteSetBackground','paletteFromBackground','removeBackground','paletteDropZone','paletteTheme','paletteResults','paletteApplyScope'])assert.equal([...html.matchAll(new RegExp(`id="${id}"`,'g'))].length,1,id);
+assert(html.indexOf('id="backgroundFile"')<html.indexOf('id="paletteReferenceDetails"'));
+const details=html.match(/<details[^>]*id="paletteReferenceDetails"[^>]*>[\s\S]*?<\/details>/)[0];assert(!/<details[^>]*\bopen\b/.test(details));assert(details.includes('id="paletteImageFile"')&&details.includes('id="paletteSetBackground"')&&!details.includes('id="backgroundFile"'));
+for(const lang of ['ko','en','ja']){const m=JSON.parse(fs.readFileSync(path.join(root,'static/locales',lang+'.json'),'utf8')).messages;for(const key of ['backgroundAndColors','videoBackground','designColors','designSourceHelp','referenceTitle','referenceHelp','useReferenceAsBackground','referencePlaceholder'])assert(m['palette.'+key]);}
+console.log('PASS: Vivid lightness/contrast, distinct upload paths, default collapsed, three locale packs');

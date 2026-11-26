@@ -19,8 +19,9 @@ const controls=new Map([...names].map(id=>[id,{value:'',checked:false}]));
 const $=id=>{if(!controls.has(id))controls.set(id,{value:'',checked:false});return controls.get(id);};
 for(const id of ['paperColor','inkColor','staffColor','accentColor','glowColor','cursorColor'])$(id).value='#777777';
 $('backgroundOpacity').value='.5';
+for(const id of ['paletteApplyScore','paletteApplyGlow','paletteApplyKeyboard','paletteApplyBackground'])$(id).checked=true;
 let applyCount=0,chips=[],eventDetail=null,lightingCount=0,boundaryCount=0;
-const window={ScoreFxGroups:{syncLightingUi(){lightingCount++;},syncBoundaryUi(){boundaryCount++;}},
+const window={ScoreFxGroups:{syncLightingUi(){lightingCount++;},syncBoundaryUi(){boundaryCount++;},syncCustomColors(){}},
   ScoreImagePaletteUI:{chips(items){chips=items;}}};
 const ctx={window,$,project:null,pendingBackgroundFile:null,
   queueApply(){applyCount++;},recommendMinimalColors(){},paletteMessage(){},
@@ -32,19 +33,19 @@ const colors={paper:'#f1f2f3',ink:'#101010',staff:'#343434',accent:'#a04b31',
   glow:'#f2a47b',cursor:'#e09040',background:'#201918',panel:'#f1f2f3',
   aurora_low:'#de8b63',aurora_high:'#f4cd85',trail_upper:'#ca713d',trail_lower:'#ffe3a3'};
 await ctx.applyPaletteScheme({name:'Warm Piano',colors,panel_opacity:.65},'#112233');
-assert.equal($('themeColor').value,colors.accent,'recommendation accent must be theme seed');
+assert.equal($('themeColor').value,'','theme selection stays independent of a recommendation');
 assert.equal($('sceneStartColor').value,colors.background);
 assert.equal($('sceneEndColor').value,colors.background);
 assert.equal($('keyboardColorLow').value,colors.aurora_low);
 assert.equal($('keyboardColorHigh').value,colors.aurora_high);
-assert.equal($('keyboardPaletteLink').checked,true);
-assert.equal($('keyboardTemperatureSync').checked,true,'no photo => enable temperature matching');
-assert.equal($('keyboardBoundaryColorMode').value,'palette');
-assert.equal($('scoreColorPreset').value,'project');
-assert.equal($('lightColorMode').value,'aurora');
-assert.ok(chips.some(c=>c.hex===colors.background)&&chips.some(c=>c.hex===colors.glow));
+assert.equal($('keyboardPaletteLink').checked,false);
+assert.equal($('keyboardTemperatureSync').checked,false,'keep manual temperature setting');
+assert.equal($('keyboardBoundaryColorMode').value,'','keep manual boundary setting');
+assert.equal($('scoreColorPreset').value,'','keep score preset');
+assert.equal($('lightColorMode').value,'','keep glow mode');
+assert.equal(chips.length,0,'recommendation does not replace source image chips');
 assert.equal(eventDetail.aurora_low,colors.aurora_low);
-assert.equal(applyCount,1);assert.equal(lightingCount,1);assert.equal(boundaryCount,1);
+assert.equal(applyCount,1);assert.equal(lightingCount,1);assert.equal(boundaryCount,0);
 ctx.project={id:'photo-project',background_filename:'background.png'};
 $('keyboardTemperatureSync').checked=false;
 $('keyboardBoundaryColorMode').value='custom';
@@ -64,11 +65,13 @@ all.set('uploadButton',{disabled:false});
 let resetCallback=null,paused=false,removedSrc=false,loaded=false,reloaded=false;
 const browserLocal=new Map([['scorevideo_last_project','A-project']]);
 const resetContext={
+  lastProjectKey:'scorevideo_last_project',
   window:{location:{reload(){reloaded=true;}}},
   document:{},
   localStorage:{removeItem(key){browserLocal.delete(key);}},
   $:id=>{if(id==='resetProjectFilesButton')return{addEventListener(_name,fn){resetCallback=fn;}};return all.get(id);},
   renderUiActive:false,offlineActive:false,webmRecorder:null,
+  liveSampler:null,pausePreview(){paused=true;},
   audio:{pause(){paused=true;},removeAttribute(key){if(key==='src')removedSrc=true;},load(){loaded=true;}},
   message(){},
 };
@@ -84,4 +87,4 @@ assert.equal(all.get('paletteImageFile').value,'');
 assert.ok(paused&&removedSrc&&loaded&&reloaded);
 // A completed import also clears selections before users begin the next song.
 assert.match(source,/await loadProject\(data\);[\s\S]{0,300}clearUploadInputs\(\)/);
-console.log('PASS v16 palette+temperature+lights, removed background pattern, A-song audio isolation and reset');
+console.log('PASS palette controls, manual settings, removed background pattern, A-song audio isolation and reset');

@@ -89,7 +89,7 @@
          review_state:old.timeline?.synchronization?.review_state||'valid',
          dependencies:old.timeline?.synchronization?.dependencies||{}},
        camera:{schema_version:1,camera_points:readCameraPoints()}},
-     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),melody_highlight:window.ScoreMelodyHighlight?.getState?.()}};
+     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),melody_highlight:window.ScoreMelodyHighlight?.getState?.(),palette_snapshot:window.ScoreFxGroups?.getPaletteSnapshot?.()}};
  }
  function validateProjectState(state){
    if(!state||state.schema_version!==1||!state.settings?.controls||!state.timeline?.synchronization)throw Error('프로젝트 상태가 유효하지 않습니다.');
@@ -130,6 +130,7 @@
        const node=$(id);if(!node)continue;
        if(node.type==='checkbox')node.checked=value;else node.value=value;
      }
+     window.ScoreFxGroups?.restorePaletteSnapshot?.(state.extensions?.palette_snapshot,state.settings.controls);
      useGpuRenderer();migrateOutputSize(state.settings.controls);
      $('downloadName').value=state.settings.export?.download_name||'';
      const sync=state.timeline.synchronization;
@@ -339,8 +340,8 @@
  $('cameraPointRemove').addEventListener('click',()=>{const removed=selectedCameraPoint;selectedCameraPoint='';writeCameraPoints(readCameraPoints().filter(p=>p.key!==removed));});
  $('cameraPointClear').addEventListener('click',()=>{selectedCameraPoint='';writeCameraPoints([]);});
  $('cameraMode').addEventListener('change',()=>{if($('cameraMode').value!=='points'){cameraPointPicking=false;renderCameraPointList();}});
- function selectedLightStops(preset){
-   const stops=window.ScoreFxGroups?.harmonicStops?.[preset];
+ function selectedLightStops(preset,kind='score'){
+   const stops=window.ScoreFxGroups?.getLightStops?.(preset,kind)||window.ScoreFxGroups?.harmonicStops?.[preset];
    return Array.isArray(stops)?[...stops]:null;
  }
  function sceneOptions(){return {
@@ -360,7 +361,7 @@
  };}
  function gpuEffects(){
    const keyboardLinked=$('keyboardPaletteLink').checked||$('keyboardColorPreset').value==='linked';
-   const keyboardStops=selectedLightStops(keyboardLinked?$('scoreColorPreset').value:$('keyboardColorPreset').value);
+   const keyboardStops=selectedLightStops(keyboardLinked?$('scoreColorPreset').value:$('keyboardColorPreset').value,keyboardLinked?'score':'keyboard');
    const result={preset:$('gpuPreset').value,pedalResonance:$('pedalResonance').checked,
      sustainAfterglow:$('sustainAfterglow').checked,
      groups:{overall:$('minimalMode').checked?'minimal':$('gpuPreset').value,
@@ -882,7 +883,7 @@
      if(!response.ok)throw Error(result.detail||'색상 추출 실패');
      if(serial!==paletteSerial)return;
      window.ScoreImagePaletteUI.chips(result.palette);
-     window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>void applyPaletteScheme(scheme,result.primary));
+     window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>{if(serial===paletteSerial)void applyPaletteScheme({...scheme,sourcePalette:result.palette},result.primary);});
      $('paletteColorsTitle').setAttribute('data-i18n','palette.imageColors');
      $('paletteColorsTitle').textContent=window.ScoreI18n?.t('palette.imageColors')||'추출된 대표 색상';
      $('paletteResults').hidden=false;
@@ -899,7 +900,7 @@
      const result=await response.json();
      if(serial!==paletteSerial)return;
      window.ScoreImagePaletteUI.chips(result.palette);
-     window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>void applyPaletteScheme(scheme,result.primary));
+     window.ScoreImagePaletteUI.schemes(result.schemes,scheme=>{if(serial===paletteSerial)void applyPaletteScheme({...scheme,sourcePalette:result.palette},result.primary);});
      $('paletteColorsTitle').setAttribute('data-i18n','palette.themeColors');
      $('paletteColorsTitle').textContent=window.ScoreI18n?.t('palette.themeColors')||'테마 대표 색상';
      $('paletteResults').hidden=false;
@@ -968,7 +969,7 @@
    // Only selected regions are passed to the FX listener; it may refresh its
    // preview but must not rewrite user-selectable presets or unselected keys.
    document.dispatchEvent(new CustomEvent('score-palette-applied',{
-     detail:{...c,projectId:project?.id,scope,design:scheme.id}}));
+     detail:{...c,projectId:project?.id,scope,design:scheme.id,sourcePalette:scheme.sourcePalette}}));
    window.ScoreFxGroups?.syncCustomColors();
    queueApply();
    const linkedNotice=scope.glow&&!scope.keys&&linked?' 연결된 건반의 색을 보존하기 위해 오로라 양끝 색은 유지했습니다.':'';
@@ -1092,7 +1093,7 @@
    ++backgroundSerial;pendingBackgroundFile=null;
    window.ScoreVisualEditor?.setEditing(false);
    $('scoreEditOverlay').hidden=true;
-   project=meta;window.ScoreStaffColors?.setProject(meta);window.ScoreMelodyHighlight?.setProject?.(meta.id);
+   project=meta;++paletteSerial;$('paletteResults').hidden=true;window.ScoreFxGroups?.setPaletteProject?.(meta.id);window.ScoreStaffColors?.setProject(meta);window.ScoreMelodyHighlight?.setProject?.(meta.id);
    if(meta.has_score!==false&&!meta.staff_groups?.length)await window.ScoreStaffColors?.recoverCatalog?.(meta);
    mp4MeasuredFps=0;experimentalOptIn=false;$('downloadName').value='';selectedCameraPoint='';cameraPointPicking=false;renderCameraPointList();refreshVideoPresets($('videoPresetSelect').value);pausePreview();if(liveSampler){await liveSampler.dispose();liveSampler=null;}
    for(const [id,value] of Object.entries(meta.effect_settings||{})){
@@ -1161,7 +1162,7 @@
      $('paletteUploadHint').textContent=paletteSourceFile.name||'Palette image';
      $('paletteSetBackground').disabled=false;
    }else{
-     $('paletteArtworkPreview').hidden=true;$('paletteUploadHint').textContent='';$('paletteSetBackground').disabled=true;
+     $('paletteArtworkPreview').hidden=true;$('paletteUploadHint').textContent=window.ScoreI18n?.t('palette.referencePlaceholder')||'▧ 색상 추출용 이미지 선택 또는 드래그 앤 드롭';$('paletteSetBackground').disabled=true;
    }
    for(const id of ['playButton','previousMeasureButton','nextMeasureButton','restartButton','seek','exportButton','autoSyncButton'])$(id).disabled=false;
    $('webmRecordButton').disabled=true;

@@ -1,6 +1,14 @@
 {
   "locale": "en",
   "messages": {
+    "palette.backgroundAndColors": "Background & colors",
+    "palette.videoBackground": "Video background image",
+    "palette.designColors": "Score design colors",
+    "palette.designSourceHelp": "Extract colors from the video background, or use a separate reference image or theme.",
+    "palette.referenceTitle": "Extract colors from another image (optional)",
+    "palette.referenceHelp": "Choose a reference image, such as album artwork, for colors only. The video background stays unchanged.",
+    "palette.useReferenceAsBackground": "Use this reference image as video background",
+    "palette.referencePlaceholder": "▧ Choose or drop a palette image",
     "alignment.title": "Score ↔ MIDI alignment (beta)",
     "alignment.mode": "Alignment algorithm",
     "alignment.auto": "Auto (recommended)",

@@ -1,6 +1,14 @@
 {
   "locale": "ko",
   "messages": {
+    "palette.backgroundAndColors": "배경 및 색상",
+    "palette.videoBackground": "영상 배경 이미지",
+    "palette.designColors": "악보 디자인 색상",
+    "palette.designSourceHelp": "영상 배경에서 색상을 추출하거나 별도의 참조 이미지·테마를 사용하세요.",
+    "palette.referenceTitle": "다른 이미지에서 색상 추출 (선택)",
+    "palette.referenceHelp": "앨범 커버 등 색상만 참고할 이미지를 선택합니다. 영상 배경은 바뀌지 않습니다.",
+    "palette.useReferenceAsBackground": "이 참조 이미지를 영상 배경으로 사용",
+    "palette.referencePlaceholder": "▧ 색상 추출용 이미지 선택 또는 드래그 앤 드롭",
     "alignment.title": "악보 ↔ MIDI 동기화 (beta)",
     "alignment.mode": "정렬 알고리즘",
     "alignment.auto": "자동 추천",
