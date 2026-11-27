@@ -26,7 +26,24 @@
     },'16:9');
     return {aspect,quality};
   }
-  const api={ratios,size,migrate};
+  // A project has a stable logical editing resolution, separate from its export quality.
+  let designEdge=0;
+  function restoreDesignEdge(saved,width,height){
+    const n=Number(saved),short=Math.min(Number(width),Number(height));
+    designEdge=Number.isFinite(n)&&n>=200&&n<=1080?Math.round(n):
+      Number.isFinite(short)&&short>0?Math.max(200,Math.min(1080,Math.round(short))):1080;
+    return designEdge;
+  }
+  function getDesignEdge(){return designEdge||1080;}
+  function previewSize(width,height){
+    const short=Math.min(width,height),edge=designEdge||restoreDesignEdge(null,width,height),scale=edge/short;
+    return {width:Math.max(200,even(width*scale)),height:Math.max(200,even(height*scale))};
+  }
+  function layoutScale(width,height){
+    const preview=previewSize(width,height);
+    return Math.max(.5,Math.min(4,Math.min(width,height)/Math.min(preview.width,preview.height)));
+  }
+  const api={ratios,size,migrate,restoreDesignEdge,getDesignEdge,previewSize,layoutScale};
   root.ScoreOutputSize=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

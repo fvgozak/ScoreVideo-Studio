@@ -61,6 +61,7 @@
    scoreVisible:true,pianoEnabled:true
  });
  function applyNewProjectDefaults(){
+   window.ScoreOutputSize.restoreDesignEdge(1080,1920,1080);
    for(const [id,value] of Object.entries(NEW_PROJECT_DEFAULTS)){
      const node=$(id);if(!node)continue;
      if(node.type==='checkbox')node.checked=Boolean(value);else node.value=String(value);
@@ -89,7 +90,7 @@
          review_state:old.timeline?.synchronization?.review_state||'valid',
          dependencies:old.timeline?.synchronization?.dependencies||{}},
        camera:{schema_version:1,camera_points:readCameraPoints()}},
-     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),melody_highlight:window.ScoreMelodyHighlight?.getState?.(),palette_snapshot:window.ScoreFxGroups?.getPaletteSnapshot?.(),bit_mode:window.ScoreMotionBit?.getState?.()}};
+     preview:{playhead_sec:Number(previewTime())||0},extensions:{...(old.extensions||{}),preview_design_edge:window.ScoreOutputSize?.getDesignEdge?.(),melody_highlight:window.ScoreMelodyHighlight?.getState?.(),palette_snapshot:window.ScoreFxGroups?.getPaletteSnapshot?.(),bit_mode:window.ScoreMotionBit?.getState?.(),score_editor:window.ScoreEditor?.getState?.()}};
  }
  function validateProjectState(state){
    if(!state||state.schema_version!==1||!state.settings?.controls||!state.timeline?.synchronization)throw Error('프로젝트 상태가 유효하지 않습니다.');
@@ -124,6 +125,7 @@
    restoringPortableState=true;
    window.ScoreMelodyHighlight?.restoreState?.(state.extensions?.melody_highlight);
    window.ScoreMotionBit?.restore(state.extensions?.bit_mode);
+   window.ScoreEditor?.restore(state.extensions?.score_editor);
    try{
      activeProjectState=structuredClone(state);
      for(const [id,value] of Object.entries(state.settings.controls||{})){
@@ -132,7 +134,7 @@
        if(node.type==='checkbox')node.checked=value;else node.value=value;
      }
      window.ScoreFxGroups?.restorePaletteSnapshot?.(state.extensions?.palette_snapshot,state.settings.controls);
-     useGpuRenderer();migrateOutputSize(state.settings.controls);
+     useGpuRenderer();migrateOutputSize(state.settings.controls,state.extensions?.preview_design_edge);
      $('downloadName').value=state.settings.export?.download_name||'';
      const sync=state.timeline.synchronization;
      if(sync?.midi_to_audio!==undefined){project.sync=sync.midi_to_audio;syncInfo();}
@@ -200,7 +202,7 @@
    $('exportAspectSummary').textContent=`미리보기 화면 비율: ${aspect==='custom'?`${custom[0]}:${custom[1]}`:aspect} · 최종 ${width}×${height}`;
    $('convertExactWide').hidden=!preserveLegacyWide;
  }
- function migrateOutputSize(settings){
+ function migrateOutputSize(settings,designEdge=settings?.previewDesignEdge){
    if(!settings?.aspectRatio||!settings?.outputQuality){
      const legacy=window.ScoreOutputSize.migrate(settings?.resolution||'1920x1080');
      const [oldWidth,oldHeight]=String(settings?.resolution||'1920x1080').split('x').map(Number);
@@ -213,6 +215,8 @@
    preserveCustomResolution=$('aspectRatio').value==='custom'&&/^\d+x\d+$/.test(settings?.resolution||'')?settings.resolution:'';
    preserveLegacyWide=settings?.resolution==='2560x1080'&&$('aspectRatio').value==='21:9'&&$('outputQuality').value==='1080';
    syncOutputSize();
+   const [w,h]=$('resolution').value.split('x').map(Number);
+   window.ScoreOutputSize.restoreDesignEdge(designEdge,w,h);
  }
  function selectedExportMode(){return window.ScoreLocalProjects?.enabled?'offline':document.querySelector('input[name="exportMode"]:checked')?.value||'offline';}
  // Dynamic export labels use semantic i18n keys, never regex-translated Korean
@@ -277,7 +281,7 @@
    if(active!==renderUiActive){
      renderUiActive=active;
      document.body.classList.toggle('render-ui-active',active);
-     void window.ScoreMotionBit?.setSuspended(active);
+     void window.ScoreMotionBit?.setSuspended(active);window.ScoreEditor?.suspend(active);
      for(const element of renderEditTargets())element.inert=active;
      if(active){window.ScoreVisualEditor?.setEditing(false);$('scoreEditOverlay').hidden=true;}
    }
@@ -413,7 +417,7 @@
  }
  function config(){
    const [width,height]=$('resolution').value.split('x').map(Number);
-   return {melody_highlight:window.ScoreMelodyHighlight?.getState?.(),width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,video_quality:$('videoQuality').value,video_bitrate:$('videoBitrate').value,fx_renderer:$('fxRenderer').value,gpu_effects:gpuEffects(),minimal_palette:minimalPalette(),download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
+   return {score_edits:window.ScoreEditor?.getState?.(),melody_highlight:window.ScoreMelodyHighlight?.getState?.(),width,height,fps:Number($('fps').value),aspect_ratio:$('aspectRatio').value,render_mode:$('renderMode').value,video_quality:$('videoQuality').value,video_bitrate:$('videoBitrate').value,fx_renderer:$('fxRenderer').value,gpu_effects:gpuEffects(),minimal_palette:minimalPalette(),download_name:$('downloadName').value,offset_sec:offset(),piano_offset_sec:pianoOffset(),zoom:zoom(),camera_points:readCameraPoints(),
       paper_color:$('paperColor').value,staff_color:$('staffColor').value,ink_color:$('inkColor').value,
       staff_colors:window.ScoreStaffColors?.getConfig?.()||{enabled:false,keyboard:false,colors:{}},
       glow_color:$('glowColor').value,cursor_color:$('cursorColor').value,cursor_visible:$('cursorVisible').checked,cursor_motion:$('cursorMotion').value,accent_color:$('accentColor').value,
@@ -425,10 +429,9 @@
       layout_mode:$('layoutMode').value,scroll_mode:$('layoutMode').value==='singleline'?'horizontal':'vertical',score_position_x:Number($('scorePosX').value),score_position_y:Number($('scorePosY').value),score_area_x:Number($('scoreAreaX').value),score_area_width:Number($('scoreAreaWidth').value),score_area_height:Number($('scoreAreaHeight').value),score_crop_top:Number($('scoreCropTop').value),score_margin_top:Number($('scoreMarginTop').value),score_margin_bottom:Number($('scoreMarginBottom').value),score_panel_color:$('scorePanelColor').value,score_panel_opacity:Number($('scorePanelOpacity').value)/100,scene:sceneOptions()};
  }
  function previewConfig(){
-   const settings=config(),short=Math.min(settings.width,settings.height),scale=Math.min(1,1080/short);
-   settings.width=Math.max(200,2*Math.round(settings.width*scale/2));
-   settings.height=Math.max(200,2*Math.round(settings.height*scale/2));
-   return settings;
+   // SCOREMOTION_RESOLUTION_INDEPENDENT_ZOOM_V1: output quality is not engraving zoom.
+   const settings=config();
+   return {...settings,...window.ScoreOutputSize.previewSize(settings.width,settings.height)};
  }
  function relativeNoteheadWidth(){
    const head=stage?.scoreWindow?.querySelector('.vf-notehead');
@@ -440,11 +443,13 @@
    const previewWidth=relativeNoteheadWidth();
    exportGeometry=true;resizePreview();
    let settings=config();
+   settings={...settings,score_design_edge:window.ScoreOutputSize.getDesignEdge(),
+     score_layout_scale:window.ScoreOutputSize.layoutScale(settings.width,settings.height)};
    await stage.setSettings(settings);
    const outputWidth=relativeNoteheadWidth();
    if(previewWidth&&outputWidth){
-     const scale=Math.max(.5,Math.min(4,previewWidth/outputWidth));
-     if(Math.abs(scale-1)>.01){
+     const scale=Math.max(.5,Math.min(4,settings.score_layout_scale*previewWidth/outputWidth));
+     if(Math.abs(scale/settings.score_layout_scale-1)>.01){
        settings={...settings,score_layout_scale:scale};
        await stage.setSettings(settings);
      }
@@ -456,7 +461,7 @@
    exportGeometry=false;resizePreview();
    await stage?.setSettings(previewConfig());
  }
- function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}localStorage.setItem(storeKey,JSON.stringify(item));schedulePortableAutosave();}
+ function saveSettings(){const item={};for(const id of persistent){const node=$(id);item[id]=node.type==='checkbox'?node.checked:node.value;}item.previewDesignEdge=window.ScoreOutputSize.getDesignEdge();localStorage.setItem(storeKey,JSON.stringify(item));schedulePortableAutosave();}
  function useGpuRenderer(){
    // Historic project settings may store `canvas` or `auto`; only the GPU
    // renderer is implemented by the current stage. Keep the field for
@@ -501,6 +506,7 @@
  function currentVideoPresetSettings(){
    const settings={};
    for(const id of persistent){const node=$(id);settings[id]=node.type==='checkbox'?node.checked:node.value;}
+   settings.previewDesignEdge=window.ScoreOutputSize.getDesignEdge();
    settings.offset=$('offset').value;settings.pianoOffset=$('pianoOffset').value;settings.cameraPoints=readCameraPoints();
    settings.staffColors=window.ScoreStaffColors?.getConfig?.()||{enabled:false,keyboard:false,colors:{}};
    return settings;
@@ -638,7 +644,7 @@
      if(myRevision!==revision||!stage)return;
      await stage.setSettings(setting);
      stage.seek(previewTime());
-     window.ScoreVisualEditor?.sync();
+     window.ScoreVisualEditor?.sync();window.ScoreEditor?.previewChanged();
      if(myRevision===revision)$('previewInfo').textContent='미리보기와 MP4: 같은 설정 · 같은 장면 엔진';
    }).catch(e=>{
      if(myRevision===revision)message(`미리보기 적용 실패: ${e.message}`,true);
@@ -1091,7 +1097,7 @@
    if(portableSaveTimer!==null){clearTimeout(portableSaveTimer);portableSaveTimer=null;}
    activeProjectState=null;
    ++renderPollEpoch;
-   const previousStage=stage;stage=null;revision++;await window.ScoreMotionBit?.bindStage(null);window.ScoreMotionBit?.restore(null);await applySerial.catch(()=>{});
+   const previousStage=stage;stage=null;revision++;window.ScoreEditor?.bindStage(null);window.ScoreEditor?.restore(null);await window.ScoreMotionBit?.bindStage(null);window.ScoreMotionBit?.restore(null);await applySerial.catch(()=>{});
    previousStage?.piano?.dispose();
    ++backgroundSerial;pendingBackgroundFile=null;
    window.ScoreVisualEditor?.setEditing(false);
@@ -1175,7 +1181,7 @@
    $('placeholder').style.display='none';
    refreshBackground();resizePreview();
    stage=new window.ScoreStage.Stage({viewport:$('scoreViewport'),container:$('osmdContainer'),meta,settings:previewConfig()});
-   await stage.load();window.ScoreMelodyHighlight?.bindStage?.(stage);await window.ScoreMotionBit?.bindStage(stage);
+   await stage.load();window.ScoreMelodyHighlight?.bindStage?.(stage);await window.ScoreMotionBit?.bindStage(stage);window.ScoreEditor?.bindStage(stage);
    const savedPlayhead=Math.max(0,Math.min(Number(activeProjectState?.preview?.playhead_sec)||0,Number(meta.audio_duration_sec)||0));
    if(savedPlayhead>0){try{setPreviewTime(savedPlayhead);}catch(_){}}
    stage.seek(savedPlayhead);$('seek').value=String(savedPlayhead);$('currentTime').textContent=fmt(savedPlayhead);
@@ -1540,6 +1546,7 @@
  // Actual text editing is exempt so titles can contain spaces and punctuation.
  window.addEventListener('keydown',e=>{
    if(alignmentBusy)return;
+   if(window.ScoreEditor?.handleKey(e))return;
    // Range inputs need their own arrow keys for 0.01-second sync tuning.
    if(e.target?.closest?.('input,select,textarea,[contenteditable="true"],[role="slider"]'))return;
    if((e.key==='f'||e.key==='F')&&!renderUiActive&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!transport.isTextEditing(e.target)&&!e.repeat){
@@ -1793,7 +1800,7 @@
    preserveLegacyWide=false;preserveCustomResolution='';syncOutputSize();experimentalOptIn=false;queueApply();void refreshOfflineSupport();
  });
  $('convertExactWide').addEventListener('click',()=>{preserveLegacyWide=false;syncOutputSize();queueApply();void refreshOfflineSupport();});
- $('resolution').addEventListener('change',()=>{migrateOutputSize({resolution:$('resolution').value});experimentalOptIn=false;queueApply();void refreshOfflineSupport();});
+ $('resolution').addEventListener('change',()=>{migrateOutputSize({resolution:$('resolution').value},window.ScoreOutputSize.getDesignEdge());experimentalOptIn=false;queueApply();void refreshOfflineSupport();});
  $('fps').addEventListener('change',()=>{experimentalOptIn=false;void refreshOfflineSupport();});
  $('videoBitrate').addEventListener('change',()=>{void refreshOfflineSupport();});
  for(const id of ['drawScore','zoom'])$(id).addEventListener('change',()=>{experimentalOptIn=false;updateExportUi();});
@@ -1823,6 +1830,7 @@
  // SCOREMOTION_MELODY_BETA_V1
  window.ScoreMelodyHighlight?.init?.({getStage:()=>stage,onChange:()=>schedulePortableAutosave()});
  window.ScoreMotionBit?.init({onChange:()=>schedulePortableAutosave()});
+ window.ScoreEditor?.init({onChange:()=>schedulePortableAutosave(),pause:pausePreview});
  document.addEventListener('scorevideo:languagechange',()=>window.ScoreMelodyHighlight?.bindStage?.(stage));
  // A narrow debug hook to verify preview/export settings parity in browser tests.
  window.__scoreVideoDebug={serializeProjectState,restoreProjectState,validateProjectState,config,sceneOptions,getStage:()=>stage,resizePreview,transport,seekTo,moveByMeasure,measureAxis,visualEditor:()=>window.ScoreVisualEditor};

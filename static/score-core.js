@@ -584,7 +584,7 @@
       if(this.scrollMode==='horizontal')ScoreFollower.singleLineRules(this.osmd.EngravingRules);
       this.osmd.zoom=this.zoom;
       if(this.osmd.EngravingRules)this.osmd.EngravingRules.StaffLineColor=c.staff;
-      this.osmd.render();
+      if(window.ScoreEditor?.render)window.ScoreEditor.render(this.osmd);else this.osmd.render();
       // A tiny fixed tilt sequence gives the manuscript preset a hand-copied
       // rhythm. It is deterministic, so preview and exported frames agree.
       const tilt=[-4,2,-2,3,-1,1];
@@ -606,6 +606,7 @@
       }
       // Measure the rendered notation before capturing noteheads and cursor geometry.
       if(this.scrollMode==='horizontal')this.centerEngraving();
+      window.ScoreEditor?.attach(this,url);
       const cursor=this.osmd.cursor;
       cursor.reset();cursor.show();
       this.timestamps=[];this.beats=[];this.lines=[];this.positions=[];this.noteTriggers=[];this.tieContinuations=[];this.measureStarts=[];

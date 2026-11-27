@@ -80,6 +80,27 @@ function normalizeMusicXML(xml){
   return xml.slice(0,matches[0].index)+xml.slice(matches[0].index+raw.length);
 }
 
+// SCORE_EDITOR_ARCHIVE_V121: same legacy UTF-16 fingerprint as Score Editor V1/V1.2.
+// Only migrate a fingerprint proven to identify the exact validated playback XML,
+// before its allowed DOCTYPE is removed. Never attach edits to a different score.
+function scoreEditorFingerprint(xml){
+  let a=2166136261,b=0x9e3779b9;
+  for(let i=0;i<xml.length;i++){const c=xml.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b^c,2246822519);}
+  return `${xml.length}:${(a>>>0).toString(16).padStart(8,'0')}:${(b>>>0).toString(16).padStart(8,'0')}`;
+}
+function restoreScoreEditorIdentity(extensions,rawPlayback,playback,rawSource,source){
+  const editor=extensions?.score_editor;
+  if(editor?.version!==1||typeof editor.source!=='string'||typeof playback!=='string')return extensions;
+  const current=scoreEditorFingerprint(playback);
+  if(editor.source===current)return extensions;
+  // The second condition also recovers older archives re-saved after stripping
+  // the header, if the uploaded original is identical after normalization.
+  const samePlayback=typeof rawPlayback==='string'&&editor.source===scoreEditorFingerprint(rawPlayback);
+  const sameOriginal=typeof rawSource==='string'&&source===playback&&editor.source===scoreEditorFingerprint(rawSource);
+  if(!samePlayback&&!sameOriginal)return extensions;
+  return {...extensions,score_editor:{...editor,source:current}};
+}
+
 async function readArchive(file){
   const zip=await ZIP.inspect(file);
   const manifest=ZIP.validateManifest(await zip.json('project.json'));
@@ -116,13 +137,15 @@ async function readArchive(file){
   // Standard MusicXML PUBLIC/SYSTEM DTD headers are not entity definitions.
   // Never resolve the remote DTD: accept only the official declaration, then
   // remove it before handing the document to DOMParser/OSMD. Keep source bytes.
-  let score=null;
+  let score=null,rawSource=null,source=null,rawPlayback=null;
   if(files.score){
-    const source=normalizeMusicXML(await root.ScoreLocalProjects.codec.readScore(files.score));
+    rawSource=await root.ScoreLocalProjects.codec.readScore(files.score);
+    source=normalizeMusicXML(rawSource);
     root.ScoreLocalProjects.codec.decodeScore(source);
-    score=manifest.analysis?.score_playback
-      ?normalizeMusicXML(await (await zip.extract(manifest.analysis.score_playback)).text())
-      :source;
+    rawPlayback=manifest.analysis?.score_playback
+      ?await (await zip.extract(manifest.analysis.score_playback)).text()
+      :rawSource;
+    score=normalizeMusicXML(rawPlayback);
     root.ScoreLocalProjects.codec.decodeScore(score);
   }
   // Reject malformed MIDI before using it as the source for new playback audio.
@@ -144,7 +167,7 @@ async function readArchive(file){
     if(needsGeneration)meta.audio_duration_sec=seconds;
   }
   const state={schema_version:1,project_name:manifest.project_name,settings:manifest.settings,timeline:{synchronization:sync,camera},
-    preview:manifest.preview||{},extensions:manifest.extensions||{}};
+    preview:manifest.preview||{},extensions:restoreScoreEditorIdentity(manifest.extensions||{},rawPlayback,score,rawSource,source)};
   const id=manifest.project_id;
   const record={id,meta:{...meta,id,sync:sync.midi_to_audio??meta.sync??null},score,scoreOriginal:files.score||null,
     midi:files.midi,audio:files.audio,background:files.background||null,paletteSource:files.palette_source||null,

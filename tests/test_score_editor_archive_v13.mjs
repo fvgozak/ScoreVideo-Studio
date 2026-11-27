@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const base=resolve(process.argv[2]||'.');
+globalThis.window=globalThis;
+for(const f of ['project-archive.js','project-io.js','score-editor.js'])await import(pathToFileURL(resolve(base,'static',f)).href);
+const io=globalThis.ScoreProjectIO, E=globalThis.ScoreEditor, Z=globalThis.ScoreProjectArchive;
+const fp=E._test.fingerprint;
+const header='<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">';
+const xml=`<?xml version="1.0"?>\n${header}\n<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><direction><direction-type><words>Con mistero</words></direction-type></direction><direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>125</per-minute></metronome></direction-type></direction><note><rest/><duration>1</duration></note></measure></part></score-partwise>`;
+const normalized=io.normalizeMusicXML(xml);
+assert.notEqual(fp(xml),fp(normalized),'reproduce V1.2 source mismatch');
+const midi=new File([Buffer.from('4d546864000000060000000101e04d54726b0000000d00903c408360803c4000ff2f00','hex')],'test.mid');
+const audio=new File([Buffer.from('524946462400000057415645666d74201000000001000100401f0000803e0000020010006461746100000000','hex')],'test.wav');
+globalThis.ScoreLocalProjects={codec:{midiTiming:()=>({}),readScore:f=>f.text(),decodeScore:s=>{assert(!s.includes('<!DOCTYPE'));return{};}}};
+const edits={'d:0:0:0:0':{x:35,y:-20,scale:1.25,hidden:false,text:'Dolce',font:'serif',weight:'bold',italic:'italic'},'d:0:0:1:0':{x:-12,y:25,scale:1,hidden:false}};
+Object.assign(edits,{'i:0:0:0:0':{x:10,y:-5,scale:1,hidden:false,text:'Solo Piano',font:'serif'},'i:0:1:0:0':{x:0,y:0,scale:1,hidden:false,text:'Solo'},'m:0:0:0:0':{x:15,y:0,scale:1,hidden:false},'f:0:0:0:0:0':{x:0,y:-8,scale:1,hidden:false},'p:0:0:0:0':{x:0,y:12,scale:1.25,hidden:true}});
+const state={schema_version:1,project_name:'Test',settings:{controls:{},staff_colors:{enabled:false,keyboard:false,colors:{}},export:{}},timeline:{synchronization:{schema_version:1,manual_offsets:{score_offset_sec:0,piano_offset_sec:0}},camera:{schema_version:1,camera_points:[]}},extensions:{score_editor:{version:1,source:fp(xml),edits},bit_mode:{version:1,enabled:true,pixelSize:6},unknown:{keep:true}}};
+function record(playback=xml,original=xml){return {id:'a'.repeat(32),meta:{id:'a'.repeat(32),score_name:'test.musicxml',has_score:true,generated_audio:false,note_count:1,tempo_map:[],note_events:[],audio_duration_sec:1},score:playback,scoreOriginal:new File([original],'test.musicxml'),midi,audio};}
+async function round(r,s=state){const p=await io.exportProject(r,s);const restored=await io.readArchive(p.blob);return {p,...restored};}
+let first=await round(record());
+assert.equal(first.record.state.extensions.score_editor.source,fp(normalized),'legacy fingerprint migration');
+assert.deepEqual(first.record.state.extensions.score_editor.edits,edits);
+assert.deepEqual(E.normalize(first.record.state.extensions.score_editor).edits,edits,'V1.3 IDs + style accepted');
+assert.deepEqual(first.record.state.extensions.bit_mode,state.extensions.bit_mode);
+assert.deepEqual(first.record.state.extensions.unknown,state.extensions.unknown);
+assert.equal(await first.record.scoreOriginal.text(),xml,'original bytes unchanged');
+assert.equal(first.record.score,normalized);
+assert.equal(first.manifest.schema_version,1);
+let again=await round(first.record,first.record.state);assert.deepEqual(again.record.state.extensions,first.record.state.extensions);
+let recovered=await round(record(normalized));assert.equal(recovered.record.state.extensions.score_editor.source,fp(normalized),'recover earlier re-save if original is exact');
+const other=normalized.replace('Con mistero','Different score');
+let mismatch=await round(record(other));assert.equal(mismatch.record.state.extensions.score_editor.source,fp(xml));assert.notEqual(mismatch.record.state.extensions.score_editor.source,fp(other),'never retarget changed playback');
+const unfolded=xml.replace('125','140');const unfoldedState=structuredClone(state);unfoldedState.extensions.score_editor.source=fp(unfolded);
+let derived=await round(record(unfolded),unfoldedState);assert.equal(derived.record.state.extensions.score_editor.source,fp(io.normalizeMusicXML(unfolded)),'derived playback, not source, controls identity');
+const invalid=xml.replace(header,'<!DOCTYPE score-partwise SYSTEM "https://example.invalid/bad.dtd">');await assert.rejects(()=>round(record(invalid)),/DTD/);
+console.log('PASS: V1.3 new IDs + names/abbreviations + visual offsets in actual ZIP, V1.2.1 migration, resave, recovery, source mismatch guard, DTD safety');

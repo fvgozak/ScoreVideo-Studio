@@ -1,0 +1,17 @@
+#scoreEditorPanel{margin:10px 0;padding:10px;border:1px solid #3b5461;border-radius:8px;background:#16232d;display:grid;gap:8px}
+#scoreEditorPanel label{font-size:12px;color:var(--muted,#b7cad6)}
+#scoreEditorPanel select,#scoreEditorPanel input[type=number]{width:100%;min-width:0;box-sizing:border-box}
+#scoreEditorControls{display:grid;gap:8px}#scoreEditorPanel [hidden],#scoreEditorOverlay [hidden],#scoreEditorOverlay[hidden]{display:none!important}
+.score-editor-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.score-editor-grid label{min-width:0;display:grid;gap:3px}
+#scoreEditorToggle[aria-pressed=true]{border-color:#62d5df;color:#a3eef3;background:#274652}
+#scoreEditorOverlay{position:absolute;inset:0;z-index:24;pointer-events:none;overflow:hidden}
+#scoreEditorOverlay.is-editing{pointer-events:auto;touch-action:none;cursor:crosshair}
+#scoreEditorBounds,#scoreEditorSelection{position:absolute;box-sizing:border-box;pointer-events:none}
+#scoreEditorBounds.over-top{border-top:3px solid #ff4e57}#scoreEditorBounds.over-bottom{border-bottom:3px solid #ff4e57}
+#scoreEditorSelection{outline:1px solid #63d8e4;outline-offset:3px;background:#65d5e012}
+#scoreEditorGuideX,#scoreEditorGuideY{position:absolute;pointer-events:none}#scoreEditorGuideX{top:0;bottom:0;border-left:1px dashed #63d8e4}#scoreEditorGuideY{left:0;right:0;border-top:1px dashed #63d8e4}
+#scoreEditorWarning{color:#ff858a;font-size:12px}.render-ui-active #scoreEditorOverlay{display:none!important}
+
+#scoreEditorTextControls{display:grid;gap:6px}#scoreEditorTextControls input,#scoreEditorTextControls select{width:100%;min-width:0;box-sizing:border-box}#scoreEditorSelectionCount{font-size:12px;color:#9de5ea}#scoreEditorTextControls label{display:grid;gap:3px}
+
+#scoreEditorProperties{display:grid;gap:8px}#scoreEditorSelected{overflow-wrap:anywhere;padding:8px;border:1px solid #3b5461;border-radius:6px;color:#dbe9f2;font-size:12px}#scoreEditorPanel details{border-top:1px solid #3b5461;padding-top:8px}#scoreEditorPanel summary{cursor:pointer;font-size:12px;color:#b7cad6}#scoreEditorKinds{display:grid;gap:4px;padding-top:8px}#scoreEditorKinds label{display:flex;align-items:center;gap:5px}.score-editor-kind-count{margin-left:auto;color:#8aa5b5}#scoreEditorBulkStatus{font-size:11px;color:#ff858a}#scoreEditorSearch{width:100%;box-sizing:border-box;margin:8px 0}#scoreEditorResults{max-height:220px;overflow:auto;display:grid;gap:4px;margin:6px 0}#scoreEditorResults>div{display:flex;gap:4px}#scoreEditorResults button,#scoreEditorContext button{border:1px solid #3b5461;border-radius:5px;background:#20313e;color:#dbe9f2;padding:5px;font-size:11px;cursor:pointer}#scoreEditorResults .score-editor-result{min-width:0;flex:1;text-align:left;overflow-wrap:anywhere}#scoreEditorResults button[aria-pressed=true]{border-color:#63d8e4}#scoreEditorHover{position:absolute;pointer-events:none;box-sizing:border-box;outline:1px dashed #63d8e4;outline-offset:2px}#scoreEditorContext{position:absolute;z-index:2;background:#16232d;border:1px solid #49616f;border-radius:6px;padding:5px;display:grid;gap:4px;max-width:100%;max-height:100%;overflow:auto;box-shadow:0 6px 18px #0008;cursor:default}#scoreEditorContext button{text-align:left}#scoreEditorContext button:disabled{opacity:.5;cursor:default}

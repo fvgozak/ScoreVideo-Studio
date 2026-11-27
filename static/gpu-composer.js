@@ -167,7 +167,7 @@
      const s=stage.settings,e=s.effects,p=e.minimalPalette;
      return [s.scene.notationStyle,e.minimalMode,p?.note,e.accent,e.ink,e.paper,e.staff,
        e.inverted,e.drawScore,svg.getAttribute('viewBox'),svg.getAttribute('width'),
-       svg.getAttribute('height')].join('|');
+       svg.getAttribute('height'),svg.getAttribute('data-score-editor-revision')].join('|');
    }
    // Retire textures only after the old sprites have been removed from the
    // previous frame. LRU eviction never touches tiles used in this frame.

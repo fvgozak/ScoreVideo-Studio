@@ -62,8 +62,9 @@
    const width=clamp(Math.round(number(s.width,1280)),200,8192);
    const height=clamp(Math.round(number(s.height,720)),200,8192);
    return {
-     width,height,
+     width,height,scoreEdits:root.ScoreEditor?.normalize(s.score_edits)||null,
      layoutScale:clamp(number(s.score_layout_scale,1),.5,4),
+     designEdge:clamp(number(s.score_design_edge,0),0,1080),
      zoom:clamp(number(s.zoom,.9),.5,2),offsetSec:number(s.offset_sec,0),scoreVisible:meta.has_score!==false&&s.score_visible!==false,
      layoutMode:['page','singleline','vertical','horizontal'].includes(layout)?layout:'page',
      scrollMode:(layout==='singleline'||layout==='horizontal')?'horizontal':'vertical',
@@ -165,7 +166,7 @@
    static scoreTopPadding(settings){
      // X/Y sliders move engraving *inside* the score window in both layouts.
      // The window geometry and title spacing remain independent.
-     const scale=Math.max(1,Math.min(settings.width,settings.height)/1080);
+     const scale=settings.designEdge>=200?Math.min(settings.width,settings.height)/settings.designEdge:Math.max(1,Math.min(settings.width,settings.height)/1080);
      const logicalHeight=Stage.scoreGeometry(settings).height/scale;
      return Math.round(Math.max(0,logicalHeight-200)*settings.effects.scorePositionY/100*.7*scale);
    }
@@ -311,7 +312,7 @@
        sync:this.meta.sync,offsetSec:s.offsetSec,
        zoom:s.zoom*s.layoutScale,cameraPoints:s.cameraPoints,
        stageRoot:this.viewport,
-       effects:{...s.effects,lightColorMode:s.scene.lightColorMode,
+       effects:{...s.effects,scoreEdits:s.scoreEdits,scoreEditorZoom:s.zoom,lightColorMode:s.scene.lightColorMode,
          auroraLow:s.scene.auroraLow,auroraHigh:s.scene.auroraHigh,velocityScale:s.scene.velocityScale,
          lightPaletteStops:s.scene.lightPaletteStops,lightColorPreset:s.scene.lightColorPreset,
        // Explicit Y slider controls internal score spacing in both layouts.
@@ -326,7 +327,16 @@
        const result=await fetch(`/api/projects/${this.meta.id}/score`);
        if(!result.ok)throw Error('브라우저 로컬 악보를 읽을 수 없습니다.');
        await this.follower.load(await result.text());
-     }else await this.follower.load(`/api/projects/${this.meta.id}/score`);
+     }else{
+       const scoreUrl=`/api/projects/${this.meta.id}/score`;
+       await this.follower.load(scoreUrl);
+       // OSMD accepts a URL, but Score Editor needs the exact XML text to
+       // identify editable symbols and match saved edits to this score.
+       if(root.ScoreEditor?.attach){
+         try{const response=await fetch(scoreUrl);if(response.ok)root.ScoreEditor.attach(this.follower,await response.text());}
+         catch(error){console.warn('Score Editor score lookup:',error);}
+       }
+     }
      this.layer=new root.ScoreStudio.LayerRenderer(this.viewport);
      this.layer.setScene(s.scene);
      this.applyScoreVisibility();
@@ -337,6 +347,7 @@
      await this.piano.dynamic?.lightingReady;
      await this.configureScoreGpu();
      this.seek(this.time);
+     root.ScoreEditor?.onStageLoaded(this);
      return this;
    }
    // Change existing score/keyboard light colors without recreating OSMD or WebGL.
@@ -357,7 +368,7 @@
    setSettings(settings,{layout=false}={}){
      const next=normalized(settings,this.meta);
      const prev=this.settings;this.settings=next;
-     const changed=layout||prev.zoom!==next.zoom||prev.layoutScale!==next.layoutScale||prev.scrollMode!==next.scrollMode||
+     const changed=layout||(next.effects.drawScore&&this.follower?.scoreEditorNeedsDrawingRebuild)||JSON.stringify(prev.scoreEdits)!==JSON.stringify(next.scoreEdits)||prev.zoom!==next.zoom||prev.layoutScale!==next.layoutScale||prev.designEdge!==next.designEdge||prev.scrollMode!==next.scrollMode||
        prev.scoreRegion.widthPercent!==next.scoreRegion.widthPercent||
        prev.scoreRegion.xPercent!==next.scoreRegion.xPercent||
        prev.scoreRegion.heightPercent!==next.scoreRegion.heightPercent||
@@ -401,6 +412,7 @@
      this.piano?.draw(this.time);
      this.drawScoreGpu();
      root.ScoreMotionBit?.mark(this);
+     root.ScoreEditor?.onSeek(this);
    }
    getMeasureStarts(){return this.follower?.measureStarts||[];}
    setSync(sync){this.meta.sync=sync;if(this.follower){this.follower.setSync(sync);this.piano?.setFollower(this.follower);this.seek(this.time);}}
