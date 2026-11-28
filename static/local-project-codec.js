@@ -265,7 +265,42 @@ async function unzipMxl(file){
   }
   return unpack(entry);
 }
-function unfoldScore(xmlText){
+// repeatClefRestore1: MusicXML attributes persist in written order. Repeats
+// change that order, so recover the known source clef for each staff at jumps.
+// Do not change pitches, divisions, transpose, timing, or existing clef changes.
+function clefStaff(c){return c.getAttribute('number')||'1';}
+function primaryClefs(a){return children(a,'clef').filter(c=>c.getAttribute('additional')!=='yes');}
+function clefValue(c){return c?JSON.stringify(['sign','line','clef-octave-change'].map(k=>txt(c,k))):'';}
+function updateClefs(m,state){
+  for(const a of children(m,'attributes'))for(const c of primaryClefs(a))state.set(clefStaff(c),c);
+}
+function writtenClefHistory(measures){
+  const state=new Map();return measures.map(m=>{const before=new Map(state);updateClefs(m,state);return before;});
+}
+function restoreJumpClefs(m,expected,actual){
+  // Respect an explicit clef at the beginning of the target measure, but not
+  // a later clef change after a note/forward/backup has advanced the cursor.
+  const leading=[];
+  for(const e of m.children){
+    if(['note','forward','backup'].includes(e.localName))break;
+    if(e.localName==='attributes')leading.push(e);
+  }
+  const explicit=new Set(leading.flatMap(primaryClefs).map(clefStaff));
+  const needed=[...expected].filter(([staff,c])=>!explicit.has(staff)&&clefValue(c)!==clefValue(actual.get(staff)));
+  if(!needed.length)return;
+  let a=leading[0];
+  if(!a){
+    a=m.ownerDocument.createElementNS(m.namespaceURI,'attributes');
+    const anchor=[...m.children].find(e=>e.localName!=='print'&&!(e.localName==='barline'&&e.getAttribute('location')==='left'));
+    m.insertBefore(a,anchor||null);
+  }
+  // MusicXML attributes have an ordered content model. Clef follows part-symbol
+  // and instruments, and precedes staff-details / transpose / measure-style.
+  const after=new Set(['staff-details','transpose','for-part','directive','measure-style']);
+  const anchor=[...a.children].find(e=>after.has(e.localName))||null;
+  for(const [,c] of needed){const copy=c.cloneNode(true);copy.removeAttribute('id');a.insertBefore(copy,anchor);}
+}
+function unfoldScore(xmlText,restoreClefs=true){
   const doc=new DOMParser().parseFromString(xmlText,'application/xml'),root=doc.documentElement;
   if(root.localName!=='score-partwise')throw Error('score-timewise 반복 자동전개는 지원하지 않습니다.');
   const parts=children(root,'part'),measures=children(parts[0],'measure'),count=measures.length;
@@ -311,9 +346,12 @@ function unfoldScore(xmlText){
   }
   expand(0,count-1);
   for(const part of parts){
-    const originals=children(part,'measure');for(const n of originals)part.removeChild(n);
+    const originals=children(part,'measure'),history=writtenClefHistory(originals),actual=new Map();
+    for(const n of originals)part.removeChild(n);
     for(let i=0;i<order.length;i++){
       const m=originals[order[i]].cloneNode(true);m.setAttribute('number',String(i+1));
+      if(restoreClefs&&i>0&&order[i]!==order[i-1]+1)restoreJumpClefs(m,history[order[i]],actual);
+      updateClefs(m,actual);
       for(const node of [m,...m.getElementsByTagName('*')]){
         if(node.hasAttribute('id'))node.setAttribute('id',`play${i+1}-`+node.getAttribute('id'));
         if(node.localName==='print'){node.removeAttribute('new-system');node.removeAttribute('new-page');}
@@ -326,6 +364,26 @@ function unfoldScore(xmlText){
     }
   }
   return {xml:new XMLSerializer().serializeToString(doc),source_measures:count,playback_measures:order.length,spans};
+}
+// repeatClefRestore2: migrate old derived playback scores, never source assets.
+// The complete legacy expansion must match, not just measure count or pitches.
+function repeatClefRoot(xml){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  if(doc.documentElement.localName!=='score-partwise'||doc.querySelector('parsererror'))return null;
+  return new XMLSerializer().serializeToString(doc.documentElement);
+}
+function repairRepeatClefs(source,playback){
+  if(typeof source!=='string'||typeof playback!=='string')return null;
+  const fixed=unfoldScore(source);if(!fixed)return null;
+  const current=repeatClefRoot(playback),target=repeatClefRoot(fixed.xml);
+  if(!current||current===target)return null;
+  const legacy=unfoldScore(source,false);
+  if(!legacy||current!==repeatClefRoot(legacy.xml))return null;
+  // Preserve whether the archived playback had a standard DTD header removed.
+  const doc=new DOMParser().parseFromString(playback,'application/xml');
+  const root=new DOMParser().parseFromString(fixed.xml,'application/xml').documentElement;
+  doc.replaceChild(doc.importNode(root,true),doc.documentElement);
+  return new XMLSerializer().serializeToString(doc);
 }
 function selectPerformance(xml,timing,mode='auto'){
   const parsed=decodeScore(xml),alignment=alignScore(parsed,timing,mode);
@@ -361,5 +419,5 @@ async function selectPerformanceAsync(xml,timing,mode='auto'){
     warning:global||short?'되돌이표를 MIDI 연주 순서로 전개했습니다.':'되돌이표가 있지만 MIDI의 반복 연주가 확인되지 않아 원본 악보를 사용합니다.'};
   return global||short?{xml:expanded.xml,parsed:playback,alignment:matched,repeat_info:info}:{xml,parsed,alignment,repeat_info:info};
 }
-root.ScoreLocalCodec={midiTiming,decodeScore,alignScore,alignScoreV1,alignScoreAsync,selectPerformance,selectPerformanceAsync,async readScore(file){return file.name.toLowerCase().endsWith('.mxl')?unzipMxl(file):file.text();}};
+root.ScoreLocalCodec={repairRepeatClefs,midiTiming,decodeScore,alignScore,alignScoreV1,alignScoreAsync,selectPerformance,selectPerformanceAsync,async readScore(file){return file.name.toLowerCase().endsWith('.mxl')?unzipMxl(file):file.text();}};
 })(typeof window!=='undefined'?window:self);

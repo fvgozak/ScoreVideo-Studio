@@ -32,21 +32,50 @@ async function store(record){
     tx.oncomplete=()=>{memory.set(record.id,record);resolve();};tx.onerror=()=>reject(tx.error);
   });
 }
+// repeatClefRestore2: correct the derived score before preview/export reads it.
+function repeatClefFingerprint(xml){
+  let a=2166136261,b=0x9e3779b9;
+  for(let i=0;i<xml.length;i++){const c=xml.charCodeAt(i);a=Math.imul(a^c,16777619);b=Math.imul(b^c,2246822519);}
+  return `${xml.length}:${(a>>>0).toString(16).padStart(8,'0')}:${(b>>>0).toString(16).padStart(8,'0')}`;
+}
+async function repairStoredRepeatClefs(record){
+  if(!record?.scoreOriginal||typeof record.score!=='string'||record.meta?.repeat_info?.mode!=='unfolded')return record;
+  try{
+    const corrected=codec.repairRepeatClefs(await codec.readScore(record.scoreOriginal),record.score);
+    if(!corrected)return record;
+    const editor=record.state?.extensions?.score_editor;
+    // Only re-key edits that refer to the exact pre-fix playback. All source
+    // measure/direction/note identities are retained; the only change is clefs.
+    let state=record.state;
+    if(editor?.version===1&&editor.source===repeatClefFingerprint(record.score)){
+      state={...state,extensions:{...state.extensions,score_editor:{...editor,source:repeatClefFingerprint(corrected)}}};
+    }
+    return {...record,score:corrected,state};
+  }catch(e){console.warn('Repeat clef repair skipped:',e);return record;}
+}
+const repeatClefLoads=new Map();
 async function load(id){
   if(memory.has(id))return memory.get(id);
-  const database=await db();return new Promise((resolve,reject)=>{
+  if(repeatClefLoads.has(id))return repeatClefLoads.get(id);
+  const job=(async()=>{const database=await db();return new Promise((resolve,reject)=>{
     const tx=database.transaction([STORE,STATE_STORE],'readonly');
     const recordRequest=tx.objectStore(STORE).get(id),stateRequest=tx.objectStore(STATE_STORE).get(id);
-    tx.oncomplete=()=>{
-      const record=recordRequest.result||null;
-      if(record){
-        if(stateRequest.result?.state)record.state=stateRequest.result.state;
-        memory.set(id,record);cacheAssets(record);
-      }
-      resolve(record);
+    tx.oncomplete=async()=>{
+      try{
+        let record=recordRequest.result||null;
+        if(record){
+          if(stateRequest.result?.state)record.state=stateRequest.result.state;
+          record=await repairStoredRepeatClefs(record);
+          if(memory.has(id))record=memory.get(id);
+          else{memory.set(id,record);cacheAssets(record);}
+        }
+        resolve(record);
+      }catch(e){reject(e);}
     };
     tx.onerror=()=>reject(tx.error);
-  });
+  });})();
+  repeatClefLoads.set(id,job);
+  try{return await job;}finally{if(repeatClefLoads.get(id)===job)repeatClefLoads.delete(id);}
 }
 async function storeWithState(record){
   const database=await db();return new Promise((resolve,reject)=>{
@@ -355,6 +384,7 @@ async function forget(id){
 }
 async function importRecord(candidate){
   if(!candidate?.meta||!candidate.midi||!candidate.audio)throw Error('복원할 프로젝트 데이터가 없습니다.');
+  candidate=await repairStoredRepeatClefs(candidate);
   const oldId=candidate.id;let copied=false;
   if(await load(oldId)){
     copied=true;candidate.id=crypto.randomUUID().replace(/-/g,'');
