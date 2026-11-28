@@ -22,12 +22,14 @@ static/*.bak*
 
 # Local patch delivery bundles and generated validation material
 /.scoremotion-backups/
+/.scoremotion_patch_backups/
 /patch_assets/
 /patches/
 /rollback-tests/
 /README_*.md
 /README.txt
 /scripts/patches/
+/scripts/light_bounce_*_payload/
 /scripts/install_*
 /scripts/fix_*
 /scripts/repair_*

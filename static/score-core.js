@@ -319,7 +319,7 @@
         first:Math.min(...row.times),last:Math.max(...row.times),lines:[],items:[]}));
       const svgs=[...this.container.querySelectorAll('svg')];
       const viewportWidth=this.viewport.clientWidth||1000;
-      const scale=this.viewport.getBoundingClientRect().width/viewportWidth||1;
+      const scale=(this.viewport.getBoundingClientRect().width/viewportWidth||1)*(this.cameraScale||1);
       const containerBox=this.container.getBoundingClientRect();
       // Classify *every* sheet SVG, including subsequent pages. Previously
       // only the first SVG was tagged, leaving stray notes permanently visible.
@@ -329,6 +329,7 @@
         const graphicSelector='path,line,polyline,polygon,rect,circle,ellipse,text,use';
         for(const el of svg.querySelectorAll(graphicSelector)){
           if(el.closest('defs,clipPath,mask,marker,pattern,symbol,filter'))continue;
+          el.removeAttribute('data-score-draw-item');el.removeAttribute('data-score-staff-line');
           let rect;try{rect=el.getBoundingClientRect();}catch(_){continue;}
           const css=getComputedStyle(el);
           if(css.display==='none'||css.visibility==='hidden'||(css.stroke==='none'&&css.fill==='none'))continue;
@@ -339,7 +340,6 @@
           let nearest=null,distance=Infinity;
           for(const system of systems){const next=Math.abs(system.y-y);if(next<distance){distance=next;nearest=system;}}
           const staff=ScoreFollower.isStaffPrimitive(el,rect,css);
-          el.removeAttribute('data-score-draw-item');el.removeAttribute('data-score-staff-line');
           if(staff){
             el.setAttribute('data-score-staff-line','');
             if(nearest)nearest.lines.push({el,
@@ -385,8 +385,23 @@
       }
       this.drawCompleteCount=0;this.drawingActive=false;this.drawRevision++;
     }
+    // Editor-only preview state. Restoring clips before rebuilding is essential:
+    // otherwise a partial reveal becomes a permanent original clip on re-entry.
+    refreshScoreEditorDrawing(){
+      if(this.scoreEditorDrawingPreview||!this.effects.drawScore||!this.scoreEditorNeedsDrawingRebuild)return false;
+      if(this.drawingActive)this.deactivateDrawing();
+      this.prepareDrawing();this.scoreEditorNeedsDrawingRebuild=false;
+      this.updateDrawing(this.lastSeekTime);return true;
+    }
+    setScoreEditorDrawingPreview(value){
+      const next=!!value;if(!!this.scoreEditorDrawingPreview===next)return false;
+      this.scoreEditorDrawingPreview=next;
+      if(next){if(this.drawingActive)this.deactivateDrawing();}
+      else if(!this.refreshScoreEditorDrawing())this.updateDrawing(this.lastSeekTime);
+      return true;
+    }
     updateDrawing(time){
-      if(!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
+      if(this.scoreEditorDrawingPreview||!this.effects.drawScore){if(this.drawingActive)this.deactivateDrawing();return;}
       if(!this.drawingActive)this.activateDrawing();
       const cursor=ScoreFollower.cursorAt(time,this.positions,this.effects.cursorMotion);
       const offsetLeft=this.container.offsetLeft||0;
@@ -463,7 +478,7 @@
       const wasDrawing=this.effects.drawScore;
       this.effects={...this.effects,...effects};
       if(this.drawItems.length){
-        if(this.effects.drawScore&&!this.drawingActive)this.activateDrawing();
+        if(this.effects.drawScore&&!this.scoreEditorDrawingPreview&&!this.drawingActive)this.activateDrawing();
         else if(!this.effects.drawScore&&wasDrawing&&this.drawingActive)this.deactivateDrawing();
       }
       const {paper,ink,accent,glow,cursor}=this.colors();

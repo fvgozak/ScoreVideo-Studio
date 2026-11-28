@@ -166,7 +166,7 @@
    svgSignature(svg,stage){
      const s=stage.settings,e=s.effects,p=e.minimalPalette;
      return [s.scene.notationStyle,e.minimalMode,p?.note,e.accent,e.ink,e.paper,e.staff,
-       e.inverted,e.drawScore,svg.getAttribute('viewBox'),svg.getAttribute('width'),
+       e.inverted,e.drawScore,!!stage.follower?.scoreEditorDrawingPreview,svg.getAttribute('viewBox'),svg.getAttribute('width'),
        svg.getAttribute('height'),svg.getAttribute('data-score-editor-revision')].join('|');
    }
    // Retire textures only after the old sprites have been removed from the
@@ -208,7 +208,7 @@
      // glows/motion are rendered as separate notehead overlays. Including
      // frameNumber here previously decoded an entire SVG every output frame.
      // If a stage has no revision provider, preserve the conservative fallback.
-     const revision=rasterVariant==='live'&&stage.settings.effects.drawScore
+     const revision=rasterVariant==='live'&&stage.settings.effects.drawScore&&!stage.follower?.scoreEditorDrawingPreview
        ?(stage.follower?.drawRevision??this.frameNumber):0;
      const key=crop||rasterVariant!=='live'
        ?`${this.svgIdentity(svg)}:${rasterVariant}:${logicalKey||'whole'}`:null;
@@ -554,7 +554,7 @@
        this.panel.clear().rect(region.x,region.y,region.width,region.height)
          .fill({color:this.tint(settings.scoreRegion.panelColor),alpha:settings.scoreRegion.panelOpacity});
        this.scoreGroup.addChild(this.panel);
-       const drawEnabled=Boolean(settings.effects.drawScore&&stage.follower?.drawSystems?.length);
+       const drawEnabled=Boolean(settings.effects.drawScore&&!stage.follower?.scoreEditorDrawingPreview&&stage.follower?.drawSystems?.length);
        for(const svg of stage.scoreWindow.querySelectorAll('svg')){
          const r=svg.getBoundingClientRect(),regionRect=stage.scoreWindow.getBoundingClientRect();
          if(r.bottom<=regionRect.top||r.top>=regionRect.bottom||r.right<=regionRect.left||r.left>=regionRect.right)continue;

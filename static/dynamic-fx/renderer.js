@@ -1,5 +1,5 @@
 import {KEYBOARD,keyPosition} from './engine.js?v=staffkeyboard273';
-import {stageCamera,noteFallLane} from './stageCamera.js?v=keyboard24';
+import {stageCamera,noteFallLane,noteRiseLane,NOTE_BAR_Z} from './stageCamera.js?v=keyboard24&fullHeightFall1';
 import {normalizeNoteBarMode,risingNoteRect} from './note-bars.js?v=19';
 import {PortraitLookaheadController} from './lookaheadCamera.js?v=dynamic16h';
 import {colorFromVelocity} from './dynamics.js?v=aurora3';
@@ -61,7 +61,7 @@ function disposeTarget(gl,t){if(!t)return;gl.deleteFramebuffer(t.fbo);gl.deleteT
 }
 function bindTexture(gl,p,name,tex,slot=0){gl.activeTexture(gl.TEXTURE0+slot);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(gl.getUniformLocation(p,name),slot)}
 function addNote(out,x,lo,hi,width,c){
-  const x0=x-width/2,x1=x+width/2,z=.095;
+  const x0=x-width/2,x1=x+width/2,z=NOTE_BAR_Z;
   for(const [px,py,u,v] of [[x0,lo,0,0],[x1,lo,1,0],[x1,hi,1,1],[x0,lo,0,0],[x1,hi,1,1],[x0,hi,0,1]])out.push(px,py,z,...c,u,v);
 }
 function addLine(){const y=HIT_Y,z=.44;const width=KEYBOARD.totalWidth/2+.12;const out=[];
@@ -226,8 +226,9 @@ export class DynamicFXRenderer{
   if(this.settings.showNotes&&noteMode!=='off'){
    const fallSeconds=Math.max(.1,Number(this.settings.noteFallSeconds)||2.8);
    const {speed,roof}=noteFallLane(camera,fallSeconds,portrait,HIT_Y);
-   const riseSpeed=speed*Math.max(.35,Math.min(2,Number(this.settings.noteRiseSpeed)||1));
-   const riseTravel=(roof-HIT_Y)/riseSpeed;
+   const riseLane=noteRiseLane(camera,fallSeconds,portrait,HIT_Y);
+   const riseSpeed=riseLane.speed*Math.max(.35,Math.min(2,Number(this.settings.noteRiseSpeed)||1));
+   const riseTravel=(riseLane.roof-HIT_Y)/riseSpeed;
    const drawFall=noteMode==='fall'||noteMode==='both';
    const drawRise=noteMode==='rise'||noteMode==='both';
    const tm=engine.time;
@@ -243,7 +244,7 @@ export class DynamicFXRenderer{
      if(hi>lo+.018)addNote(noteBarData,k.x,lo,hi,k.width*(k.black?.83:.82),color);
     }
     if(riseVisible){
-     const shape=risingNoteRect(n,tm,{hitY:HIT_Y,roof,speed:riseSpeed});
+     const shape=risingNoteRect(n,tm,{hitY:HIT_Y,roof:riseLane.roof,speed:riseSpeed});
      if(shape){
        // A narrower core helps visually distinguish simultaneously falling
        // and rising bars without painting a bright rectangular glow.

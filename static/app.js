@@ -224,6 +224,8 @@
  const exportT=(key,values={})=>window.ScoreI18n?.availableLocales.includes(window.ScoreI18n.locale)
    ?window.ScoreI18n.t(key,values):null;
  function updateExportUi(){
+   // SCOREMOTION_EXPORT_AUTO_CHECK_V1
+   const localExport=Boolean(window.ScoreLocalProjects?.enabled);
    const resolution=$('resolution').value,[width,height]=resolution.split('x').map(Number),fps=Number($('fps').value);
    const highZoom=Number($('zoom').value)>=1.5,drawScore=$('drawScore').checked;
    const verified=resolution==='1280x720'&&(fps===30||fps===60)&&!highZoom&&!drawScore;
@@ -231,7 +233,8 @@
    const reason=!offlineSupport?'브라우저 인코더·모듈 확인 중':!offlineSupport.supported?offlineSupport.reason:
      project&&!project.audio_filename?'원본 오디오가 없는 프로젝트는 기존 FFmpeg 경로를 사용합니다.':'';
    const hardUnavailable=Boolean(offlineSupport&&!offlineSupport.supported||project&&!project.audio_filename);
-   document.querySelector('input[name="exportMode"][value="offline"]').disabled=hardUnavailable;
+   document.querySelector('input[name="exportMode"][value="offline"]').disabled=hardUnavailable&&!localExport;
+   $('retryOfflineSupport').hidden=localExport;
    if(window.ScoreLocalProjects?.enabled){
      const legacy=document.querySelector('input[name="exportMode"][value="legacy"]');
      legacy.disabled=true;legacy.closest('label').hidden=true;
@@ -243,7 +246,7 @@
    const offline=selectedExportMode()==='offline',seconds=Number(project?.audio_duration_sec)||0;
    $('mp4OnlyOptions').hidden=offline;$('webmLengthOptions').hidden=true;
    const zoom=highZoom?(exportT('export.highZoomNote')||' · 150% 이상 악보 확대'):'';
-   const exportWarning=exportT('export.experimentalWarning',{width,height,fps,zoom})
+   const exportWarning=exportT(localExport?'export.localExperimentalWarning':'export.experimentalWarning',{width,height,fps,zoom})
      ||`${width}×${height} · ${fps}fps${zoom} 전체 곡은 미검증입니다. 실패하거나 메모리가 부족하면 호환 렌더링을 선택하세요.`;
    const supportLabel=offlineSupport===null
      ?(exportT('export.supportChecking')||'확인 중')
@@ -254,6 +257,9 @@
    $('offlineSupportText').textContent=reason?`${supportLabel}: ${supportReason}`:
      experimental?exportWarning:
      (exportT('export.verifiedReady')||'WebCodecs H.264/AAC · OPFS 사용 가능 · 720p 전체 곡 검증 완료');
+   if(localExport&&offlineSupport?.supported===false){
+     $('offlineSupportText').textContent+=' · '+(exportT('export.autoProbeRetry')||'MP4 시작을 눌러 다시 확인하세요.');
+   }
    const startText=exportT(offline?'export.fastStart':'export.compatibleStart')
      ||`${offline?'고속 오프라인':'호환 렌더링'} MP4 시작`;
    // Keep the decorative arrow separate from translated button text.
@@ -263,7 +269,7 @@
      ||(offline?'고속 오프라인 (WebCodecs)':'호환 렌더링 (FFmpeg)');
    $('selectedEngineSummary').textContent=exportT('export.plannedSummary',{aspect:ratioLabel,width,height,fps,engine})
      ||`출력 예정: ${ratioLabel} · ${width}×${height} · ${fps}fps · ${engine}`;
-   $('exportButton').disabled=!project||renderUiActive||(offline&&(!offlineSupport||hardUnavailable));
+   $('exportButton').disabled=!project||renderUiActive||(!localExport&&offline&&(!offlineSupport||hardUnavailable));
    if(offline){
      $('exportEstimate').textContent=exportT('export.fastEstimate',{duration:fmt(seconds)})
        ||`${fmt(seconds)} 분량을 실제 재생 없이 프레임별로 생성합니다. 출력 시간은 컴퓨터 성능에 따라 달라집니다.`;
@@ -1501,6 +1507,7 @@
        if(liveSampler){
          if(!liveSampler.paused){liveSampler.pause();return;}
          const current=liveSampler;
+         window.ScoreEditor?.finishEditing?.();
          try{await current.play();}
          catch(error){
            if(liveSampler!==current)return;
@@ -1516,7 +1523,7 @@
          }
          return;
        }
-       if(audio.paused){try{await ensureLocalAudioReady(project.id);await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
+       if(audio.paused){window.ScoreEditor?.finishEditing?.();try{await ensureLocalAudioReady(project.id);await audio.play();}catch(e){message('오디오 재생 실패: '+e.message,true);}}
        else audio.pause();
      }
  const playerDock=$('playerDock');
@@ -1602,24 +1609,35 @@
    }
  }catch(e){}}
  async function startOfflineRender(){
-   if(!project||renderUiActive||offlineSupport?.supported!==true)return;
+   const localExport=Boolean(window.ScoreLocalProjects?.enabled);
+   if(!project||renderUiActive||(!localExport&&offlineSupport?.supported!==true))return;
+   let preflightPassed=false;
    const projectId=project.id,token=++offlineEpoch,fps=Number($('fps').value),started=performance.now();
    offlineActive=true;offlineCancelPending=false;offlineReturnTime=Number(previewTime())||0;pausePreview();
    if(offlineDownloadUrl){URL.revokeObjectURL(offlineDownloadUrl);offlineDownloadUrl=null;}
    $('downloadLink').hidden=true;$('cancelRenderButton').hidden=false;$('cancelRenderButton').disabled=false;
    setRenderUi(true,{state:'queued',message:'WebCodecs MP4 준비 중',progress:0});
    $('progressWrap').hidden=false;$('progressBar').style.width='0%';$('percent').textContent='0%';
+   $('exportButton').disabled=true;
+   $('statusText').textContent=exportT('export.checkingReason')||'브라우저 인코더·모듈 지원 확인 중';
    try{
+     await applySerial;
+     if(offlineCancelPending)throw Error('Cancelled');
+     if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
+     // Always verify the current output settings on explicit export, even after a failed background check.
+     const supported=await refreshOfflineSupport({reusePending:true});
+     if(offlineCancelPending)throw Error('Cancelled');
+     if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
+     if(!supported.supported)throw Error(supported.reason);
+     preflightPassed=true;
+     $('statusText').textContent='WebCodecs MP4 준비 중';
      // Generated MIDI previews use real-time sampling. During MP4 export,
      // synthesize bounded PCM chunks concurrently with video: no giant WAV.
      if(!(window.ScoreLocalProjects?.enabled&&project?.generated_audio&&window.__scoreMotionParallelAudioEnabled!==false))
        await ensureLocalAudioReady(projectId);
      await applySerial;
      if(project?.id!==projectId)throw Error('프로젝트가 변경되었습니다.');
-     const [width,height]=$('resolution').value.split('x').map(Number);
-     const supported=await window.ScoreOfflineExport.probe(width,height,fps,$('videoBitrate').value);
      if(offlineCancelPending)throw Error('Cancelled');
-     if(!supported.supported)throw Error(supported.reason);
      await prepareExportStage();
      if(offlineCancelPending)throw Error('Cancelled');
      const phaseNames={preparing:'인코딩 준비 중',rendering:'영상 프레임 생성 중',
@@ -1651,6 +1669,7 @@
      void fetch(`/api/projects/${projectId}/render-diagnostics`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(diagnostics)}).catch(()=>{});
    }catch(error){
      if(token!==offlineEpoch)return;
+     if(!preflightPassed){$('statusText').textContent=error.message==='Cancelled'?'렌더링 취소':String(error.message);}
      if(error.message==='Cancelled')message('렌더링을 취소했습니다. 편집을 계속할 수 있습니다.');
      else{
        message(`고속 MP4 출력 실패: ${error.message}${window.ScoreLocalProjects?.enabled?' · 브라우저 인코더·메모리 상태를 확인하세요.':' · 호환 렌더링을 선택해 다시 시도할 수 있습니다.'}`,true);
@@ -1673,7 +1692,7 @@
      if(token===offlineEpoch){offlineActive=false;offlineCancelPending=false;$('cancelRenderButton').hidden=true;
        $('cancelRenderButton').disabled=false;$('cancelRenderButton').textContent='렌더링 취소';
        setRenderUi(false);updateExportUi();seekTo(offlineReturnTime);
-       window.ScoreVisualEditor?.selectTab(project?.has_score===false?'scene':'score');}
+       window.ScoreVisualEditor?.selectTab(localExport&&!preflightPassed?'export':project?.has_score===false?'scene':'score');}
    }
  }
  $('exportButton').addEventListener('click',async()=>{
@@ -1788,12 +1807,21 @@
  });
  const savedExportMode=localStorage.getItem(exportModeKey);
  document.querySelector(`input[name="exportMode"][value="${savedExportMode==='legacy'?'legacy':'offline'}"]`).checked=true;
- let offlineProbeEpoch=0;
- async function refreshOfflineSupport(){
-   const epoch=++offlineProbeEpoch,[width,height]=$('resolution').value.split('x').map(Number),fps=Number($('fps').value);
+ let offlineProbeEpoch=0,offlineProbePending=null;
+ function refreshOfflineSupport({reusePending=false}={}){
+   const [width,height]=$('resolution').value.split('x').map(Number),fps=Number($('fps').value),bitrate=$('videoBitrate').value;
+   const key=JSON.stringify([width,height,fps,bitrate]);
+   if(reusePending&&offlineProbePending?.key===key)return offlineProbePending.promise;
+   const epoch=++offlineProbeEpoch;
    offlineSupport=null;updateExportUi();
-   const result=await window.ScoreOfflineExport.probe(width,height,fps,$('videoBitrate').value);
-   if(epoch===offlineProbeEpoch){offlineSupport=result;updateExportUi();}
+   const promise=Promise.resolve().then(()=>window.ScoreOfflineExport.probe(width,height,fps,bitrate))
+     .catch(error=>({supported:false,reason:String(error?.message||error)}))
+     .then(result=>{
+       if(epoch===offlineProbeEpoch){offlineSupport=result;updateExportUi();}
+       return result;
+     }).finally(()=>{if(offlineProbePending?.epoch===epoch)offlineProbePending=null;});
+   offlineProbePending={key,epoch,promise};
+   return promise;
  }
  $('retryOfflineSupport').addEventListener('click',()=>{if(!renderUiActive)void refreshOfflineSupport();});
  for(const id of ['aspectRatio','outputQuality','customAspectWidth','customAspectHeight'])$(id).addEventListener('change',()=>{

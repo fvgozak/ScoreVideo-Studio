@@ -1,7 +1,7 @@
 /* ScoreMotion clock/data adapter for the Dynamic FX v1.6 visual modules. */
 import {DEFAULTS} from './dynamics.js?v=harmony4';
 import {MidiFXEngine,ParticleField} from './engine.js?v=aurora3';
-import {DynamicFXRenderer} from './renderer.js?v=keyboard24';
+import {DynamicFXRenderer} from './renderer.js?v=keyboard24&fullHeightFall1';
 // Namespace import is intentionally tolerant of an older cached lighting module.
 // v18 initially imported fxBackdropAlpha as a *required* named export, which
 // crashed the whole Dynamic FX renderer when Chromium retained background1.

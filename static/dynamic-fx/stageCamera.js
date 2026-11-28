@@ -54,11 +54,22 @@ export function stageCamera(width,height,keyboardWidth,hitY=-.81,frontY=-2.27,op
     frontScreenY:targetFrontY,verticalOffsetPct};
 }
 
-/** Match a portrait note's travel distance to the *current camera* viewport.
- * The old fixed 5.1-world-unit fall starts halfway down a zoomed Shorts frame.
- * Preserve the original distance for landscape output.
+// fullHeightFall1: share the actual note plane with the renderer.
+export const NOTE_BAR_Z=.095;
+/** Resolve the top edge in world units from the same orthographic VP matrix
+ * that draws the bars. All aspect ratios, camera tilt/zoom and vertical offsets
+ * therefore enter through the visible frame boundary, not a fixed world Y.
  */
 export function noteFallLane(camera,seconds,portrait=false,hitY=-.81){
+  const duration=Math.max(.1,Number(seconds)||2.8);
+  const m=camera.matrix;
+  const topY=(1-m[13]-m[9]*NOTE_BAR_Z)/m[5];
+  const distance=Math.max(.04,topY-hitY);
+  // Keep the artificial end cap outside the visible frame. WebGL clips it.
+  return {speed:distance/duration,roof:hitY+distance+Math.max(.15,distance*.04)};
+}
+/** Preserve the pre-existing rising-note speed and limit (fall-only fix). */
+export function noteRiseLane(camera,seconds,portrait=false,hitY=-.81){
   const duration=Math.max(.1,Number(seconds)||2.8);
   const cosTilt=1/Math.sqrt(1+camera.tilt*camera.tilt);
   const distance=portrait?camera.strikeScreenY*camera.visibleHeight/cosTilt:5.1;
